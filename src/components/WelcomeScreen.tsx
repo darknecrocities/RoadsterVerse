@@ -128,16 +128,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 m.id === 'roadster-hover'
                   ? '01 HOVER'
                   : m.id === 'roadster-wall-climb'
-                    ? '02 HALF-LOOP'
+                    ? '02 LOOP'
                     : m.id === 'roadster-barrel-roll'
                       ? '03 KICKFLIP'
                       : m.id === 'roadster-obstacle-race'
-                        ? '04 OBSTACLE RACE'
+                        ? '04 GAUNTLET'
                         : m.id === 'starship-launch'
-                          ? '05 STAGE RELEASE'
+                          ? '05 STAGE'
                           : m.id === 'starship-belly-flop'
-                            ? '06 CRANE CATCH'
-                            : '07 BOOSTER CATCH';
+                            ? '06 CRANE'
+                            : '07 BOOSTER';
               return (
                 <button
                   key={m.id}

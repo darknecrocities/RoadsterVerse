@@ -71,11 +71,13 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 48px;
-  background: transparent;
+  padding: 18px clamp(18px, 3.2vw, 44px);
+  gap: 20px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.25) 70%, transparent 100%);
   border: none;
   box-shadow: none;
   pointer-events: auto;
+  box-sizing: border-box;
 }
 
 .sx-frameless-navbar.in-app {
@@ -98,7 +100,9 @@ body,
 .sx-nav-left {
   display: flex;
   align-items: center;
-  gap: 36px;
+  gap: clamp(16px, 2vw, 32px);
+  min-width: 0;
+  flex: 1;
 }
 
 .sx-wordmark-btn {
@@ -108,14 +112,16 @@ body,
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .sx-wordmark-text {
   font-family: var(--font-mono);
-  font-size: 1.25rem;
+  font-size: clamp(1.05rem, 1.3vw, 1.25rem);
   font-weight: 900;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.22em;
   color: #ffffff;
+  white-space: nowrap;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -127,12 +133,14 @@ body,
 .sx-nav-links {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: clamp(10px, 1.2vw, 18px);
   overflow-x: auto;
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  max-width: 65vw;
+  min-width: 0;
+  flex: 1;
+  padding: 4px 0;
 }
 
 .sx-nav-links::-webkit-scrollbar {
@@ -143,22 +151,27 @@ body,
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 6px 0;
+  padding: 6px 2px;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: clamp(0.64rem, 0.72vw, 0.7rem);
   font-weight: 700;
-  letter-spacing: 0.16em;
-  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.68);
   text-transform: uppercase;
   cursor: pointer;
   flex-shrink: 0;
+  white-space: nowrap;
   transition: color 0.18s ease, border-color 0.18s ease;
 }
 
-.sx-nav-link:hover,
+.sx-nav-link:hover {
+  color: #ffffff;
+}
+
 .sx-nav-link.active {
   color: #ffffff;
   border-bottom-color: #ffffff;
+  font-weight: 800;
 }
 
 /* In-App Decluttered Mission Switcher Pill */
@@ -272,37 +285,71 @@ body,
 .sx-nav-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .sx-dropdown-wrap {
   position: relative;
+  flex-shrink: 0;
 }
 
 .sx-upcoming-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
-  background: rgba(0, 0, 0, 0.45);
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 14px;
+  height: 34px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: #ffffff;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  border-radius: 2px;
+  transition: all 0.2s ease;
 }
 
-.sx-upcoming-btn:hover,
-.sx-upcoming-btn.active,
-.sx-upcoming-btn.sx-sound-toggle-btn.active {
-  background: #ffffff;
-  color: #000000;
+.sx-upcoming-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.65);
+  color: #ffffff;
+}
+
+.sx-upcoming-btn.active {
+  background: rgba(255, 255, 255, 0.18);
   border-color: #ffffff;
+  color: #ffffff;
+}
+
+.sx-sound-toggle-btn {
+  min-width: 106px;
+  justify-content: center;
+}
+
+.sx-sound-toggle-btn.active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.12);
+}
+
+.sx-sound-toggle-btn:not(.active) {
+  opacity: 0.72;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.sx-sound-toggle-btn:not(.active):hover {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.55);
 }
 
 .sx-action-btn {
@@ -310,6 +357,10 @@ body,
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
+  height: 32px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #ffffff;
@@ -319,6 +370,7 @@ body,
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
+  border-radius: 2px;
   transition: all 0.18s ease;
 }
 
@@ -716,8 +768,8 @@ body,
   display: none;
 }
 
-/* Responsiveness on Tablets and Smaller Screens (<= 900px) */
-@media (max-width: 900px) {
+/* Responsiveness on Tablets and Narrow Viewports (<= 1060px) */
+@media (max-width: 1060px) {
   .sx-frameless-navbar {
     padding: 16px 20px;
   }
@@ -784,9 +836,15 @@ body,
     letter-spacing: 0.16em;
   }
   .sx-upcoming-btn {
-    padding: 6px 10px;
+    padding: 5px 10px;
+    height: 30px;
     font-size: 0.58rem;
     letter-spacing: 0.08em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .sx-sound-toggle-btn {
+    min-width: 86px;
   }
   .sx-dropdown-menu {
     position: fixed;

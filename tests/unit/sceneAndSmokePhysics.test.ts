@@ -104,8 +104,9 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
       expect(tireBottomY).toBeCloseTo(-0.39, 3);
     }
 
-    // Verify that on the road or ramp (isAirborne = false), ZERO nozzle emitters and ZERO thrusters fire
-    expect(roadsterRig.getActiveNozzleEmitters(fullThrusters, false)).toHaveLength(0);
+    // Verify that on the road (isAirborne = false), underbody lift is zero, while rear boost emits when active
+    expect(roadsterRig.getActiveNozzleEmitters({ ...fullThrusters, rearBoost: 0 }, false)).toHaveLength(0);
+    expect(roadsterRig.getActiveNozzleEmitters(fullThrusters, false)).toHaveLength(2);
     const rampStartState = createInitialRoadsterState('roadster-barrel-roll', DEFAULT_HYPERPARAMETERS);
     const rampEval = evaluateRLPolicy(rampStartState, 'roadster-barrel-roll', DEFAULT_HYPERPARAMETERS, 0);
     expect(rampEval.thrusters.frontLeftLift).toBe(0);

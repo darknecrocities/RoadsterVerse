@@ -177,7 +177,8 @@ export function evaluateRLPolicy(
 
     const isAirborne = !state.isGrounded && !state.crashed;
 
-    // Cold-gas lift & rear boost thrusters fire STRICTLY when airborne in mid-air!
+    // Cold-gas lift thrusters fire when airborne; rear rocket boost propels the car both on ground and in air!
+    const isFinished = state.position.x >= 995.0;
     if (isAirborne) {
       const isBoostingOverWall = state.position.x <= 892.0 && state.position.y < 3.2;
       const isLandingCushion =
@@ -202,10 +203,14 @@ export function evaluateRLPolicy(
       thrusters.rearLeftLift = clamp(baseJumpLift + rollTrim - pitchTrim, 0, 1);
       thrusters.rearRightLift = clamp(baseJumpLift - rollTrim - pitchTrim, 0, 1);
       thrusters.rearBoost = isBoostingOverWall
-        ? clamp(0.92 * competence * fuelCap, 0, 1)
+        ? clamp(0.95 * competence * fuelCap, 0.6, 1)
         : isLandingCushion
           ? clamp(0.28 * competence * fuelCap, 0, 0.5)
-          : clamp(0.65 * competence * fuelCap, 0, 0.85);
+          : clamp(0.85 * competence * fuelCap, 0.4, 0.95);
+    } else {
+      thrusters.rearBoost = isFinished
+        ? 0
+        : clamp((0.75 + 0.25 * competence) * fuelCap, 0.35, 1.0);
     }
 
     thrusters.lateralRight = clamp(steerCmd, 0, 1);

@@ -77,7 +77,7 @@ export class ProceduralSoundEngine {
 
     this.ctx = new AudioCtx();
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.value = 0.9;
+    this.masterGain.gain.value = 0.65;
     this.masterGain.connect(this.ctx.destination);
 
     // Shared 2-second white-noise loop buffer for jet turbulence & tire roll
@@ -88,15 +88,15 @@ export class ProceduralSoundEngine {
       data[i] = Math.random() * 2 - 1;
     }
 
-    // 1. Cold-Gas Compressed Air Nozzle Expulsion (Bandpass 1400Hz)
+    // 1. Cold-Gas Compressed Air Nozzle Expulsion (Soft Lowpass 520Hz Pneumatic Rush)
     const coldGasSource = this.ctx.createBufferSource();
     coldGasSource.buffer = noiseBuffer;
     coldGasSource.loop = true;
 
     this.coldGasFilter = this.ctx.createBiquadFilter();
-    this.coldGasFilter.type = 'bandpass';
-    this.coldGasFilter.frequency.value = 1600;
-    this.coldGasFilter.Q.value = 2.2;
+    this.coldGasFilter.type = 'lowpass';
+    this.coldGasFilter.frequency.value = 520;
+    this.coldGasFilter.Q.value = 0.7;
 
     this.coldGasGain = this.ctx.createGain();
     this.coldGasGain.gain.value = 0;
@@ -106,18 +106,19 @@ export class ProceduralSoundEngine {
     this.coldGasGain.connect(this.masterGain);
     coldGasSource.start();
 
-    // 2. Roadster Electric Stator / Inverter Whine
+    // 2. Roadster Electric Stator / Inverter Sound (Deep, Velvety, Warm Purr)
     this.motorOsc = this.ctx.createOscillator();
-    this.motorOsc.type = 'triangle';
-    this.motorOsc.frequency.value = 240;
+    this.motorOsc.type = 'sine';
+    this.motorOsc.frequency.value = 75;
 
     this.motorHarmonicOsc = this.ctx.createOscillator();
     this.motorHarmonicOsc.type = 'sine';
-    this.motorHarmonicOsc.frequency.value = 600;
+    this.motorHarmonicOsc.frequency.value = 112;
 
     const motorFilter = this.ctx.createBiquadFilter();
     motorFilter.type = 'lowpass';
-    motorFilter.frequency.value = 2800;
+    motorFilter.frequency.value = 380;
+    motorFilter.Q.value = 0.6;
 
     this.motorGain = this.ctx.createGain();
     this.motorGain.gain.value = 0;
@@ -216,16 +217,16 @@ export class ProceduralSoundEngine {
       const clampedGas = Math.min(1.0, Math.max(0, totalColdGas));
 
       if (this.coldGasFilter && this.coldGasGain) {
-        this.coldGasFilter.frequency.setTargetAtTime(1200 + clampedGas * 1800, now, 0.04);
-        this.coldGasGain.gain.setTargetAtTime(clampedGas * 0.22, now, 0.03);
+        this.coldGasFilter.frequency.setTargetAtTime(450 + clampedGas * 400, now, 0.04);
+        this.coldGasGain.gain.setTargetAtTime(clampedGas * 0.10, now, 0.03);
       }
 
-      // Roadster Electric AWD Inverter Whine
+      // Roadster Electric AWD Stator Purr (Non-fatiguing, smooth, comfortable low hum)
       if (this.motorOsc && this.motorHarmonicOsc && this.motorGain) {
-        const motorFreq = 220 + Math.min(2200, speedMps * 34);
+        const motorFreq = 65 + Math.min(180, speedMps * 2.2);
         this.motorOsc.frequency.setTargetAtTime(motorFreq, now, 0.05);
-        this.motorHarmonicOsc.frequency.setTargetAtTime(motorFreq * 2.4, now, 0.05);
-        const targetWhine = Math.min(0.12, (speedMps / 60) * 0.12);
+        this.motorHarmonicOsc.frequency.setTargetAtTime(motorFreq * 1.5, now, 0.05);
+        const targetWhine = Math.min(0.042, (speedMps / 70) * 0.042);
         this.motorGain.gain.setTargetAtTime(targetWhine, now, 0.06);
       }
 

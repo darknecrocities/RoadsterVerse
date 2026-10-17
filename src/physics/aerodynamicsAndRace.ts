@@ -295,8 +295,9 @@ export function stepRoadsterObstacleRacePhysics(
       ? -state.velocity.x * 6800
       : vxErr * 8500 * maxTireGripFactor;
 
+    const rearBoostForceX = finishedCourse ? 0 : rearBoostN * 0.75;
     const ax =
-      (wheelDriveForceX + aero.dragForce.x + windImpulseX * 0.15) /
+      (wheelDriveForceX + rearBoostForceX + aero.dragForce.x + windImpulseX * 0.15) /
       ROADSTER_MASS_KG_RACE;
     next.velocity.x = Math.max(0, Math.min(88.0, state.velocity.x + ax * dt));
     next.position.x = Math.min(1005.0, state.position.x + next.velocity.x * dt);
