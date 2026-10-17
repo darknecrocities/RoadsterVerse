@@ -64,10 +64,26 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
     physicsFormulaLatex:
       'RULE: Push one side to spin 360°, then push the other side to stop level!',
   },
+  'roadster-obstacle-race': {
+    id: 'roadster-obstacle-race',
+    vehicle: 'roadster',
+    title: 'Stunt 04 // Obstacle Road Race & Thruster Jump',
+    subtitle: 'Dodge concrete roadblocks at high speed and bunny-hop over a full-road laser wall!',
+    badge: 'OBSTACLE GAUNTLET RACE',
+    targetDescription:
+      'Sprint down the proving-ground race track using active wing aerodynamic downforce to dodge left-lane and right-lane concrete barriers, then fire all 4 underbody cold-gas jets in mid-air to bunny-hop over a full-width laser roadblock!',
+    targetPosition: { x: 9.2, y: 0.43, z: 0 },
+    targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
+    recommendedEpochs: 350,
+    mlTechniqueSummary:
+      'Think of playing an obstacle racing game: first the AI learns to look ahead and steer around barriers using wing downforce so the tires do not slide, and when the whole road is blocked, it blasts its air jets to jump right over the wall!',
+    physicsFormulaLatex:
+      'RULE: Wing Downforce grips the road to dodge barriers -> Air Jets jump over the full wall!',
+  },
   'starship-launch': {
     id: 'starship-launch',
     vehicle: 'starship',
-    title: 'Mission 04 // Full-Stack Launch & Stage Landing',
+    title: 'Mission 05 // Full-Stack Launch & Stage Landing',
     subtitle: 'Blast off with both rocket halves, release the Ship to space, and land the Booster slowly!',
     badge: '2-STAGE RELEASE & LANDING',
     targetDescription:
@@ -83,7 +99,7 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'starship-belly-flop': {
     id: 'starship-belly-flop',
     vehicle: 'starship',
-    title: 'Mission 05 // Skydiver Flip & Slow Landing',
+    title: 'Mission 06 // Skydiver Flip & Slow Landing',
     subtitle: 'Fall flat like a skydiver, swing upright with fire engines, and land vertically slowly!',
     badge: 'BELLY-FLOP & FLIP BURN',
     targetDescription:
@@ -99,7 +115,7 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'starship-booster-catch': {
     id: 'starship-booster-catch',
     vehicle: 'starship',
-    title: 'Mission 06 // Booster Boostback & Tower Catch',
+    title: 'Mission 07 // Booster Boostback & Tower Catch',
     subtitle: 'Launch at an angle, release the top Ship, flip the Booster back, and catch it on the Tower!',
     badge: 'MECHAZILLA BOOSTER CATCH',
     targetDescription:

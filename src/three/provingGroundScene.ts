@@ -20,9 +20,14 @@ import { createStarshipModel, type StarshipRig } from './starshipModel.ts';
 import { VolumetricPlumeSmokeSystem } from './plumeAndSmokeFX.ts';
 import {
   createCarbonWeaveTexture,
-  createPaddockDeckTexture,
   createStuntRoadTexture,
 } from './proceduralTextures.ts';
+import {
+  buildArticulatedStarbasePadAndCrane,
+  buildObstacleCourseGroup,
+  type StarbasePadAndCraneRig,
+  updateStarbasePadAndCraneAnimation,
+} from './starbaseAndObstacleProps.ts';
 
 export class ProvingGroundSceneController {
   private readonly scene = new THREE.Scene();
@@ -36,11 +41,9 @@ export class ProvingGroundSceneController {
   private readonly roadsterArenaGroup = new THREE.Group();
   private readonly stuntKickerGroup = new THREE.Group();
   private readonly wallRampGroup = new THREE.Group();
-  private readonly starbasePaddockGroup = new THREE.Group();
+  private readonly obstacleCourseGroup: THREE.Group;
+  private readonly starbaseRig: StarbasePadAndCraneRig;
   private readonly targetMarker: THREE.Mesh;
-  private chopstickLeftMesh!: THREE.Mesh;
-  private chopstickRightMesh!: THREE.Mesh;
-  private craneHoistCable!: THREE.Mesh;
   private cameraMode: CameraMode = 'orbit';
   private orbitAngle = 0.28;
   private smoothedCamPos = new THREE.Vector3(0, 4.8, 15.0);
@@ -62,8 +65,10 @@ export class ProvingGroundSceneController {
     container.replaceChildren(this.renderer.domElement);
 
     this.setupLighting();
+    this.obstacleCourseGroup = buildObstacleCourseGroup();
     this.buildRoadsterStuntRoadAndHalfLoop();
-    this.buildStarshipLaunchPaddockAndCrane();
+    this.starbaseRig = buildArticulatedStarbasePadAndCrane();
+    this.scene.add(this.starbaseRig.group);
 
     const ringGeo = new THREE.TorusGeometry(1.55, 0.04, 16, 48);
     ringGeo.rotateX(Math.PI / 2);
@@ -225,107 +230,8 @@ export class ProvingGroundSceneController {
     this.wallRampGroup.add(topCanopyTruss);
 
     this.roadsterArenaGroup.add(this.wallRampGroup);
+    this.roadsterArenaGroup.add(this.obstacleCourseGroup);
     this.scene.add(this.roadsterArenaGroup);
-  }
-
-  /**
-   * Builds the SpaceX Orbital Launch Paddock, 6-Pillar Launch Mount, Cryo Tank Farm,
-   * Cross-Braced Integration Tower, Top Cantilever Crane Beam, and Articulated Chopstick Arms!
-   */
-  private buildStarshipLaunchPaddockAndCrane(): void {
-    const paddockTex = createPaddockDeckTexture();
-    const paddockPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(160, 160),
-      new THREE.MeshStandardMaterial({
-        map: paddockTex,
-        bumpMap: paddockTex,
-        bumpScale: 0.02,
-        roughness: 0.75,
-      })
-    );
-    paddockPlane.rotation.x = -Math.PI / 2;
-    this.starbasePaddockGroup.add(paddockPlane);
-
-    const steelMat = new THREE.MeshStandardMaterial({
-      color: 0x404040,
-      metalness: 0.78,
-      roughness: 0.28,
-    });
-    const brightSteelMat = new THREE.MeshStandardMaterial({
-      color: 0xd4d4d4,
-      metalness: 0.85,
-      roughness: 0.2,
-    });
-    const whiteLedMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-
-    const olmRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.22, 16, 32), steelMat);
-    olmRing.rotation.x = Math.PI / 2;
-    olmRing.position.set(0, 1.35, 0);
-    this.starbasePaddockGroup.add(olmRing);
-
-    for (let i = 0; i < 6; i++) {
-      const a = (i * Math.PI) / 3;
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.35, 12), brightSteelMat);
-      leg.position.set(Math.cos(a) * 1.1, 0.67, Math.sin(a) * 1.1);
-      this.starbasePaddockGroup.add(leg);
-    }
-
-    for (let t = 0; t < 4; t++) {
-      const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 4.2, 20), brightSteelMat);
-      silo.position.set(-7.5, 2.1, -4.5 + t * 2.4);
-      this.starbasePaddockGroup.add(silo);
-    }
-
-    const towerGroup = new THREE.Group();
-    towerGroup.position.set(-2.35, 0, 0);
-
-    const towerCore = new THREE.Mesh(
-      new THREE.BoxGeometry(1.35, 22.0, 1.35),
-      new THREE.MeshStandardMaterial({
-        color: 0x262626,
-        metalness: 0.75,
-        roughness: 0.3,
-        wireframe: true,
-      })
-    );
-    towerCore.position.y = 11.0;
-    towerGroup.add(towerCore);
-
-    for (const cx of [-0.65, 0.65]) {
-      for (const cz of [-0.65, 0.65]) {
-        const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, 22.0, 0.16), steelMat);
-        col.position.set(cx, 11.0, cz);
-        towerGroup.add(col);
-      }
-    }
-
-    // Top Hammerhead Cantilever Crane Truss + Mid-Tower Quick-Disconnect (QD) Arm (Image 4)
-    const craneMainBeam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.65, 1.45), brightSteelMat);
-    craneMainBeam.position.set(1.4, 22.25, 0);
-    const craneLedStrip = new THREE.Mesh(new THREE.BoxGeometry(4.65, 0.08, 1.5), whiteLedMat);
-    craneLedStrip.position.set(1.4, 22.62, 0);
-    const qdArm = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.24, 0.55), steelMat);
-    qdArm.position.set(1.1, 6.2, -0.65);
-    towerGroup.add(craneMainBeam, craneLedStrip, qdArm);
-
-    const mastApex = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), steelMat);
-    mastApex.position.set(-0.2, 23.4, 0);
-    const tieCable = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.8, 8), whiteLedMat);
-    tieCable.position.set(1.4, 23.3, 0);
-    tieCable.rotation.z = 0.98;
-    this.craneHoistCable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 6.0, 8), brightSteelMat);
-    this.craneHoistCable.position.set(2.35, 19.2, 0);
-    towerGroup.add(mastApex, tieCable, this.craneHoistCable);
-
-    this.chopstickLeftMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
-    this.chopstickLeftMesh.position.set(1.5, 5.6, 0.88);
-    this.chopstickRightMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
-    this.chopstickRightMesh.position.set(1.5, 5.6, -0.88);
-    towerGroup.add(this.chopstickLeftMesh, this.chopstickRightMesh);
-
-    this.starbasePaddockGroup.add(towerGroup);
-    this.starbasePaddockGroup.visible = false;
-    this.scene.add(this.starbasePaddockGroup);
   }
 
   public setCameraMode(mode: CameraMode): void {
@@ -361,10 +267,13 @@ export class ProvingGroundSceneController {
     this.roadsterRig.root.visible = isRoadster;
     this.starshipRig.root.visible = !isRoadster;
     this.roadsterArenaGroup.visible = isRoadster;
+
+    // Strict exclusive stunt prop visibility — ZERO overlapping ramps or obstacles!
     this.stuntKickerGroup.visible = missionId === 'roadster-barrel-roll';
-    this.wallRampGroup.visible = missionId !== 'roadster-barrel-roll';
-    this.wallRampGroup.position.x = missionId === 'roadster-hover' ? 5.2 : 0;
-    this.starbasePaddockGroup.visible = !isRoadster;
+    this.wallRampGroup.visible = missionId === 'roadster-wall-climb';
+    this.wallRampGroup.position.x = 0;
+    this.obstacleCourseGroup.visible = missionId === 'roadster-obstacle-race';
+    this.starbaseRig.group.visible = !isRoadster;
 
     if (Math.abs(this.camera.fov - 48) > 0.2) {
       this.camera.fov += (48 - this.camera.fov) * Math.min(1, dt * 6);
@@ -417,19 +326,12 @@ export class ProvingGroundSceneController {
         stageSepTime
       );
 
-      const isSeparated = primaryThrusters.hotStageSeparated;
-      const armSpread = isTwoStageMission
-        ? !isSeparated
-          ? primaryState.position.y > 2.2
-            ? 0.42
-            : 0.08
-          : missionId === 'starship-booster-catch'
-            ? Math.max(0.0, Math.min(0.38, (primaryState.position.y - 2.4) * 0.055))
-            : 0.35
-        : Math.max(0, Math.min(0.38, (primaryState.position.y - 3.0) * 0.055));
-      this.chopstickLeftMesh.rotation.y = armSpread;
-      this.chopstickRightMesh.rotation.y = -armSpread;
-      this.craneHoistCable.visible = !isSeparated && primaryState.position.y < 3.5;
+      updateStarbasePadAndCraneAnimation(
+        this.starbaseRig,
+        missionId,
+        primaryState,
+        primaryThrusters
+      );
     }
 
     for (let i = 0; i < this.ghostRoadsters.length; i++) {
@@ -437,9 +339,16 @@ export class ProvingGroundSceneController {
       this.ghostRoadsters[i].root.visible = Boolean(isRoadster && gState);
       this.ghostStarships[i].root.visible = Boolean(!isRoadster && gState);
       if (gState) {
-        const laneZ = (i % 2 === 0 ? 1 : -1) * (1.85 + Math.floor(i / 2) * 1.45);
+        const laneZ =
+          missionId === 'roadster-obstacle-race'
+            ? (i % 2 === 0 ? 1 : -1) * (0.28 + Math.floor(i / 2) * 0.22)
+            : (i % 2 === 0 ? 1 : -1) * (1.85 + Math.floor(i / 2) * 1.45);
         const targetRig = isRoadster ? this.ghostRoadsters[i].root : this.ghostStarships[i].root;
-        targetRig.position.set(gState.position.x, gState.position.y, gState.position.z + laneZ);
+        targetRig.position.set(
+          gState.position.x,
+          gState.position.y,
+          Math.max(-2.1, Math.min(2.1, gState.position.z + laneZ))
+        );
         targetRig.rotation.set(gState.attitude.roll, gState.attitude.yaw, gState.attitude.pitch);
         if (!isRoadster) {
           this.ghostStarships[i].updateStarship(
@@ -461,8 +370,9 @@ export class ProvingGroundSceneController {
 
     const px = primaryState.position.x;
     const py = primaryState.position.y;
+    const pz = isRoadster ? primaryState.position.z * 0.45 : 0;
     const desiredCam = new THREE.Vector3();
-    const desiredLook = new THREE.Vector3(px, Math.max(1.4, py + 0.3), 0);
+    const desiredLook = new THREE.Vector3(px, Math.max(1.4, py + 0.3), pz);
 
     if (this.cameraMode === 'orbit') {
       this.orbitAngle += dt * 0.1;
@@ -474,10 +384,10 @@ export class ProvingGroundSceneController {
       );
     } else if (this.cameraMode === 'chase') {
       desiredCam.set(px - 7.5, Math.max(2.2, py + 2.5), 7.0);
-      desiredLook.set(px + 1.5, py + 0.5, 0);
+      desiredLook.set(px + 1.5, py + 0.5, pz);
     } else if (this.cameraMode === 'thruster-cam') {
       desiredCam.set(px - 1.2, Math.max(0.6, py - 1.2), 6.2);
-      desiredLook.set(px, py + 0.2, 0);
+      desiredLook.set(px, py + 0.2, pz);
     } else {
       desiredCam.set(2.0, 7.5, 21.0);
       desiredLook.set(1.5, Math.max(4.5, py * 0.8), 0);

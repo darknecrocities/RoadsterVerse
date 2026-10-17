@@ -2,7 +2,7 @@
 
 RoadsterVerse is a full-stack, interactive 3D reinforcement learning proving ground and rigid-body physics simulator for the 2026 Tesla Roadster (SpaceX Cold-Gas Thruster Package) and the 2-Stage Full-Stack SpaceX Starship & Super Heavy Booster.
 
-Built with React 19, TypeScript, Three.js, Express, and SQLite, the application lets users train, inspect, pause, and test deep reinforcement learning control policies in real time across six aerospace and stunt maneuvers. Every visual component adheres strictly to a pure monochrome grayscale palette (`#000000` to `#ffffff`) inspired by SpaceX mission control and telemetry interfaces.
+Built with React 19, TypeScript, Three.js, Express, and SQLite, the application lets users train, inspect, pause, and test deep reinforcement learning control policies in real time across seven aerospace and stunt maneuvers. Every visual component adheres strictly to a pure monochrome grayscale palette (`#000000` to `#ffffff`) inspired by SpaceX mission control and telemetry interfaces.
 
 ---
 
@@ -23,24 +23,26 @@ Built with React 19, TypeScript, Three.js, Express, and SQLite, the application 
 
 ## 1. System Overview
 
-RoadsterVerse bridges interactive 3D rigid-body physics and reinforcement learning (Proximal Policy Optimization curriculum simulation). Instead of writing code to tune a controller, users adjust training hyperparameters directly in the interface:
+RoadsterVerse bridges interactive 3D rigid-body physics, fluid-body aerodynamics, and reinforcement learning (Proximal Policy Optimization curriculum simulation). Instead of writing code to tune a controller, users adjust all 12 training and physics hyperparameters directly in the interface, and every adjustment mathematically and visually alters the live 3D simulation:
 
-- **Practice Epochs (`1` to `500`)**: Controls how many training iterations the policy network has completed. Low epoch counts (`Epoch 10` to `Epoch 25`) exhibit high exploration noise, uncoordinated thruster firing, and stunt crashes. High epoch counts (`Epoch 300+`) exhibit converged, phase-locked thruster coordination and smooth landings.
-- **Exploration Noise (`sigma`)**: Controls policy action variance during rollout.
-- **Learning Rate (`alpha`)**: Controls how rapidly policy competence scales with training epochs.
-- **Gravity (`g`)**: Adjusts environmental gravity from Lunar (`1.62 m/s^2`) and Martian (`3.72 m/s^2`) to Earth (`9.81 m/s^2`) and high-G proving ground conditions (`18.0 m/s^2`).
-- **Thruster Power Multiplier (`0.5x` to `2.0x`)**: Scales cold-gas nozzle force and Raptor engine thrust relative to vehicle weight.
+- **Practice Epochs (`5` to `500`)**: Controls how many training iterations the policy network has completed. Low epoch counts (`Epoch 8` to `Epoch 25`) exhibit high exploration noise, uncoordinated thruster firing, and stunt or obstacle crashes. High epoch counts (`Epoch 300+`) exhibit converged, phase-locked thruster coordination, high-speed obstacle weaving, and smooth landings.
+- **Learning Rate (`alpha`, `0.0001` to `0.01`)**: Calibrates the PPO gradient step rate. Too low (`0.0001`) slows convergence at mid-epochs; optimal (`0.0006` to `0.0015`) reaches peak competence rapidly; too high (`> 0.004`) introduces policy overshoot oscillations across thruster valves and steering.
+- **Exploration Noise (`sigma`, `0.0` to `1.0`)**: Controls Gaussian action perturbation injected into the 6 policy output channels during rollout.
+- **Future Planning / Discount Factor (`gamma`, `0.80` to `0.999`)**: Controls the look-ahead horizon (`1.6 m` at `0.80` up to `7.0 m` at `0.999`) for anticipating upcoming track obstacles, loop entry timing, and retro-landing burn initiation.
+- **Reward Weights (`rewardAltitudeWeight`, `rewardAttitudeWeight`, `rewardFuelWeight`, `rewardSmoothnessWeight`)**: Directly scale vertical height authority, roll/pitch/steering stiffness, COPV nitrogen and LOX/CH4 propellant conservation, and angular velocity damping.
+- **Gravity Multiplier (`0.16g` Moon, `0.38g` Mars, `1.00g` Earth, `1.80g` Heavy World)** and **COPV Tank Pressure (`3,000` to `10,000 PSI`)**: Directly scale gravitational acceleration and cold-gas nozzle blowdown thrust.
+- **Ghost Swarm Count (`0` to `8`)** and **Simulation Speed (`1x`, `2x`, `5x`)**: Control the number of parallel exploratory ghost vehicles and physics integration sub-steps per frame.
 
 ---
 
 ## 2. Core Capabilities
 
 ### 2.1 SpaceX-Style Frameless Monochrome Interface
-- **Full-Bleed Frameless Landing Page (`src/components/WelcomeScreen.tsx`)**: Replicates the SpaceX Flight Mission layout with a transparent frameless navigation bar, real-time 60fps canvas backdrop, bottom-left mission headline and primary action trigger, and a bottom-right picture-in-picture stunt selector.
+- **Full-Bleed Frameless Landing Page (`src/components/WelcomeScreen.tsx`)**: Replicates the SpaceX Flight Mission layout with a transparent frameless navigation bar, real-time 60fps canvas backdrop, bottom-left mission headline and primary action trigger, and a bottom-right picture-in-picture stunt selector across all 7 missions.
 - **Strict Monochrome Enforcement**: All stylesheets and UI components are verified via automated unit tests (`tests/unit/physics.test.ts`) to contain only pure grayscale hex values (`R === G === B`).
 - **Collapsible Glassmorphic Drawers**: Both the left Training Configuration drawer and right AI Brain Telemetry drawer can be minimized into floating pills or hidden completely for unobstructed full-screen 3D viewing.
 
-### 2.2 Surface-Accurate 3D Vehicle Rigs and Volumetric Particle Physics
+### 2.2 Surface-Accurate 3D Vehicle Rigs, Non-Overlapping Props, and Movable Starbase Launch Crane
 - **2026 Tesla Roadster SpaceX Package (`src/three/roadsterModel.ts`)**:
   - Features a full fastback glass roof canopy, cab-forward silhouette, full-width front LED lightblade, rear diffuser, deployable active rear aero wing, carbon-ceramic brake calipers, and selectable 6-spoke star wheels or carbon aero-disc covers.
   - Configured with `CAR_RIDE_HEIGHT = 0.39 m` and an internal `-0.39 m` center-of-mass offset so the front (`0.38 m` radius) and rear (`0.41 m` radius) tires sit physically flush on the Stunt Road and curved ramps with zero floating gap while rotating around the vehicle's true center of mass during mid-air 360-degree kickflips.
@@ -50,34 +52,39 @@ RoadsterVerse bridges interactive 3D rigid-body physics and reinforcement learni
   - Modeled as two independent stage groups (`boosterGroup` and `shipGroup`) that separate dynamically during flight.
   - Uses disjoint 180-degree half-cylinders (`[0, pi]` for the windward black TPS heat-shield tiles and `[pi, 2*pi]` for the leeward mirror-brushed stainless steel hull) to prevent WebGL depth-buffer z-fighting.
   - All Super Heavy Booster meshes reside at non-negative local `y` coordinates (`0.0 m` to `+4.75 m`) above the Orbital Launch Mount (`y = 1.35 m`), preventing underground clipping at liftoff or landing.
+- **Non-Overlapping Stunt Props and Articulated Starbase Launch Complex (`src/three/starbaseAndObstacleProps.ts`)**:
+  - Roadster stunt props are isolated into mutually exclusive groups (`stuntKickerGroup`, `wallRampGroup`, `obstacleCourseGroup`) so inactive ramps never overlap on the track.
+  - The Starbase Orbital Launch Mount (`y = 1.35 m`, inner clearance `> 0.72 m`) and Mechazilla Integration Tower (`x = -2.85 m`) are positioned completely clear of the `0.68 m`-radius Starship hull at `x = 0.0 m`.
+  - During launch-off, the top **Slewing Hammerhead Launch Crane Boom** (`craneBoomPivot`) winches its **Hoist Cable** (`craneHoistCable`) upward and slews `32 deg` clear of the launch corridor, the **Quick-Disconnect (QD) Cryo Umbilical Arm** (`qdArmPivot`) swings back against the tower truss, and the **Chopstick Catch Arms** open wide for launch clearance before closing to catch the returning Booster.
 - **Volumetric Smoke, Raptor Plume, and 3D Crash Explosion Solver (`src/three/plumeAndSmokeFX.ts`)**:
   - Uses camera-facing multi-lobe FBM vapor cloud sprites (`createVolumetricSmokeCloudTexture`) to render realistic billowing white nitrogen smoke in mid-air and thermal combustion plumes from Starship Raptor engines.
-  - **3D Crash Explosion and Debris System**: Whenever the vehicle crashes or lands upside-down or sideways, the simulator detonates an expanding ground shockwave ring, a high-intensity flash light, 72+ high-velocity fireball-to-soot explosion clouds, and 16 physical flying debris shards (including 4 detached spinning wheels that bounce across the asphalt under real gravity).
+  - **3D Crash Explosion and Debris System**: Whenever the vehicle crashes into a track obstacle or lands upside-down or sideways, the simulator detonates an expanding ground shockwave ring, a high-intensity flash light, 72+ high-velocity fireball-to-soot explosion clouds, and 16 physical flying debris shards (including 4 detached spinning wheels that bounce across the asphalt under real gravity).
 
 ### 2.3 Global Pause, Resume, and Ghost Policy Rollouts
 - **Pause and Resume**: Users can pause and resume the 60Hz physics integrator at any millisecond using the top frameless navbar button, the bottom 3D control dock, or the `Spacebar` shortcut while orbiting the 3D camera freely.
-- **Parallel Ghost Rollouts**: Displays 3 semi-transparent ghost vehicles in dedicated non-overlapping lateral lanes (`z = -5.2 m, +4.8 m, -9.2 m`) to compare noisy exploratory rollouts against the primary policy.
+- **Parallel Ghost Rollouts**: Displays up to 8 semi-transparent ghost vehicles in dedicated non-overlapping lateral lanes to compare noisy exploratory rollouts against the primary policy.
 
 ---
 
 ## 3. Simulated Vehicles and Missions
 
-RoadsterVerse includes 6 physics-based missions defined in `src/rl/missions.ts`:
+RoadsterVerse includes 7 physics-based missions defined in `src/rl/missions.ts`:
 
 | Mission Code | Vehicle | Title | Physics & Control Objective |
 | :--- | :--- | :--- | :--- |
 | `01` (`roadster-hover`) | Tesla Roadster | SpaceX Thruster Hover | Balance 4 underbody cold-gas lift jets to hover at `3.2 m` altitude with zero roll or pitch drift as COPV tank pressure blows down. |
 | `02` (`roadster-barrel-roll`) | Tesla Roadster | Ramp Launch & 360 Kickflip | Accelerate up the Curved Steel Quarter-Pipe Launch Ramp, launch into the air, fire left/right side rocker thrusters to execute a 360-degree mid-air kickflip (`2*pi rad`), and cushion touchdown on the road. |
-| `03` (`roadster-wall-climb`) | Tesla Roadster | Hot-Wheels 180 Half-Loop | Sprint into the 180-degree vertical half-loop (`R = 7.0 m`), pin tires to the overhead track using centripetal force and side thrusters, exit inverted into mid-air with zero artificial levitation, execute an axial half-twist kickflip (`2*pi rad`), and land back near the starting zone. |
-| `04` (`starship-launch`) | SpaceX Starship | Full-Stack Launch & Stage Release | Ignite 33 Super Heavy Raptor engines from the Starbase Orbital Launch Mount, ascend to staging altitude, execute Hot-Stage Separation to release the Starship Upper Stage to orbit, and guide the Super Heavy Booster back for a slow vertical landing burn. |
-| `05` (`starship-belly-flop`) | SpaceX Starship | Belly-Flop Skydiver Flip | Descend horizontally at `86 deg` pitch using 4 body flaps for aerodynamic skydiver trim, then gimbal 3 landing Raptors to whip the hull vertical (`0 deg`) for a soft retro-propulsive touchdown. |
-| `06` (`starship-booster-catch`) | SpaceX Starship | Hot-Stage & Mechazilla Catch | Release the Starship Upper Stage at altitude, flip the Super Heavy Booster via a boostback pitch maneuver, steer downrange with 4 Titanium waffle grid fins, and hover softly into the Starbase Chopstick catch arms. |
+| `03` (`roadster-wall-climb`) | Tesla Roadster | Hot-Wheels 180 Half-Loop | Sprint into the 180-degree vertical half-loop (`R = 7.0 m`), pin tires to the overhead track using centripetal force and active aerodynamic downforce, exit inverted into mid-air with zero artificial levitation, execute an axial half-twist kickflip (`2*pi rad`), and land back near the starting zone. |
+| `04` (`roadster-obstacle-race`) | Tesla Roadster | Obstacle Road Race & Thruster Jump | Sprint down the 21-meter Gauntlet Track, use active rear-wing aerodynamic downforce to S-curve around the Left-Lane Concrete Chicane (`x = -6.2 m`) and Right-Lane Barrier (`x = -0.6 m`), then pop off the launch strip into mid-air and fire cold-gas thrusters to bunny-hop over the Full-Width High-Voltage Laser Wall (`x = +4.4 m`, `height = 1.05 m`) without clipping any obstacle. |
+| `05` (`starship-launch`) | SpaceX Starship | Full-Stack Launch & Stage Release | Ignite 33 Super Heavy Raptor engines from the Starbase Orbital Launch Mount while the top Hammerhead Crane slews clear, ascend to staging altitude, execute Hot-Stage Separation to release the Starship Upper Stage to orbit, and guide the Super Heavy Booster back for a slow vertical landing burn. |
+| `06` (`starship-belly-flop`) | SpaceX Starship | Belly-Flop Skydiver Flip | Descend horizontally at `86 deg` pitch using 4 body flaps for aerodynamic skydiver trim, then gimbal 3 landing Raptors to whip the hull vertical (`0 deg`) for a soft retro-propulsive touchdown. |
+| `07` (`starship-booster-catch`) | SpaceX Starship | Hot-Stage & Mechazilla Catch | Release the Starship Upper Stage at altitude, flip the Super Heavy Booster via a boostback pitch maneuver, steer downrange with 4 Titanium waffle grid fins, and hover softly into the Starbase Chopstick catch arms. |
 
 ---
 
 ## 4. Physics Engine and Mathematical Models
 
-### 4.1 6-DoF Rigid-Body Kinematics (`src/physics/roadsterPhysics.ts`, `src/physics/starshipPhysics.ts`)
+### 4.1 6-DoF Rigid-Body Kinematics & Fluid-Body Aerodynamics (`src/physics/roadsterPhysics.ts`, `src/physics/starshipPhysics.ts`, `src/physics/aerodynamicsAndRace.ts`)
 At each time step `dt` (clamped to `<= 0.05 s` for numerical stability), linear and angular states are updated via semi-implicit Euler integration:
 
 ```
@@ -85,18 +92,23 @@ v(t + dt) = (v(t) + (F_net / m(t)) * dt) * d_linear
 x(t + dt) = x(t) + v(t + dt) * dt
 
 omega(t + dt) = (omega(t) + alpha_net * dt) * d_angular
-theta(t + dt) = theta(t) + omega(t + dt) * dt
+theta(t + dt) = theta(t + dt) + omega(t + dt) * dt
 ```
 
-where `F_net` sums gravity (`-m * g`), cold-gas or Raptor thrust vectors transformed into world coordinates, aerodynamic drag (`-0.5 * rho * C_d * A * |v| * v`), and active rear wing downforce (`C_L * alpha_wing * v_x^2`).
+Explicit fluid-body aerodynamics (`computeRoadsterAerodynamics` and `computeStarshipAerodynamics`) compute:
+- **Dynamic Pressure**: `q = 0.5 * rho(y) * |v|^2`, where atmospheric density `rho(y) = rho_0 * exp(-y / H)` decays with altitude `y`.
+- **Quadratic 3D Drag**: `F_drag = -q * C_D(alpha, wing) * A * (v / |v|)` opposing the 3D velocity vector.
+- **Active Rear-Wing Downforce & Tire Grip**: `F_downforce = q * C_L(wing) * A`, which adds to tire normal load `F_N = m * g + F_downforce` and directly increases maximum lateral cornering grip `F_lat,max = mu_tire * F_N` during high-speed chicane weaving in Stunt `04` and loop adhesion in Stunt `03`.
+- **Aerodynamic Pitching Moment & Flap Authority**: Angle-of-attack `alpha` pitching moments on the Roadster chassis and dynamic-pressure-scaled forward/aft body flap pitch and roll torques on Starship.
 
 ### 4.2 COPV Cold-Gas Blowdown and Raptor Mass Depletion
-- **Roadster COPV Tank**: Initialized at `10,000 PSI`. Firing the 7 cold-gas valves depletes pressure proportionally to total valve duty cycle, reducing available thrust as tank pressure drops below `3,500 PSI`.
-- **Starship Propellant**: Initialized at `100%` propellant fraction. Firing the Raptor engines reduces total vehicle mass `m(t)`, dynamically increasing thrust-to-weight ratio (`TWR`) during the landing burn.
+- **Roadster COPV Tank**: Initialized at `3,000` to `10,000 PSI`. Firing the 7 cold-gas valves depletes pressure proportionally to total valve duty cycle and `rewardFuelWeight`, reducing available thrust as tank pressure blows down.
+- **Starship Propellant**: Initialized at `100%` propellant fraction. Firing the Raptor engines reduces total vehicle mass `m(t)` scaled by `rewardFuelWeight`, dynamically increasing thrust-to-weight ratio (`TWR`) during the landing burn.
 
-### 4.3 Analytical Curved Ramp and Half-Loop Geometry (`src/physics/rampGeometry.ts`)
+### 4.3 Analytical Curved Ramp, Half-Loop, and 3D Obstacle Collision (`src/physics/rampGeometry.ts`, `src/physics/aerodynamicsAndRace.ts`)
 - **Curved Quarter-Pipe Kickflip Ramp**: Parameterized over `x in [-7.5 m, -1.2 m]` using a smooth cubic-square blend `u^2.2` rising to `1.85 m` elevation with analytical surface tangent `dy/dx` and normal vectors so the Roadster's pitch and wheel contact track the ramp curvature without clipping.
-- **Hot-Wheels 180-Degree Half-Loop**: Parameterized by loop angle `theta in [0, pi]` around center `(x = 3.5 m, y = 7.04 m)` with radius `R = 7.0 m`. Tire adhesion requires sufficient centripetal acceleration `v_t^2 / R` plus thruster pinning force to overcome the radial component of gravity `g * cos(theta - pi/2)`.
+- **Hot-Wheels 180-Degree Half-Loop**: Parameterized by loop angle `theta in [0, pi]` around center `(x = 3.5 m, y = 7.04 m)` with radius `R = 7.0 m`. Tire adhesion requires sufficient centripetal acceleration `v_t^2 / R` plus learned active-wing downforce to overcome the radial component of gravity.
+- **3D Obstacle Gauntlet Collision (`checkRoadsterObstacleCollision`)**: Checks 3D bounding-box intersection between the Roadster chassis (`carHalfLenX = 0.65 m`, `carHalfWidthZ = 0.42 m`, `carBottomY = y - 0.39 m`) and all 3 track obstacles. Clipping any barrier or landing with excessive vertical speed or tilt sets `crashed = true` and triggers the 3D explosion solver.
 
 ---
 
@@ -156,17 +168,19 @@ Clicking the **Live Brain Wires** card or any neuron in the right telemetry draw
 │   ├── data/
 │   │   └── knowledgeAndTrivia.ts          # Engineering formulas and trivia questions
 │   ├── physics/
+│   │   ├── aerodynamicsAndRace.ts         # Explicit fluid-body aerodynamics & Stunt 04 obstacle race solver
 │   │   ├── rampGeometry.ts                # Analytical quarter-pipe and 180-deg half-loop geometry
 │   │   ├── roadsterPhysics.ts             # 6-DoF Tesla Roadster cold-gas & ramp physics solver
 │   │   └── starshipPhysics.ts             # 6-DoF 2-stage SpaceX Starship & Booster physics solver
 │   ├── rl/
-│   │   ├── missions.ts                    # 6 mission definitions and default hyperparameters
+│   │   ├── missions.ts                    # 7 mission definitions and default hyperparameters
 │   │   └── policyEngine.ts                # 4-layer RL policy evaluator and reward generator
 │   ├── three/
-│   │   ├── plumeAndSmokeFX.ts             # Volumetric white nitrogen smoke & Raptor fire plume solver
+│   │   ├── plumeAndSmokeFX.ts             # Volumetric white nitrogen smoke, Raptor plume & explosion solver
 │   │   ├── proceduralTextures.ts          # Procedural carbon weave, asphalt, and steel textures
 │   │   ├── provingGroundScene.ts          # 3D scene manager, ramps, Starbase tower, and camera rig
 │   │   ├── roadsterModel.ts               # 2026 Tesla Roadster 3D mesh and 7-nozzle rig
+│   │   ├── starbaseAndObstacleProps.ts    # Non-overlapping 3D obstacle gauntlet & movable Starbase crane rig
 │   │   └── starshipModel.ts               # 2-Stage Starship & Super Heavy Booster 3D mesh rig
 │   └── types/
 │       └── simulation.ts                  # Shared TypeScript interfaces
@@ -174,9 +188,9 @@ Clicking the **Live Brain Wires** card or any neuron in the right telemetry draw
     ├── integration/
     │   └── api.test.ts                    # Express + SQLite CRUD and Zod validation tests
     └── unit/
-        ├── physics.test.ts                # Roadster, Starship, ramp, and monochrome audit tests
-        ├── rlPolicy.test.ts               # RL competence, reward curve, and policy tests
-        └── sceneAndSmokePhysics.test.ts   # 3D rigs, tire contact, booster height, and smoke tests
+        ├── physics.test.ts                # Roadster, Starship, obstacle race, aero & monochrome audit tests
+        ├── rlPolicy.test.ts               # RL competence, hyperparameter calibration & policy tests
+        └── sceneAndSmokePhysics.test.ts   # 3D rigs, movable Starbase crane, obstacle props & smoke tests
 ```
 
 ---
