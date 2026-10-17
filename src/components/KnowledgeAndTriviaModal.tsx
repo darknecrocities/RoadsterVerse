@@ -18,6 +18,7 @@ import {
   submitTriviaScoreApi,
   type TriviaScoreRecord,
 } from '../services/apiClient.ts';
+import { AnimatedDecodeText } from './AnimatedText.tsx';
 
 interface KnowledgeAndTriviaModalProps {
   isOpen: boolean;
@@ -49,9 +50,7 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
     if (!isOpen) return;
     fetchTriviaLeaderboard()
       .then((rows) => setLeaderboard(rows))
-      .catch(() => {
-        // Ignore transient offline error in UI
-      });
+      .catch(() => {});
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -131,33 +130,36 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
               <article
                 key={art.id}
                 style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(56, 189, 248, 0.28)',
-                  borderRadius: '0.7rem',
+                  background: '#0d0d0d',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  borderRadius: '0.5rem',
                   padding: '1rem',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.6rem',
                 }}
               >
-                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#22d3ee', letterSpacing: '0.08em' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#ffffff', letterSpacing: '0.09em' }}>
                   {art.tag}
                 </span>
-                <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#f8fafc' }}>{art.title}</h3>
-                <p style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>{art.summary}</p>
-                <ul style={{ paddingLeft: '1.1rem', fontSize: '0.75rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#ffffff' }}>
+                  <AnimatedDecodeText text={art.title} />
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: '#d4d4d4', lineHeight: 1.45 }}>{art.summary}</p>
+                <ul style={{ paddingLeft: '1.1rem', fontSize: '0.75rem', color: '#9e9e9e', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                   {art.deepDivePoints.map((pt) => (
                     <li key={pt}>{pt}</li>
                   ))}
                 </ul>
                 <div
                   style={{
-                    background: '#040711',
+                    background: '#000000',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
                     padding: '0.45rem 0.65rem',
-                    borderRadius: '0.45rem',
+                    borderRadius: '0.35rem',
                     fontFamily: 'monospace',
                     fontSize: '0.72rem',
-                    color: '#a5f3fc',
+                    color: '#ffffff',
                     overflowX: 'auto',
                   }}
                 >
@@ -184,38 +186,41 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
             {/* Trivia Question Card */}
             <div
               style={{
-                background: 'rgba(15, 23, 42, 0.9)',
-                border: '1px solid rgba(56, 189, 248, 0.35)',
-                borderRadius: '0.7rem',
+                background: '#0d0d0d',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                borderRadius: '0.5rem',
                 padding: '1.1rem',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#ffffff', fontWeight: 800 }}>
                 <span>CATEGORY: {currentQ.category.toUpperCase()}</span>
                 <span>
                   QUESTION {questionIdx + 1} OF {TRIVIA_QUESTIONS.length}
                 </span>
               </div>
 
-              <h3 style={{ fontSize: '0.98rem', color: '#f8fafc', lineHeight: 1.4 }}>{currentQ.question}</h3>
+              <h3 style={{ fontSize: '0.96rem', color: '#ffffff', lineHeight: 1.4 }}>{currentQ.question}</h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {currentQ.options.map((opt, idx) => {
                   const isChosen = selectedOption === idx;
                   const isCorrect = idx === currentQ.correctIndex;
-                  let borderCol = 'rgba(148, 163, 184, 0.25)';
-                  let bgCol = 'rgba(7, 11, 22, 0.85)';
+                  let borderCol = 'rgba(255, 255, 255, 0.25)';
+                  let bgCol = '#050505';
+                  let textCol = '#f5f5f5';
 
                   if (selectedOption !== null) {
                     if (isCorrect) {
-                      borderCol = '#10b981';
-                      bgCol = 'rgba(16, 185, 129, 0.18)';
+                      borderCol = '#ffffff';
+                      bgCol = '#ffffff';
+                      textCol = '#000000';
                     } else if (isChosen) {
-                      borderCol = '#f43f5e';
-                      bgCol = 'rgba(244, 63, 94, 0.18)';
+                      borderCol = '#737373';
+                      bgCol = '#1f1f1f';
+                      textCol = '#9e9e9e';
                     }
                   }
 
@@ -227,10 +232,11 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
                       style={{
                         textAlign: 'left',
                         padding: '0.65rem 0.85rem',
-                        borderRadius: '0.55rem',
+                        borderRadius: '0.45rem',
                         border: `1px solid ${borderCol}`,
                         background: bgCol,
-                        color: '#f1f5f9',
+                        color: textCol,
+                        fontWeight: selectedOption !== null && isCorrect ? 800 : 500,
                         fontSize: '0.78rem',
                         cursor: selectedOption === null ? 'pointer' : 'default',
                         display: 'flex',
@@ -240,8 +246,8 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
                       }}
                     >
                       <span>{opt}</span>
-                      {selectedOption !== null && isCorrect && <CheckCircle size={16} color="#10b981" />}
-                      {selectedOption !== null && isChosen && !isCorrect && <XCircle size={16} color="#f43f5e" />}
+                      {selectedOption !== null && isCorrect && <CheckCircle size={16} color="#000000" />}
+                      {selectedOption !== null && isChosen && !isCorrect && <XCircle size={16} color="#9e9e9e" />}
                     </button>
                   );
                 })}
@@ -250,25 +256,26 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
               {selectedOption !== null && (
                 <div
                   style={{
-                    background: 'rgba(4, 7, 17, 0.92)',
-                    border: '1px solid rgba(34, 211, 238, 0.35)',
-                    borderRadius: '0.55rem',
+                    background: '#050505',
+                    border: '1px solid rgba(255, 255, 255, 0.45)',
+                    borderRadius: '0.45rem',
                     padding: '0.8rem',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.45rem',
                   }}
                 >
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#22d3ee' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#ffffff' }}>
                     Physics &amp; ML Breakdown:
                   </div>
-                  <p style={{ fontSize: '0.76rem', color: '#cbd5e1', lineHeight: 1.4 }}>{currentQ.explanation}</p>
+                  <p style={{ fontSize: '0.76rem', color: '#d4d4d4', lineHeight: 1.4 }}>{currentQ.explanation}</p>
                   <div
                     style={{
                       fontFamily: 'monospace',
                       fontSize: '0.72rem',
-                      color: '#a5f3fc',
-                      background: '#0b1120',
+                      color: '#ffffff',
+                      background: '#000000',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
                       padding: '0.35rem 0.55rem',
                       borderRadius: '0.35rem',
                     }}
@@ -298,23 +305,23 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
             {/* Right Column: Score & SQLite Leaderboard */}
             <div
               style={{
-                background: 'rgba(15, 23, 42, 0.85)',
-                border: '1px solid rgba(148, 163, 184, 0.25)',
-                borderRadius: '0.7rem',
+                background: '#0d0d0d',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                borderRadius: '0.5rem',
                 padding: '1rem',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, color: '#f59e0b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 800, color: '#ffffff' }}>
                 <Trophy size={16} />
                 Chief Flight Engineer Leaderboard
               </div>
 
-              <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+              <div style={{ fontSize: '0.8rem', color: '#d4d4d4' }}>
                 Current Session Score:{' '}
-                <strong style={{ color: '#22d3ee' }}>
+                <strong style={{ color: '#ffffff' }}>
                   {score} / {TRIVIA_QUESTIONS.length}
                 </strong>{' '}
                 ({answeredCount} answered)
@@ -329,11 +336,11 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
                   maxLength={28}
                   style={{
                     flex: 1,
-                    background: '#040711',
-                    border: '1px solid rgba(148, 163, 184, 0.35)',
-                    borderRadius: '0.45rem',
+                    background: '#000000',
+                    border: '1px solid rgba(255, 255, 255, 0.35)',
+                    borderRadius: '0.35rem',
                     padding: '0.4rem 0.6rem',
-                    color: '#f8fafc',
+                    color: '#ffffff',
                     fontSize: '0.76rem',
                   }}
                 />
@@ -341,11 +348,11 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
                   Post Score
                 </button>
               </form>
-              {submitStatus && <div style={{ fontSize: '0.72rem', color: '#38bdf8' }}>{submitStatus}</div>}
+              {submitStatus && <div style={{ fontSize: '0.72rem', color: '#ffffff' }}>{submitStatus}</div>}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
                 {leaderboard.length === 0 ? (
-                  <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#737373' }}>
                     No flight engineers logged yet. Be the first!
                   </div>
                 ) : (
@@ -356,15 +363,16 @@ export const KnowledgeAndTriviaModal: React.FC<KnowledgeAndTriviaModalProps> = (
                         display: 'flex',
                         justifyContent: 'space-between',
                         padding: '0.4rem 0.6rem',
-                        background: 'rgba(4, 7, 17, 0.75)',
-                        borderRadius: '0.4rem',
+                        background: '#050505',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        borderRadius: '0.35rem',
                         fontSize: '0.75rem',
                       }}
                     >
                       <span>
                         #{i + 1} <strong>{entry.pilotCallsign}</strong>
                       </span>
-                      <span style={{ color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
+                      <span style={{ color: '#ffffff', fontFamily: 'monospace', fontWeight: 800 }}>
                         {entry.score}/{entry.totalQuestions}
                       </span>
                     </div>

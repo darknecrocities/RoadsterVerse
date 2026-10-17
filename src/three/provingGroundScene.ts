@@ -10,6 +10,11 @@ import type {
 import { createRoadsterModel, type RoadsterRig } from './roadsterModel.ts';
 import { createStarshipModel, type StarshipRig } from './starshipModel.ts';
 import { VolumetricPlumeSmokeSystem } from './plumeAndSmokeFX.ts';
+import {
+  createCarbonWeaveTexture,
+  createPaddockDeckTexture,
+  createStuntRoadTexture,
+} from './proceduralTextures.ts';
 
 export class ProvingGroundSceneController {
   private readonly scene = new THREE.Scene();
@@ -19,44 +24,50 @@ export class ProvingGroundSceneController {
   private readonly starshipRig: StarshipRig;
   private readonly ghostRoadsters: RoadsterRig[] = [];
   private readonly ghostStarships: StarshipRig[] = [];
-  private readonly smokeSystem = new VolumetricPlumeSmokeSystem(120);
+  private readonly smokeSystem = new VolumetricPlumeSmokeSystem(220);
   private readonly roadsterArenaGroup = new THREE.Group();
-  private readonly starbaseCoastalGroup = new THREE.Group();
+  private readonly stuntKickerGroup = new THREE.Group();
+  private readonly wallRampGroup = new THREE.Group();
+  private readonly starbasePaddockGroup = new THREE.Group();
   private readonly targetMarker: THREE.Mesh;
+  private chopstickLeftMesh!: THREE.Mesh;
+  private chopstickRightMesh!: THREE.Mesh;
+  private craneHoistCable!: THREE.Mesh;
   private cameraMode: CameraMode = 'orbit';
-  private orbitAngle = 0.42;
+  private orbitAngle = 0.35;
+  private smoothedCamPos = new THREE.Vector3(0, 4.8, 13.5);
+  private smoothedLookAt = new THREE.Vector3(0, 1.5, 0);
 
   constructor(container: HTMLElement) {
     const width = Math.max(320, container.clientWidth);
     const height = Math.max(240, container.clientHeight);
 
     this.camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 400);
-    this.camera.position.set(0, 4.8, 13.5);
+    this.camera.position.copy(this.smoothedCamPos);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.18;
 
     container.replaceChildren(this.renderer.domElement);
 
     this.setupLighting();
-    this.buildRoadsterNightProvingGround();
-    this.buildStarbaseCoastalWetlands();
+    this.buildRoadsterStuntRoadAndWall();
+    this.buildStarshipLaunchPaddockAndCrane();
 
-    // Target Hover / Waypoint Hologram Ring
+    // Monochrome Target Waypoint Ring
     const ringGeo = new THREE.TorusGeometry(1.65, 0.045, 16, 48);
     ringGeo.rotateX(Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x22d3ee,
+      color: 0xffffff,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.65,
     });
     this.targetMarker = new THREE.Mesh(ringGeo, ringMat);
     this.scene.add(this.targetMarker);
 
-    // Primary Vehicles & Ghost Swarm Pool
     this.roadsterRig = createRoadsterModel(false);
     this.starshipRig = createStarshipModel(false);
     this.scene.add(this.roadsterRig.root, this.starshipRig.root, this.smokeSystem.group);
@@ -73,49 +84,95 @@ export class ProvingGroundSceneController {
   }
 
   private setupLighting(): void {
-    this.scene.background = new THREE.Color(0x040711);
-    this.scene.fog = new THREE.FogExp2(0x040711, 0.014);
+    this.scene.background = new THREE.Color(0x030303);
+    this.scene.fog = new THREE.FogExp2(0x030303, 0.013);
 
-    const ambient = new THREE.AmbientLight(0x94a3b8, 0.75);
-    const keyLight = new THREE.DirectionalLight(0xf8fafc, 2.1);
-    keyLight.position.set(8, 22, 14);
+    const ambient = new THREE.AmbientLight(0xd4d4d4, 0.85);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
+    keyLight.position.set(10, 24, 14);
 
-    // Studio warm orange left rim light + cool blue right haze matching Image 1 & 2
-    const warmArenaLight = new THREE.PointLight(0xf97316, 4.5, 28);
-    warmArenaLight.position.set(-10, 2.5, -4);
-    const coolArenaLight = new THREE.PointLight(0x0ea5e9, 4.0, 28);
-    coolArenaLight.position.set(10, 5.5, 6);
+    const rimLightLeft = new THREE.PointLight(0xffffff, 3.8, 32);
+    rimLightLeft.position.set(-10, 4.5, -5);
+    const rimLightRight = new THREE.PointLight(0xe5e5e5, 3.5, 32);
+    rimLightRight.position.set(10, 6.0, 6);
 
-    this.scene.add(ambient, keyLight, warmArenaLight, coolArenaLight);
+    this.scene.add(ambient, keyLight, rimLightLeft, rimLightRight);
   }
 
   /**
-   * Builds the Night Proving Ground + 90-Degree Curved Concrete Wall Mega-Ramp
-   * with glowing LED vertical edge strips from Image 3!
+   * Builds the Tesla Demo Stunt Road:
+   * - Textured high-contrast asphalt stunt track with white chevrons
+   * - 22-deg Stunt Launch Kicker Ramp (for the 360° Air Kickflip!)
+   * - Stunt Landing Deck + Overhead Telemetry Arches
+   * - 90-Degree Curved Concrete Mega-Ramp with white LED edge strips
    */
-  private buildRoadsterNightProvingGround(): void {
-    const asphaltMat = new THREE.MeshStandardMaterial({
-      color: 0x0b0f19,
-      roughness: 0.35,
-      metalness: 0.25,
-    });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), asphaltMat);
-    ground.rotation.x = -Math.PI / 2;
-    this.roadsterArenaGroup.add(ground);
+  private buildRoadsterStuntRoadAndWall(): void {
+    const roadTex = createStuntRoadTexture();
+    const carbonTex = createCarbonWeaveTexture();
 
-    const grid = new THREE.GridHelper(60, 60, 0x1e293b, 0x0f172a);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x080808,
+      roughness: 0.45,
+      metalness: 0.2,
+    });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    this.roadsterArenaGroup.add(floor);
+
+    const grid = new THREE.GridHelper(70, 70, 0x333333, 0x171717);
     grid.position.y = 0.01;
     this.roadsterArenaGroup.add(grid);
 
-    // 90-Degree Curved Concrete Wall Mega-Ramp (Image 3 right side)
-    const concreteMat = new THREE.MeshStandardMaterial({
-      color: 0x64748b,
-      roughness: 0.65,
-      metalness: 0.1,
+    // Textured Tesla Demo Stunt Road Track Strip
+    const stuntStripMat = new THREE.MeshStandardMaterial({
+      map: roadTex,
+      bumpMap: roadTex,
+      bumpScale: 0.015,
+      roughness: 0.5,
     });
-    const ledEdgeMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe });
+    const stuntStrip = new THREE.Mesh(new THREE.BoxGeometry(26, 0.05, 5.2), stuntStripMat);
+    stuntStrip.position.set(-0.5, 0.025, 0);
+    this.roadsterArenaGroup.add(stuntStrip);
 
-    const rampGroup = new THREE.Group();
+    // Stunt Road Launch Kicker Ramp (x: -3.8 to -1.2) for the Kickflip Stunt!
+    const rampMat = new THREE.MeshStandardMaterial({
+      color: 0x262626,
+      map: carbonTex,
+      roughness: 0.4,
+      metalness: 0.35,
+    });
+    const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    const kickerRamp = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.22, 4.4), rampMat);
+    kickerRamp.position.set(-2.5, 0.52, 0);
+    kickerRamp.rotation.z = 0.36;
+    const kickerLed = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.25, 0.08), ledMat);
+    kickerLed.position.set(-2.5, 0.54, 2.22);
+    kickerLed.rotation.z = 0.36;
+    const kickerLedR = kickerLed.clone();
+    kickerLedR.position.z = -2.22;
+    this.stuntKickerGroup.add(kickerRamp, kickerLed, kickerLedR);
+
+    // Overhead Stunt Road Telemetry Gantry Arches
+    for (const archX of [-7.5, 5.0]) {
+      const arch = new THREE.Group();
+      const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 5.2, 0.18), rampMat);
+      pillarL.position.set(archX, 2.6, 2.7);
+      const pillarR = pillarL.clone();
+      pillarR.position.z = -2.7;
+      const topBeam = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 5.6), ledMat);
+      topBeam.position.set(archX, 5.2, 0);
+      arch.add(pillarL, pillarR, topBeam);
+      this.stuntKickerGroup.add(arch);
+    }
+    this.roadsterArenaGroup.add(this.stuntKickerGroup);
+
+    // 90-Degree Curved Concrete Wall Mega-Ramp
+    const concreteMat = new THREE.MeshStandardMaterial({
+      color: 0x525252,
+      roughness: 0.6,
+      metalness: 0.15,
+    });
     const segments = 18;
     const radius = 9.0;
     for (let i = 0; i <= segments; i++) {
@@ -127,82 +184,131 @@ export class ProvingGroundSceneController {
       const slab = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.28, 4.8), concreteMat);
       slab.position.set(cx, cy, 0);
       slab.rotation.z = angle;
-      rampGroup.add(slab);
+      this.wallRampGroup.add(slab);
 
-      // Glowing white LED edge strips on both sides of the concrete ramp (Image 3)
-      const ledL = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.32, 0.08), ledEdgeMat);
+      const ledL = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.32, 0.08), ledMat);
       ledL.position.set(cx, cy + 0.03, 2.42);
       ledL.rotation.z = angle;
       const ledR = ledL.clone();
       ledR.position.z = -2.42;
-      rampGroup.add(ledL, ledR);
+      this.wallRampGroup.add(ledL, ledR);
     }
 
-    // Upper vertical concrete wall extension above the curve
     const upperWall = new THREE.Mesh(new THREE.BoxGeometry(0.32, 8.0, 4.8), concreteMat);
     upperWall.position.set(12.0, 12.8, 0);
-    const upperLedL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 8.0, 0.08), ledEdgeMat);
+    const upperLedL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 8.0, 0.08), ledMat);
     upperLedL.position.set(12.0, 12.8, 2.42);
     const upperLedR = upperLedL.clone();
     upperLedR.position.z = -2.42;
-    rampGroup.add(upperWall, upperLedL, upperLedR);
+    this.wallRampGroup.add(upperWall, upperLedL, upperLedR);
 
-    this.roadsterArenaGroup.add(rampGroup);
+    this.roadsterArenaGroup.add(this.wallRampGroup);
     this.scene.add(this.roadsterArenaGroup);
   }
 
   /**
-   * Builds the Starbase Boca Chica Coastal Wetlands & Orbital Launch Mount
-   * matching the aerial coastal vista in Image 4!
+   * Builds the SpaceX Orbital Launch Paddock, 6-Pillar Launch Mount, Cryo Tank Farm,
+   * Cross-Braced Integration Tower, Top Cantilever Crane Beam, and Articulated Chopstick Arms!
    */
-  private buildStarbaseCoastalWetlands(): void {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = '#1e3a5f'; // Coastal lagoon water
-      ctx.fillRect(0, 0, 512, 512);
-      // Marshland green peninsulas & sandbars (Image 4)
-      ctx.fillStyle = '#365314';
-      for (let i = 0; i < 28; i++) {
-        ctx.beginPath();
-        ctx.ellipse(
-          (i * 73) % 512,
-          (i * 119) % 512,
-          45 + (i % 5) * 18,
-          20 + (i % 4) * 12,
-          (i * 0.4) % Math.PI,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-      ctx.fillStyle = '#d6d3d1';
-      ctx.fillRect(210, 210, 90, 90);
-    }
-    const coastalTex = new THREE.CanvasTexture(canvas);
-    const coastalPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(180, 180),
-      new THREE.MeshStandardMaterial({ map: coastalTex, roughness: 0.8 })
+  private buildStarshipLaunchPaddockAndCrane(): void {
+    const paddockTex = createPaddockDeckTexture();
+    const paddockPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(160, 160),
+      new THREE.MeshStandardMaterial({
+        map: paddockTex,
+        bumpMap: paddockTex,
+        bumpScale: 0.02,
+        roughness: 0.75,
+      })
     );
-    coastalPlane.rotation.x = -Math.PI / 2;
-    this.starbaseCoastalGroup.add(coastalPlane);
+    paddockPlane.rotation.x = -Math.PI / 2;
+    this.starbasePaddockGroup.add(paddockPlane);
 
-    // Orbital Launch Mount & Mechazilla Catch Tower
-    const towerMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.7,
-      roughness: 0.3,
+    const steelMat = new THREE.MeshStandardMaterial({
+      color: 0x404040,
+      metalness: 0.78,
+      roughness: 0.28,
     });
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(1.1, 16, 1.1), towerMat);
-    tower.position.set(-2.3, 8.0, 0);
-    const chopsticks = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.22, 1.5), towerMat);
-    chopsticks.position.set(-1.1, 13.5, 0);
-    this.starbaseCoastalGroup.add(tower, chopsticks);
+    const brightSteelMat = new THREE.MeshStandardMaterial({
+      color: 0xd4d4d4,
+      metalness: 0.85,
+      roughness: 0.2,
+    });
+    const whiteLedMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-    this.starbaseCoastalGroup.visible = false;
-    this.scene.add(this.starbaseCoastalGroup);
+    // 1. Orbital Launch Paddock Mount (OLM Ring + 6 Heavy Steel Columns + Flame Deflector)
+    const olmRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.22, 16, 32), steelMat);
+    olmRing.rotation.x = Math.PI / 2;
+    olmRing.position.set(0, 1.35, 0);
+    this.starbasePaddockGroup.add(olmRing);
+
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.35, 12), brightSteelMat);
+      leg.position.set(Math.cos(a) * 1.1, 0.67, Math.sin(a) * 1.1);
+      this.starbasePaddockGroup.add(leg);
+    }
+
+    // 2. Paddock Cryogenic Tank Farm (4 Vertical Stainless Cryo Silos)
+    for (let t = 0; t < 4; t++) {
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 4.2, 20), brightSteelMat);
+      silo.position.set(-7.5, 2.1, -4.5 + t * 2.4);
+      this.starbasePaddockGroup.add(silo);
+    }
+
+    // 3. Tall Cross-Braced Mechazilla Launch Tower + Top Cantilever Crane Beam
+    const towerGroup = new THREE.Group();
+    towerGroup.position.set(-2.35, 0, 0);
+
+    const towerCore = new THREE.Mesh(
+      new THREE.BoxGeometry(1.35, 22.0, 1.35),
+      new THREE.MeshStandardMaterial({ color: 0x262626, metalness: 0.75, roughness: 0.3, wireframe: true })
+    );
+    towerCore.position.y = 11.0;
+    towerGroup.add(towerCore);
+
+    // 4 Corner Structural Columns of the Tower
+    for (const cx of [-0.65, 0.65]) {
+      for (const cz of [-0.65, 0.65]) {
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, 22.0, 0.16), steelMat);
+        col.position.set(cx, 11.0, cz);
+        towerGroup.add(col);
+      }
+    }
+
+    // Heavy Top Cantilever Crane Beam & Pulley Jib extending over the Starship Launch Mount!
+    const craneMainBeam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.55, 1.45), brightSteelMat);
+    craneMainBeam.position.set(1.4, 22.25, 0);
+    const craneLedStrip = new THREE.Mesh(new THREE.BoxGeometry(4.65, 0.08, 1.5), whiteLedMat);
+    craneLedStrip.position.set(1.4, 22.56, 0);
+    towerGroup.add(craneMainBeam, craneLedStrip);
+
+    // Diagonal Crane Tension Tie-Rod Struts above the Cantilever Beam
+    const mastApex = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), steelMat);
+    mastApex.position.set(-0.2, 23.4, 0);
+    const tieCable = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.8, 8), whiteLedMat);
+    tieCable.position.set(1.4, 23.3, 0);
+    tieCable.rotation.z = 0.98;
+    towerGroup.add(mastApex, tieCable);
+
+    // Vertical Crane Hoist Cable dropping from the Cantilever Beam toward the Nosecone
+    this.craneHoistCable = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 6.0, 8),
+      brightSteelMat
+    );
+    this.craneHoistCable.position.set(2.35, 19.2, 0);
+    towerGroup.add(this.craneHoistCable);
+
+    // 4. Articulated Chopstick Catch Arms / Structural Beams on the Tower
+    this.chopstickLeftMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
+    this.chopstickLeftMesh.position.set(1.5, 11.5, 0.92);
+    this.chopstickRightMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
+    this.chopstickRightMesh.position.set(1.5, 11.5, -0.92);
+    towerGroup.add(this.chopstickLeftMesh, this.chopstickRightMesh);
+
+    this.starbasePaddockGroup.add(towerGroup);
+    this.starbasePaddockGroup.visible = false;
+    this.scene.add(this.starbasePaddockGroup);
   }
 
   public setCameraMode(mode: CameraMode): void {
@@ -211,6 +317,11 @@ export class ProvingGroundSceneController {
 
   public setWheelSpec(spec: WheelSpec): void {
     this.roadsterRig.setWheelSpec(spec);
+  }
+
+  public triggerWarpTransition(): void {
+    this.camera.fov = 66;
+    this.camera.updateProjectionMatrix();
   }
 
   public resize(width: number, height: number): void {
@@ -233,11 +344,15 @@ export class ProvingGroundSceneController {
     this.roadsterRig.root.visible = isRoadster;
     this.starshipRig.root.visible = !isRoadster;
     this.roadsterArenaGroup.visible = isRoadster;
-    this.starbaseCoastalGroup.visible = !isRoadster;
+    this.stuntKickerGroup.visible = missionId === 'roadster-barrel-roll';
+    this.wallRampGroup.visible = missionId !== 'roadster-barrel-roll';
+    this.starbasePaddockGroup.visible = !isRoadster;
 
-    this.scene.background = new THREE.Color(
-      missionId === 'starship-launch' ? 0x0f172a : 0x040711
-    );
+    // Smoothly relax FOV warp back to 48 deg
+    if (Math.abs(this.camera.fov - 48) > 0.2) {
+      this.camera.fov += (48 - this.camera.fov) * Math.min(1, dt * 6);
+      this.camera.updateProjectionMatrix();
+    }
 
     this.targetMarker.position.set(targetPos.x, targetPos.y, targetPos.z);
     this.targetMarker.rotation.z = missionId === 'roadster-wall-climb' ? Math.PI / 2 : 0;
@@ -270,9 +385,19 @@ export class ProvingGroundSceneController {
         missionId === 'starship-launch',
         primaryState.elapsedTimeSec
       );
+
+      // Animate Paddock Crane Chopstick Arms & Hoist Cable
+      const armSpread =
+        missionId === 'starship-launch'
+          ? primaryState.position.y > 2.5
+            ? 0.42
+            : 0.0
+          : Math.max(0, Math.min(0.38, (primaryState.position.y - 3.6) * 0.065));
+      this.chopstickLeftMesh.rotation.y = armSpread;
+      this.chopstickRightMesh.rotation.y = -armSpread;
+      this.craneHoistCable.visible = primaryState.position.y < 4.0;
     }
 
-    // Update Ghost Swarm agents
     for (let i = 0; i < this.ghostRoadsters.length; i++) {
       const gState = ghostStates[i];
       this.ghostRoadsters[i].root.visible = Boolean(isRoadster && gState);
@@ -284,32 +409,41 @@ export class ProvingGroundSceneController {
       }
     }
 
-    this.smokeSystem.update(dt, vehicle, primaryState, primaryThrusters);
+    const nozzleEmitters = isRoadster
+      ? this.roadsterRig.getActiveNozzleEmitters(primaryThrusters)
+      : [];
+    this.smokeSystem.update(dt, vehicle, primaryState, primaryThrusters, nozzleEmitters);
 
-    // Update Camera Rig
+    // Smooth Physics-Damped Camera Tracking
     const px = primaryState.position.x;
     const py = primaryState.position.y;
+    const desiredCam = new THREE.Vector3();
+    const desiredLook = new THREE.Vector3(px, Math.max(1.2, py + 0.4), 0);
+
     if (this.cameraMode === 'orbit') {
       this.orbitAngle += dt * 0.14;
-      const dist = isRoadster ? 11.5 : 14.5;
-      this.camera.position.set(
+      const dist = isRoadster ? 11.8 : 16.5;
+      desiredCam.set(
         px + Math.sin(this.orbitAngle) * dist * 0.35,
-        Math.max(2.2, py + 1.8),
+        Math.max(2.4, py + 2.0),
         dist
       );
-      this.camera.lookAt(px, Math.max(1.2, py + 0.4), 0);
     } else if (this.cameraMode === 'chase') {
-      this.camera.position.set(px - 6.8, Math.max(1.8, py + 2.2), 6.2);
-      this.camera.lookAt(px + 1.5, py + 0.5, 0);
+      desiredCam.set(px - 7.2, Math.max(2.0, py + 2.4), 6.5);
+      desiredLook.set(px + 1.5, py + 0.5, 0);
     } else if (this.cameraMode === 'thruster-cam') {
-      // Low-angle dramatic thruster & smoke shot matching Images 2 & 3!
-      this.camera.position.set(px - 1.2, Math.max(0.55, py - 1.4), 6.4);
-      this.camera.lookAt(px, py + 0.2, 0);
+      desiredCam.set(px - 1.2, Math.max(0.6, py - 1.2), 6.2);
+      desiredLook.set(px, py + 0.2, 0);
     } else {
-      // Tower / Ramp Overview Cam
-      this.camera.position.set(6.5, 9.5, 16.5);
-      this.camera.lookAt(px * 0.5 + 3.0, Math.max(3.5, py), 0);
+      desiredCam.set(5.5, 9.8, 17.5);
+      desiredLook.set(px * 0.5 + 1.5, Math.max(3.5, py), 0);
     }
+
+    const lerpFactor = Math.min(1, dt * 8.5);
+    this.smoothedCamPos.lerp(desiredCam, lerpFactor);
+    this.smoothedLookAt.lerp(desiredLook, lerpFactor);
+    this.camera.position.copy(this.smoothedCamPos);
+    this.camera.lookAt(this.smoothedLookAt);
 
     this.renderer.render(this.scene, this.camera);
   }

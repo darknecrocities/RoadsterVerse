@@ -14,6 +14,7 @@ import type {
   RLHyperparameters,
   SavedCheckpoint,
 } from '../types/simulation.ts';
+import { AnimatedNumber } from './AnimatedText.tsx';
 
 interface RLTrainingControlsProps {
   mission: MissionDefinition;
@@ -78,17 +79,17 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
           <Zap size={15} />
           RL Policy &amp; Epoch Trainer
         </span>
-        <span style={{ fontSize: '0.72rem', color: '#10b981' }}>
-          {stabilityScore.toFixed(0)}% Converged
+        <span style={{ fontSize: '0.72rem', color: '#ffffff', fontFamily: 'monospace' }}>
+          <AnimatedNumber value={stabilityScore} decimals={0} suffix="% Converged" />
         </span>
       </div>
 
       {/* Primary Epoch Training Scrubber & Auto-Train Button */}
       <div
         style={{
-          background: 'rgba(15, 23, 42, 0.9)',
-          border: '1px solid rgba(34, 211, 238, 0.35)',
-          borderRadius: '0.6rem',
+          background: '#080808',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: '0.45rem',
           padding: '0.75rem',
           display: 'flex',
           flexDirection: 'column',
@@ -97,12 +98,12 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.68rem', color: '#9e9e9e', textTransform: 'uppercase' }}>
               Training Progress
             </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>
-              Epoch {hyperparams.epochs}{' '}
-              <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600 }}>
+            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff' }}>
+              Epoch <AnimatedNumber value={hyperparams.epochs} />{' '}
+              <span style={{ fontSize: '0.75rem', color: '#9e9e9e', fontWeight: 600 }}>
                 / 500
               </span>
             </div>
@@ -112,11 +113,6 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
             type="button"
             onClick={onToggleAutoTrain}
             className="action-btn primary"
-            style={{
-              background: isAutoTraining
-                ? 'linear-gradient(135deg, #e11d48, #f43f5e)'
-                : 'linear-gradient(135deg, #0284c7, #0ea5e9)',
-            }}
           >
             {isAutoTraining ? <Pause size={14} /> : <Play size={14} />}
             {isAutoTraining ? 'Pause Training' : 'Live Train Epochs'}
@@ -279,7 +275,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
 
       <div className="slider-group">
         <div className="slider-header">
-          <span>Attitude &amp; Roll Stability Bonus</span>
+          <span>Attitude &amp; Kickflip Stability Bonus</span>
           <span className="slider-val">{hyperparams.rewardAttitudeWeight.toFixed(1)}x</span>
         </div>
         <input
@@ -369,28 +365,28 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
           maxLength={60}
           style={{
             flex: 1,
-            background: 'rgba(15, 23, 42, 0.9)',
-            border: '1px solid rgba(148, 163, 184, 0.3)',
-            borderRadius: '0.45rem',
+            background: '#080808',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '0.35rem',
             padding: '0.38rem 0.6rem',
-            color: '#f8fafc',
+            color: '#ffffff',
             fontSize: '0.75rem',
           }}
         />
-        <button type="submit" className="action-btn" title="Save Policy Checkpoint to SQLite">
+        <button type="submit" className="action-btn primary" title="Save Policy Checkpoint to SQLite">
           <Save size={14} />
           Save
         </button>
       </form>
       {saveStatus && (
-        <div style={{ fontSize: '0.7rem', color: '#38bdf8' }}>
+        <div style={{ fontSize: '0.7rem', color: '#ffffff' }}>
           {saveStatus} (Mean R: {meanReward.toFixed(0)})
         </div>
       )}
 
       {checkpoints.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-          <div style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div style={{ fontSize: '0.68rem', color: '#9e9e9e', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <FolderOpen size={12} /> Saved SQLite Policy Checkpoints:
           </div>
           <div style={{ maxHeight: '105px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -410,7 +406,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {chk.name}
                 </span>
-                <span style={{ color: '#22d3ee', fontFamily: 'monospace', marginLeft: '0.4rem' }}>
+                <span style={{ color: '#ffffff', fontFamily: 'monospace', marginLeft: '0.4rem' }}>
                   Ep {chk.epochs}
                 </span>
               </button>

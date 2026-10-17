@@ -28,11 +28,13 @@ import {
 import { evaluateRLPolicy } from '../rl/policyEngine.ts';
 import { ProvingGroundSceneController } from '../three/provingGroundScene.ts';
 import type { ProceduralSoundEngine } from '../services/soundEngine.ts';
+import { AnimatedDecodeText, AnimatedNumber } from './AnimatedText.tsx';
 
 interface Viewport3DProps {
   mission: MissionDefinition;
   hyperparams: RLHyperparameters;
   soundEngine: ProceduralSoundEngine;
+  transitionKey: number;
   onTelemetryFrame: (
     state: RigidBodyState,
     thrusters: ThrusterActivation,
@@ -45,6 +47,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   mission,
   hyperparams,
   soundEngine,
+  transitionKey,
   onTelemetryFrame,
   onEpisodeComplete,
 }) => {
@@ -59,7 +62,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       : createInitialStarshipState(mission.id)
   );
 
-  // Refs used inside the 60Hz requestAnimationFrame loop
   const missionRef = useRef(mission);
   missionRef.current = mission;
   const paramsRef = useRef(hyperparams);
@@ -97,6 +99,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           ? createInitialRoadsterState(m.id, p)
           : createInitialStarshipState(m.id)
       );
+      controller.triggerWarpTransition();
     };
 
     resetEpisodeTriggerRef.current = initEpisode;
@@ -111,10 +114,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       const p = paramsRef.current;
       const dt = 0.016 * Math.min(4, p.simulationSpeed);
 
-      // Decay wind impulse
       windGustRef.current *= 0.93;
 
-      // Step Primary Vehicle Policy + 6-DoF Physics
       const { thrusters, nnSnapshot } = evaluateRLPolicy(primaryStateRef.current, m.id, p, 0);
       primaryStateRef.current =
         m.vehicle === 'roadster'
@@ -135,7 +136,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
               windGustRef.current
             );
 
-      // Step Parallel Ghost Swarm Agents
       const desiredGhosts = Math.max(0, Math.min(8, p.ghostSwarmCount - 1));
       while (ghostStatesRef.current.length < desiredGhosts) {
         ghostStatesRef.current.push(
@@ -168,7 +168,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         0.016
       );
 
-      // Auto-reset episode after 14 seconds or crash so continuous RL training is effortless
       if (primaryStateRef.current.elapsedTimeSec > 14.0 || primaryStateRef.current.crashed) {
         if (primaryStateRef.current.elapsedTimeSec > 2.0) {
           onEpisodeComplete(primaryStateRef.current, nnSnapshot.cumulativeReward);
@@ -192,7 +191,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     };
   }, [soundEngine, onTelemetryFrame, onEpisodeComplete]);
 
-  // Reset simulation state when mission changes
   useEffect(() => {
     resetEpisodeTriggerRef.current();
   }, [mission.id]);
@@ -200,6 +198,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const handleCameraChange = (mode: CameraMode) => {
     setCameraMode(mode);
     controllerRef.current?.setCameraMode(mode);
+    controllerRef.current?.triggerWarpTransition();
   };
 
   const handleWheelToggle = () => {
@@ -214,26 +213,35 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
   return (
     <section className="viewport-container" aria-label="3D Physics and Reinforcement Learning Viewport">
-      {/* Top Overlay: Mission Briefing & Live Telemetry Pill Bar */}
+      {/* Shutter Wipe Transition on Mission Switch */}
+      {transitionKey > 0 && (
+        <div key={transitionKey} className="shutter-wipe-overlay">
+          RECONFIGURING 6-DoF TELEMETRY // {mission.badge}
+        </div>
+      )}
+
+      {/* Top Overlay: Monochrome Mission Briefing & Live Telemetry Pill Bar */}
       <div className="hud-overlay-top">
         <div
           style={{
-            background: 'rgba(4, 7, 17, 0.84)',
-            border: '1px solid rgba(56, 189, 248, 0.35)',
-            borderRadius: '0.65rem',
+            background: 'rgba(5, 5, 5, 0.9)',
+            border: '1px solid rgba(255, 255, 255, 0.4)',
+            borderRadius: '0.45rem',
             padding: '0.6rem 0.85rem',
-            maxWidth: '430px',
+            maxWidth: '440px',
             backdropFilter: 'blur(8px)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
-            <Sparkles size={14} color="#22d3ee" />
-            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#22d3ee', letterSpacing: '0.08em' }}>
-              {mission.badge} • EPOCH {hyperparams.epochs}
+            <Sparkles size={14} color="#ffffff" />
+            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.09em' }}>
+              {mission.badge} • EPOCH <AnimatedNumber value={hyperparams.epochs} />
             </span>
           </div>
-          <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>{mission.title}</h2>
-          <p style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: '0.2rem', lineHeight: 1.35 }}>
+          <h2 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#ffffff' }}>
+            <AnimatedDecodeText text={mission.title} />
+          </h2>
+          <p style={{ fontSize: '0.73rem', color: '#b3b3b3', marginTop: '0.2rem', lineHeight: 1.35 }}>
             {mission.targetDescription}
           </p>
         </div>
@@ -241,8 +249,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         <div className="telemetry-pill-bar">
           <div className="telemetry-stat">
             <span className="stat-label">Altitude (Y)</span>
-            <span className="stat-value" style={{ color: '#22d3ee' }}>
-              {liveState.position.y.toFixed(2)} m
+            <span className="stat-value">
+              <AnimatedNumber value={liveState.position.y} decimals={2} suffix=" m" />
             </span>
           </div>
           <div className="telemetry-stat">
@@ -256,17 +264,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             <span className="stat-label">
               {mission.vehicle === 'roadster' ? 'COPV Tank' : 'Header Tank'}
             </span>
-            <span className="stat-value" style={{ color: '#f59e0b' }}>
-              {Math.round(liveState.copvPressurePsi)} PSI
+            <span className="stat-value">
+              <AnimatedNumber value={liveState.copvPressurePsi} decimals={0} suffix=" PSI" />
             </span>
           </div>
           {mission.id === 'roadster-wall-climb' && (
             <div className="telemetry-stat">
               <span className="stat-label">Wall Normal Force</span>
-              <span
-                className="stat-value"
-                style={{ color: liveState.isOnWall ? '#10b981' : '#f43f5e' }}
-              >
+              <span className="stat-value">
                 {(liveState.wallContactNormalForceN / 1000).toFixed(1)} kN
               </span>
             </div>
@@ -283,7 +288,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.25rem',
-                color: liveState.crashed ? '#f43f5e' : '#10b981',
+                color: '#ffffff',
               }}
             >
               {liveState.crashed ? <ShieldAlert size={14} /> : <CheckCircle2 size={14} />}
@@ -300,27 +305,22 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       {/* Three.js Canvas Mount */}
       <div ref={mountRef} className="canvas-mount" />
 
-      {/* Bottom Overlay: Interactive Camera & Disturbance Controls */}
+      {/* Bottom Overlay: Monochrome Camera & Disturbance Controls */}
       <div className="hud-overlay-bottom">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
           {(
             [
               { id: 'orbit', label: 'Orbit Cam' },
-              { id: 'thruster-cam', label: 'Supersonic Plume Cam' },
-              { id: 'chase', label: 'Chase Cam' },
-              { id: 'tower-cam', label: 'Mega-Ramp / Tower Cam' },
+              { id: 'thruster-cam', label: 'Plume / Smoke Cam' },
+              { id: 'chase', label: 'Stunt Chase Cam' },
+              { id: 'tower-cam', label: 'Paddock Crane / Ramp Cam' },
             ] as { id: CameraMode; label: string }[]
           ).map((cam) => (
             <button
               key={cam.id}
               type="button"
               onClick={() => handleCameraChange(cam.id)}
-              className="action-btn"
-              style={{
-                background:
-                  cameraMode === cam.id ? 'rgba(14, 165, 233, 0.32)' : 'rgba(4, 7, 17, 0.85)',
-                borderColor: cameraMode === cam.id ? '#22d3ee' : 'rgba(148, 163, 184, 0.3)',
-              }}
+              className={`action-btn ${cameraMode === cam.id ? 'primary' : ''}`}
             >
               <Camera size={13} />
               {cam.label}
@@ -336,15 +336,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
               className="action-btn"
               title="Switch between Image 1 6-Spoke Track Rims and Image 2 Aero-Disc Covers"
             >
-              <Disc size={14} color="#38bdf8" />
-              Wheels: {wheelSpec === 'six-spoke' ? '6-Spoke Track (Img 1)' : 'Aero-Disc Flight (Img 2)'}
+              <Disc size={14} />
+              Wheels: {wheelSpec === 'six-spoke' ? '6-Spoke Track' : 'Carbon Aero-Disc'}
             </button>
           )}
           <button
             type="button"
             onClick={triggerWindGust}
             className="action-btn"
-            style={{ borderColor: '#f59e0b', color: '#fde68a' }}
           >
             <Wind size={14} />
             Inject Lateral Wind Gust
@@ -352,7 +351,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           <button
             type="button"
             onClick={() => resetEpisodeTriggerRef.current()}
-            className="action-btn"
+            className="action-btn primary"
           >
             <RotateCcw size={14} />
             Respawn Vehicle

@@ -28,6 +28,7 @@ import { Viewport3D } from './components/Viewport3D.tsx';
 import { RLTrainingControls } from './components/RLTrainingControls.tsx';
 import { NeuralTelemetryHUD } from './components/NeuralTelemetryHUD.tsx';
 import { KnowledgeAndTriviaModal } from './components/KnowledgeAndTriviaModal.tsx';
+import { AnimatedDecodeText } from './components/AnimatedText.tsx';
 import { ProceduralSoundEngine } from './services/soundEngine.ts';
 import {
   fetchCheckpoints,
@@ -37,6 +38,7 @@ import {
 
 export const App: React.FC = () => {
   const [selectedMissionId, setSelectedMissionId] = useState<MissionId>('roadster-hover');
+  const [transitionKey, setTransitionKey] = useState<number>(0);
   const [hyperparams, setHyperparams] = useState<RLHyperparameters>(DEFAULT_HYPERPARAMETERS);
   const [isAutoTraining, setIsAutoTraining] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
@@ -56,16 +58,12 @@ export const App: React.FC = () => {
     return evaluateRLPolicy(init, 'roadster-hover', DEFAULT_HYPERPARAMETERS).nnSnapshot;
   });
 
-  // Load saved SQLite policy checkpoints when mission changes
   useEffect(() => {
     fetchCheckpoints(selectedMissionId)
       .then((items) => setCheckpoints(items))
-      .catch(() => {
-        // Fallback when running purely client-side
-      });
+      .catch(() => {});
   }, [selectedMissionId]);
 
-  // Live Epoch Auto-Trainer progression timer
   useEffect(() => {
     if (!isAutoTraining) return;
     const interval = setInterval(() => {
@@ -90,6 +88,12 @@ export const App: React.FC = () => {
     () => generateEpochLearningCurve(selectedMissionId, hyperparams),
     [selectedMissionId, hyperparams]
   );
+
+  const switchMissionWithTransition = (nextMissionId: MissionId) => {
+    if (nextMissionId === selectedMissionId) return;
+    setSelectedMissionId(nextMissionId);
+    setTransitionKey((k) => k + 1);
+  };
 
   const handleTelemetryFrame = useCallback(
     (state: RigidBodyState, _thrusters: unknown, nn: NeuralNetworkSnapshot) => {
@@ -136,7 +140,7 @@ export const App: React.FC = () => {
   };
 
   const handleLoadCheckpoint = (chk: SavedCheckpoint) => {
-    setSelectedMissionId(chk.missionId);
+    switchMissionWithTransition(chk.missionId);
     setHyperparams((prev) => ({
       ...prev,
       epochs: chk.epochs,
@@ -152,6 +156,7 @@ export const App: React.FC = () => {
 
   const handleSimulateConcept = (missionId: MissionId, epochs: number) => {
     setSelectedMissionId(missionId);
+    setTransitionKey((k) => k + 1);
     setHyperparams((prev) => ({
       ...prev,
       epochs,
@@ -166,14 +171,16 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-shell">
-      {/* Top Navigation & Mission Selector Header */}
+      {/* Top Navigation & Mission Selector Header (Pure Monochrome) */}
       <header className="top-header">
         <div className="brand-block">
           <span className="brand-badge">RL // 6-DoF LAB</span>
           <div>
-            <h1 className="brand-title">THRUST // WEIGHT</h1>
+            <h1 className="brand-title">
+              <AnimatedDecodeText text="THRUST // WEIGHT" durationMs={520} />
+            </h1>
             <div className="brand-subtitle">
-              Where Policy Gradients Meet 10,000 PSI Cold-Gas &amp; 33 Raptor Engines
+              <AnimatedDecodeText text={currentMission.subtitle} durationMs={380} />
             </div>
           </div>
         </div>
@@ -191,7 +198,7 @@ export const App: React.FC = () => {
               <button
                 key={m.id}
                 type="button"
-                onClick={() => setSelectedMissionId(m.id)}
+                onClick={() => switchMissionWithTransition(m.id)}
                 className={`mission-tab ${activeClass}`}
               >
                 {m.vehicle === 'roadster' ? <Car size={14} /> : <Rocket size={14} />}
@@ -211,7 +218,7 @@ export const App: React.FC = () => {
             }}
             className="action-btn"
           >
-            <BookOpen size={14} color="#38bdf8" />
+            <BookOpen size={14} />
             ML Knowledge Lab
           </button>
           <button
@@ -231,7 +238,7 @@ export const App: React.FC = () => {
             className="action-btn"
             aria-label="Toggle Thruster Audio Synthesizer"
           >
-            {soundEnabled ? <Volume2 size={14} color="#10b981" /> : <VolumeX size={14} />}
+            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
             {soundEnabled ? 'Audio ON' : 'Audio'}
           </button>
         </div>
@@ -256,6 +263,7 @@ export const App: React.FC = () => {
           mission={currentMission}
           hyperparams={hyperparams}
           soundEngine={soundEngineRef.current}
+          transitionKey={transitionKey}
           onTelemetryFrame={handleTelemetryFrame}
           onEpisodeComplete={handleEpisodeComplete}
         />
