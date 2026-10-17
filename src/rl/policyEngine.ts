@@ -201,7 +201,11 @@ export function evaluateRLPolicy(
       thrusters.frontRightLift = clamp(baseJumpLift - rollTrim + pitchTrim, 0, 1);
       thrusters.rearLeftLift = clamp(baseJumpLift + rollTrim - pitchTrim, 0, 1);
       thrusters.rearRightLift = clamp(baseJumpLift - rollTrim - pitchTrim, 0, 1);
-      thrusters.rearBoost = isBoostingOverWall ? clamp(0.72 * competence * fuelCap, 0, 1) : 0;
+      thrusters.rearBoost = isBoostingOverWall
+        ? clamp(0.92 * competence * fuelCap, 0, 1)
+        : isLandingCushion
+          ? clamp(0.28 * competence * fuelCap, 0, 0.5)
+          : clamp(0.65 * competence * fuelCap, 0, 0.85);
     }
 
     thrusters.lateralRight = clamp(steerCmd, 0, 1);
@@ -237,7 +241,11 @@ export function evaluateRLPolicy(
 
       thrusters.lateralLeft = isKickflipping ? clamp(0.85 * competence * attGain + Math.abs(n2) * 0.2, 0.15, 1.0) : clamp(0.32 * competence, 0, 0.6);
       thrusters.lateralRight = isKickflipping ? clamp(0.65 * competence * attGain + Math.abs(n3) * 0.2, 0.15, 0.9) : clamp(0.32 * competence, 0, 0.6);
-      thrusters.rearBoost = state.position.y > 5.0 ? 0.28 * competence * fuelCap : 0;
+      thrusters.rearBoost = isKickflipping
+        ? clamp(0.85 * competence * fuelCap, 0, 1)
+        : isNearGroundDescent
+          ? clamp(0.25 * competence * fuelCap, 0, 0.45)
+          : clamp(0.62 * competence * fuelCap, 0, 0.85);
       thrusters.activeWingAngle = isNearGroundDescent ? 0.95 : 0.55;
     }
   } else if (missionId === 'roadster-barrel-roll') {
@@ -266,7 +274,11 @@ export function evaluateRLPolicy(
 
       thrusters.lateralLeft = !flipComplete ? clamp(0.92 * competence * attGain + Math.abs(n2) * 0.2, 0.25, 1.0) : clamp(0.38 * competence, 0.1, 0.65);
       thrusters.lateralRight = !flipComplete ? clamp(0.68 * competence * attGain + Math.abs(n3) * 0.2, 0.2, 0.92) : clamp(0.38 * competence, 0.1, 0.65);
-      thrusters.rearBoost = !flipComplete && state.position.x < 1.5 ? 0.32 * competence * fuelCap : 0;
+      thrusters.rearBoost = !flipComplete
+        ? clamp(0.88 * competence * fuelCap, 0, 1)
+        : isDescendingLow
+          ? clamp(0.25 * competence * fuelCap, 0, 0.45)
+          : clamp(0.6 * competence * fuelCap, 0, 0.85);
       thrusters.activeWingAngle = flipComplete ? 0.95 : 0.45;
     }
   } else if (missionId === 'starship-launch' || missionId === 'starship-booster-catch') {

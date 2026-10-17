@@ -26,6 +26,8 @@ export interface RoadsterRig {
     latLeft: THREE.Mesh;
     latRight: THREE.Mesh;
     rearBoost: THREE.Mesh;
+    rearBoostLeft?: THREE.Mesh;
+    rearBoostRight?: THREE.Mesh;
   };
   plumeLight: THREE.PointLight;
   setWheelSpec: (spec: WheelSpec) => void;
@@ -387,11 +389,26 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
   latRight.position.set(0.0, 0.24, -0.98);
   latRight.rotation.x = 1.28;
 
-  const rearBoost = createColdGasPlumeMesh(3.2, 0.28);
-  rearBoost.position.set(-2.15, 0.26, 0);
-  rearBoost.rotation.z = -Math.PI / 2;
+  // Dual Rear SpaceX Cold-Gas Rocket Thrusters (2 rear nozzle bells flanking rear fascia at z = ±0.38m)
+  const rearBoostPlumes: THREE.Mesh[] = [];
+  for (const zSign of [-1, 1]) {
+    const nozzleBell = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.092, 0.12, 16), carbonMat);
+    nozzleBell.rotation.z = Math.PI / 2;
+    nozzleBell.position.set(-2.17, 0.36, zSign * 0.38);
+    const nozzleThroat = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 16), rotorMat);
+    nozzleThroat.rotation.z = Math.PI / 2;
+    nozzleThroat.position.set(-2.21, 0.36, zSign * 0.38);
+    root.add(nozzleBell, nozzleThroat);
 
-  root.add(fl, fr, rl, rr, latLeft, latRight, rearBoost);
+    const plume = createColdGasPlumeMesh(3.2, 0.25);
+    plume.position.set(-2.22, 0.36, zSign * 0.38);
+    plume.rotation.z = -Math.PI / 2;
+    root.add(plume);
+    rearBoostPlumes.push(plume);
+  }
+  const [rearBoostR, rearBoostL] = rearBoostPlumes;
+
+  root.add(fl, fr, rl, rr, latLeft, latRight);
 
   // Shift all car body, wheel, and nozzle meshes down by -0.39m so tire bottoms sit at y = -0.39m
   // (physically flush on the road and ramps when root is at CAR_RIDE_HEIGHT = 0.39m above surface)
@@ -421,7 +438,17 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     root,
     activeWing,
     wheelsGroup,
-    nozzles: { fl, fr, rl, rr, latLeft, latRight, rearBoost },
+    nozzles: {
+      fl,
+      fr,
+      rl,
+      rr,
+      latLeft,
+      latRight,
+      rearBoost: rearBoostL,
+      rearBoostLeft: rearBoostL,
+      rearBoostRight: rearBoostR,
+    },
     plumeLight,
     setWheelSpec: buildWheels,
     updateThrusters(t: ThrusterActivation, timeSec: number, isAirborne = true) {
@@ -433,7 +460,8 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
       updatePlume(rr, t.rearRightLift * gate, flicker);
       updatePlume(latLeft, t.lateralLeft * gate, flicker);
       updatePlume(latRight, t.lateralRight * gate, flicker);
-      updatePlume(rearBoost, t.rearBoost * gate, flicker);
+      updatePlume(rearBoostL, t.rearBoost * gate, flicker);
+      updatePlume(rearBoostR, t.rearBoost * gate, flicker);
 
       activeWing.rotation.z = 0.1 + t.activeWingAngle * 0.35;
       const avgLift = (t.frontLeftLift + t.frontRightLift + t.rearLeftLift + t.rearRightLift) / 4;
@@ -442,48 +470,14 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     getActiveNozzleEmitters(t: ThrusterActivation, isAirborne = true): NozzleEmitterDescriptor[] {
       if (!isAirborne) return [];
       return [
-        {
-          id: 'fl',
-          localOffset: new THREE.Vector3(1.25, -0.25, 0.88),
-          localDirection: new THREE.Vector3(0, -0.96, 0.28),
-          intensity: t.frontLeftLift,
-        },
-        {
-          id: 'fr',
-          localOffset: new THREE.Vector3(1.25, -0.25, -0.88),
-          localDirection: new THREE.Vector3(0, -0.96, -0.28),
-          intensity: t.frontRightLift,
-        },
-        {
-          id: 'rl',
-          localOffset: new THREE.Vector3(-1.25, -0.25, 0.9),
-          localDirection: new THREE.Vector3(0, -0.96, 0.28),
-          intensity: t.rearLeftLift,
-        },
-        {
-          id: 'rr',
-          localOffset: new THREE.Vector3(-1.25, -0.25, -0.9),
-          localDirection: new THREE.Vector3(0, -0.96, -0.28),
-          intensity: t.rearRightLift,
-        },
-        {
-          id: 'latLeft',
-          localOffset: new THREE.Vector3(0.0, -0.15, 0.98),
-          localDirection: new THREE.Vector3(0, -0.26, 0.96),
-          intensity: t.lateralLeft,
-        },
-        {
-          id: 'latRight',
-          localOffset: new THREE.Vector3(0.0, -0.15, -0.98),
-          localDirection: new THREE.Vector3(0, -0.26, -0.96),
-          intensity: t.lateralRight,
-        },
-        {
-          id: 'rearBoost',
-          localOffset: new THREE.Vector3(-2.15, -0.13, 0),
-          localDirection: new THREE.Vector3(-1, -0.08, 0),
-          intensity: t.rearBoost,
-        },
+        { id: 'fl', localOffset: new THREE.Vector3(1.25, -0.25, 0.88), localDirection: new THREE.Vector3(0, -0.96, 0.28), intensity: t.frontLeftLift },
+        { id: 'fr', localOffset: new THREE.Vector3(1.25, -0.25, -0.88), localDirection: new THREE.Vector3(0, -0.96, -0.28), intensity: t.frontRightLift },
+        { id: 'rl', localOffset: new THREE.Vector3(-1.25, -0.25, 0.9), localDirection: new THREE.Vector3(0, -0.96, 0.28), intensity: t.rearLeftLift },
+        { id: 'rr', localOffset: new THREE.Vector3(-1.25, -0.25, -0.9), localDirection: new THREE.Vector3(0, -0.96, -0.28), intensity: t.rearRightLift },
+        { id: 'latLeft', localOffset: new THREE.Vector3(0.0, -0.15, 0.98), localDirection: new THREE.Vector3(0, -0.26, 0.96), intensity: t.lateralLeft },
+        { id: 'latRight', localOffset: new THREE.Vector3(0.0, -0.15, -0.98), localDirection: new THREE.Vector3(0, -0.26, -0.96), intensity: t.lateralRight },
+        { id: 'rearBoostLeft', localOffset: new THREE.Vector3(-2.22, -0.03, 0.38), localDirection: new THREE.Vector3(-1, -0.04, 0), intensity: t.rearBoost },
+        { id: 'rearBoostRight', localOffset: new THREE.Vector3(-2.22, -0.03, -0.38), localDirection: new THREE.Vector3(-1, -0.04, 0), intensity: t.rearBoost },
       ];
     },
   };
