@@ -76,7 +76,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const primaryStateRef = useRef<RigidBodyState>(
     createInitialRoadsterState('roadster-hover', params)
   );
-  const ghostStatesRef = useRef<RigidBodyState[]>([]);
   const windImpulseRef = useRef<number>(0);
   const prevMissionRef = useRef<MissionId>(mission.id);
   const crashCooldownRef = useRef<number>(0);
@@ -107,14 +106,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       m.vehicle === 'roadster'
         ? createInitialRoadsterState(m.id, p)
         : createInitialStarshipState(m.id);
-
-    ghostStatesRef.current = Array.from({ length: p.ghostSwarmCount }, () =>
-      m.vehicle === 'roadster'
-        ? createInitialRoadsterState(m.id, p)
-        : createInitialStarshipState(m.id)
-    );
     crashCooldownRef.current = 0;
-  }, [mission.id, resetSignal, params.ghostSwarmCount]);
+  }, [mission.id, resetSignal]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -172,19 +165,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             windImpulseRef.current
           );
         }
-
-        ghostStatesRef.current = ghostStatesRef.current.map((gState, idx) => {
-          const ghostEval = evaluateRLPolicy(
-            gState,
-            activeMission.id,
-            activeParams,
-            idx + 1
-          );
-          return activeMission.vehicle === 'roadster'
-            ? stepRoadsterPhysics(gState, ghostEval.thrusters, activeMission.id, activeParams, simDt)
-            : stepStarshipPhysics(gState, ghostEval.thrusters, activeMission.id, activeParams, simDt);
-        });
-
         soundEngineRef.current.update(activeMission.vehicle, thrusters);
 
         if (
@@ -204,7 +184,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         activeMission.vehicle,
         primaryStateRef.current,
         thrusters,
-        ghostStatesRef.current,
         activeMission.targetPosition,
         rawDt
       );

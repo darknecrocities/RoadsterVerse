@@ -35,8 +35,19 @@ import {
 } from './components/NeuralNetworkModal.tsx';
 import { KnowledgeAndTriviaModal } from './components/KnowledgeAndTriviaModal.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
+import { MobileGateFallback } from './components/MobileGateFallback.tsx';
+
+const checkIsMobile = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const isTouchMobileUserAgent = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+  const isNarrowScreen = window.innerWidth < 768;
+  return isTouchMobileUserAgent || isNarrowScreen;
+};
 
 export const App: React.FC = () => {
+  const [isMobile, setIsMobile] = useState<boolean>(() => checkIsMobile());
   const [showWelcome, setShowWelcome] = useState(true);
   const [missionId, setMissionId] = useState<MissionId>('starship-booster-catch');
   const [isMissionMenuOpen, setIsMissionMenuOpen] = useState(false);
@@ -219,6 +230,18 @@ export const App: React.FC = () => {
     setSelectedBrainNode(node);
     setIsBrainModalOpen(true);
   };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(checkIsMobile());
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  if (isMobile) {
+    return <MobileGateFallback />;
+  }
 
   if (showWelcome) {
     return (

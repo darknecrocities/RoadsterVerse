@@ -35,8 +35,6 @@ export class ProvingGroundSceneController {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly roadsterRig: RoadsterRig;
   private readonly starshipRig: StarshipRig;
-  private readonly ghostRoadsters: RoadsterRig[] = [];
-  private readonly ghostStarships: StarshipRig[] = [];
   private readonly smokeSystem = new VolumetricPlumeSmokeSystem(220);
   private readonly roadsterArenaGroup = new THREE.Group();
   private readonly stuntKickerGroup = new THREE.Group();
@@ -58,7 +56,7 @@ export class ProvingGroundSceneController {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.18;
 
@@ -83,16 +81,6 @@ export class ProvingGroundSceneController {
     this.roadsterRig = createRoadsterModel(false);
     this.starshipRig = createStarshipModel(false);
     this.scene.add(this.roadsterRig.root, this.starshipRig.root, this.smokeSystem.group);
-
-    for (let i = 0; i < 8; i++) {
-      const gR = createRoadsterModel(true);
-      const gS = createStarshipModel(true);
-      gR.root.visible = false;
-      gS.root.visible = false;
-      this.ghostRoadsters.push(gR);
-      this.ghostStarships.push(gS);
-      this.scene.add(gR.root, gS.root);
-    }
   }
 
   private setupLighting(): void {
@@ -259,7 +247,6 @@ export class ProvingGroundSceneController {
     vehicle: VehicleId,
     primaryState: RigidBodyState,
     primaryThrusters: ThrusterActivation,
-    ghostStates: RigidBodyState[],
     targetPos: { x: number; y: number; z: number },
     dt: number
   ): void {
@@ -332,35 +319,6 @@ export class ProvingGroundSceneController {
         primaryState,
         primaryThrusters
       );
-    }
-
-    for (let i = 0; i < this.ghostRoadsters.length; i++) {
-      const gState = ghostStates[i];
-      this.ghostRoadsters[i].root.visible = Boolean(isRoadster && gState);
-      this.ghostStarships[i].root.visible = Boolean(!isRoadster && gState);
-      if (gState) {
-        const laneZ =
-          missionId === 'roadster-obstacle-race'
-            ? (i % 2 === 0 ? 1 : -1) * (0.28 + Math.floor(i / 2) * 0.22)
-            : (i % 2 === 0 ? 1 : -1) * (1.85 + Math.floor(i / 2) * 1.45);
-        const targetRig = isRoadster ? this.ghostRoadsters[i].root : this.ghostStarships[i].root;
-        targetRig.position.set(
-          gState.position.x,
-          gState.position.y,
-          Math.max(-2.1, Math.min(2.1, gState.position.z + laneZ))
-        );
-        targetRig.rotation.set(gState.attitude.roll, gState.attitude.yaw, gState.attitude.pitch);
-        if (!isRoadster) {
-          this.ghostStarships[i].updateStarship(
-            primaryThrusters,
-            missionId === 'starship-launch' || missionId === 'starship-booster-catch',
-            gState.elapsedTimeSec,
-            gState.position.y,
-            gState.attitude.pitch,
-            Math.max(0, -gState.velocity.z)
-          );
-        }
-      }
     }
 
     const nozzleEmitters = isRoadster

@@ -3,7 +3,7 @@ import { ArrowRight, ChevronDown, Cpu, Play, Sparkles, X } from 'lucide-react';
 import type { MissionId } from '../types/simulation.ts';
 import { MISSION_LIST, MISSIONS } from '../rl/missions.ts';
 import { AnimatedDecodeText } from './AnimatedText.tsx';
-import { StuntPreviewBackdrop } from './StuntPreviewBackdrop.tsx';
+import { LandingStunt3DPreview } from './LandingStunt3DPreview.tsx';
 
 interface WelcomeScreenProps {
   selectedMissionId: MissionId;
@@ -98,8 +98,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div className="sx-landing-root">
-      {/* Live Working 60fps Stunt Preview Canvas */}
-      <StuntPreviewBackdrop
+      {/* Live Working 60fps 3D Physics Stunt Preview */}
+      <LandingStunt3DPreview
         missionId={previewMissionId}
         isUntrainedMode={isUntrainedMode}
       />
