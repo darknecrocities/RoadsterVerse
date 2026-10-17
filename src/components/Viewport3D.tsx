@@ -1,20 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Camera,
-  RotateCcw,
-  Wind,
   Disc,
-  Sparkles,
-  ShieldAlert,
-  CheckCircle2,
+  Maximize2,
+  Minimize2,
+  Pause,
+  Play,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Wind,
 } from 'lucide-react';
 import type {
   CameraMode,
   MissionDefinition,
+  MissionId,
   NeuralNetworkSnapshot,
   RigidBodyState,
   RLHyperparameters,
-  ThrusterActivation,
   WheelSpec,
 } from '../types/simulation.ts';
 import {
@@ -27,337 +30,348 @@ import {
 } from '../physics/starshipPhysics.ts';
 import { evaluateRLPolicy } from '../rl/policyEngine.ts';
 import { ProvingGroundSceneController } from '../three/provingGroundScene.ts';
-import type { ProceduralSoundEngine } from '../services/soundEngine.ts';
+import { ProceduralSoundEngine } from '../services/soundEngine.ts';
 import { AnimatedDecodeText, AnimatedNumber } from './AnimatedText.tsx';
+import { HelpTooltip } from './HelpTooltip.tsx';
 
 interface Viewport3DProps {
   mission: MissionDefinition;
-  hyperparams: RLHyperparameters;
-  soundEngine: ProceduralSoundEngine;
-  transitionKey: number;
-  onTelemetryFrame: (
+  params: RLHyperparameters;
+  resetSignal: number;
+  isFullScreenZen: boolean;
+  onToggleFullScreenZen: () => void;
+  onTelemetryUpdate: (
     state: RigidBodyState,
-    thrusters: ThrusterActivation,
-    nn: NeuralNetworkSnapshot
+    nnSnapshot: NeuralNetworkSnapshot
   ) => void;
-  onEpisodeComplete: (finalState: RigidBodyState, cumulativeReward: number) => void;
+  onAutoResetAfterCrash: () => void;
 }
 
 export const Viewport3D: React.FC<Viewport3DProps> = ({
   mission,
-  hyperparams,
-  soundEngine,
-  transitionKey,
-  onTelemetryFrame,
-  onEpisodeComplete,
+  params,
+  resetSignal,
+  isFullScreenZen,
+  onToggleFullScreenZen,
+  onTelemetryUpdate,
+  onAutoResetAfterCrash,
 }) => {
-  const mountRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<ProvingGroundSceneController | null>(null);
+  const soundEngineRef = useRef<ProceduralSoundEngine>(new ProceduralSoundEngine());
 
+  const [isPaused, setIsPaused] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [wheelSpec, setWheelSpec] = useState<WheelSpec>('six-spoke');
-  const [liveState, setLiveState] = useState<RigidBodyState>(() =>
-    mission.vehicle === 'roadster'
-      ? createInitialRoadsterState(mission.id, hyperparams)
-      : createInitialStarshipState(mission.id)
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [shutterTransition, setShutterTransition] = useState(false);
+  const [hudState, setHudState] = useState<RigidBodyState>(() =>
+    createInitialRoadsterState('roadster-hover', params)
   );
 
+  const primaryStateRef = useRef<RigidBodyState>(
+    createInitialRoadsterState('roadster-hover', params)
+  );
+  const ghostStatesRef = useRef<RigidBodyState[]>([]);
+  const windImpulseRef = useRef<number>(0);
+  const prevMissionRef = useRef<MissionId>(mission.id);
+  const crashCooldownRef = useRef<number>(0);
+
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const missionRef = useRef(mission);
   missionRef.current = mission;
-  const paramsRef = useRef(hyperparams);
-  paramsRef.current = hyperparams;
-
-  const primaryStateRef = useRef<RigidBodyState>(liveState);
-  const ghostStatesRef = useRef<RigidBodyState[]>([]);
-  const windGustRef = useRef<number>(0);
-  const resetEpisodeTriggerRef = useRef<() => void>(() => {});
+  const pausedRef = useRef(isPaused);
+  pausedRef.current = isPaused;
 
   useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
+    const m = missionRef.current;
+    if (prevMissionRef.current !== m.id) {
+      prevMissionRef.current = m.id;
+      setShutterTransition(true);
+      controllerRef.current?.triggerWarpTransition();
+      const t = window.setTimeout(() => setShutterTransition(false), 360);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [mission.id]);
 
-    const controller = new ProvingGroundSceneController(container);
-    controllerRef.current = controller;
+  useEffect(() => {
+    const p = paramsRef.current;
+    const m = missionRef.current;
+    primaryStateRef.current =
+      m.vehicle === 'roadster'
+        ? createInitialRoadsterState(m.id, p)
+        : createInitialStarshipState(m.id);
+
+    ghostStatesRef.current = Array.from({ length: p.ghostSwarmCount }, () =>
+      m.vehicle === 'roadster'
+        ? createInitialRoadsterState(m.id, p)
+        : createInitialStarshipState(m.id)
+    );
+    crashCooldownRef.current = 0;
+  }, [mission.id, resetSignal, params.ghostSwarmCount]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const sceneCtrl = new ProvingGroundSceneController(el);
+    controllerRef.current = sceneCtrl;
 
     const handleResize = () => {
-      if (!mountRef.current || !controllerRef.current) return;
-      controllerRef.current.resize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+      if (containerRef.current) {
+        sceneCtrl.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+      }
     };
     window.addEventListener('resize', handleResize);
 
-    const initEpisode = () => {
-      const m = missionRef.current;
-      const p = paramsRef.current;
-      primaryStateRef.current =
-        m.vehicle === 'roadster'
-          ? createInitialRoadsterState(m.id, p)
-          : createInitialStarshipState(m.id);
+    let rafId = 0;
+    let lastTime = performance.now();
+    let uiSyncCounter = 0;
 
-      const ghostCount = Math.max(0, Math.min(8, p.ghostSwarmCount - 1));
-      ghostStatesRef.current = Array.from({ length: ghostCount }, () =>
-        m.vehicle === 'roadster'
-          ? createInitialRoadsterState(m.id, p)
-          : createInitialStarshipState(m.id)
+    const animate = (now: number) => {
+      rafId = requestAnimationFrame(animate);
+      const rawDt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      const activeMission = missionRef.current;
+      const activeParams = paramsRef.current;
+      const simDt = pausedRef.current ? 0 : rawDt * activeParams.simulationSpeed;
+
+      const { thrusters, nnSnapshot } = evaluateRLPolicy(
+        primaryStateRef.current,
+        activeMission.id,
+        activeParams,
+        0
       );
-      controller.triggerWarpTransition();
-    };
 
-    resetEpisodeTriggerRef.current = initEpisode;
-    initEpisode();
+      if (simDt > 0) {
+        windImpulseRef.current *= Math.max(0, 1 - 3.5 * simDt);
 
-    let animId = 0;
-    let lastUiSync = 0;
+        if (activeMission.vehicle === 'roadster') {
+          primaryStateRef.current = stepRoadsterPhysics(
+            primaryStateRef.current,
+            thrusters,
+            activeMission.id,
+            activeParams,
+            simDt,
+            windImpulseRef.current
+          );
+        } else {
+          primaryStateRef.current = stepStarshipPhysics(
+            primaryStateRef.current,
+            thrusters,
+            activeMission.id,
+            activeParams,
+            simDt,
+            windImpulseRef.current
+          );
+        }
 
-    const tick = (nowMs: number) => {
-      animId = requestAnimationFrame(tick);
-      const m = missionRef.current;
-      const p = paramsRef.current;
-      const dt = 0.016 * Math.min(4, p.simulationSpeed);
+        ghostStatesRef.current = ghostStatesRef.current.map((gState, idx) => {
+          const ghostEval = evaluateRLPolicy(
+            gState,
+            activeMission.id,
+            activeParams,
+            idx + 1
+          );
+          return activeMission.vehicle === 'roadster'
+            ? stepRoadsterPhysics(gState, ghostEval.thrusters, activeMission.id, activeParams, simDt)
+            : stepStarshipPhysics(gState, ghostEval.thrusters, activeMission.id, activeParams, simDt);
+        });
 
-      windGustRef.current *= 0.93;
+        soundEngineRef.current.update(activeMission.vehicle, thrusters);
 
-      const { thrusters, nnSnapshot } = evaluateRLPolicy(primaryStateRef.current, m.id, p, 0);
-      primaryStateRef.current =
-        m.vehicle === 'roadster'
-          ? stepRoadsterPhysics(
-              primaryStateRef.current,
-              thrusters,
-              m.id,
-              p,
-              dt,
-              windGustRef.current
-            )
-          : stepStarshipPhysics(
-              primaryStateRef.current,
-              thrusters,
-              m.id,
-              p,
-              dt,
-              windGustRef.current
-            );
-
-      const desiredGhosts = Math.max(0, Math.min(8, p.ghostSwarmCount - 1));
-      while (ghostStatesRef.current.length < desiredGhosts) {
-        ghostStatesRef.current.push(
-          m.vehicle === 'roadster'
-            ? createInitialRoadsterState(m.id, p)
-            : createInitialStarshipState(m.id)
-        );
-      }
-      if (ghostStatesRef.current.length > desiredGhosts) {
-        ghostStatesRef.current.length = desiredGhosts;
-      }
-
-      for (let i = 0; i < ghostStatesRef.current.length; i++) {
-        const gEval = evaluateRLPolicy(ghostStatesRef.current[i], m.id, p, i + 1);
-        ghostStatesRef.current[i] =
-          m.vehicle === 'roadster'
-            ? stepRoadsterPhysics(ghostStatesRef.current[i], gEval.thrusters, m.id, p, dt, 0)
-            : stepStarshipPhysics(ghostStatesRef.current[i], gEval.thrusters, m.id, p, dt, 0);
+        if (
+          primaryStateRef.current.crashed ||
+          primaryStateRef.current.elapsedTimeSec > 13.5
+        ) {
+          crashCooldownRef.current += rawDt;
+          if (crashCooldownRef.current > 1.35) {
+            crashCooldownRef.current = 0;
+            onAutoResetAfterCrash();
+          }
+        }
       }
 
-      soundEngine.update(m.vehicle, thrusters);
-
-      controller.renderFrame(
-        m.id,
-        m.vehicle,
+      sceneCtrl.renderFrame(
+        activeMission.id,
+        activeMission.vehicle,
         primaryStateRef.current,
         thrusters,
         ghostStatesRef.current,
-        m.targetPosition,
-        0.016
+        activeMission.targetPosition,
+        rawDt
       );
 
-      if (primaryStateRef.current.elapsedTimeSec > 14.0 || primaryStateRef.current.crashed) {
-        if (primaryStateRef.current.elapsedTimeSec > 2.0) {
-          onEpisodeComplete(primaryStateRef.current, nnSnapshot.cumulativeReward);
-        }
-        initEpisode();
-      }
-
-      if (nowMs - lastUiSync > 90) {
-        lastUiSync = nowMs;
-        setLiveState({ ...primaryStateRef.current });
-        onTelemetryFrame(primaryStateRef.current, thrusters, nnSnapshot);
+      uiSyncCounter++;
+      if (uiSyncCounter % 6 === 0) {
+        const s = primaryStateRef.current;
+        setHudState({ ...s });
+        onTelemetryUpdate(s, nnSnapshot);
       }
     };
 
-    animId = requestAnimationFrame(tick);
+    rafId = requestAnimationFrame(animate);
 
     return () => {
-      cancelAnimationFrame(animId);
+      cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);
-      controller.dispose();
+      sceneCtrl.dispose();
     };
-  }, [soundEngine, onTelemetryFrame, onEpisodeComplete]);
-
-  useEffect(() => {
-    resetEpisodeTriggerRef.current();
-  }, [mission.id]);
+  }, []);
 
   const handleCameraChange = (mode: CameraMode) => {
     setCameraMode(mode);
     controllerRef.current?.setCameraMode(mode);
-    controllerRef.current?.triggerWarpTransition();
   };
 
-  const handleWheelToggle = () => {
-    const nextSpec: WheelSpec = wheelSpec === 'six-spoke' ? 'aero-disc' : 'six-spoke';
-    setWheelSpec(nextSpec);
-    controllerRef.current?.setWheelSpec(nextSpec);
+  const handleToggleWheel = () => {
+    const next: WheelSpec = wheelSpec === 'six-spoke' ? 'aero-disc' : 'six-spoke';
+    setWheelSpec(next);
+    controllerRef.current?.setWheelSpec(next);
   };
 
-  const triggerWindGust = () => {
-    windGustRef.current = (Math.random() > 0.5 ? 1 : -1) * 9500;
+  const handleWindGust = () => {
+    windImpulseRef.current = (Math.random() > 0.5 ? 1 : -1) * 16500;
+  };
+
+  const handleToggleAudio = () => {
+    const next = soundEngineRef.current.toggle();
+    setAudioEnabled(next);
   };
 
   return (
-    <section className="viewport-container" aria-label="3D Physics and Reinforcement Learning Viewport">
-      {/* Shutter Wipe Transition on Mission Switch */}
-      {transitionKey > 0 && (
-        <div key={transitionKey} className="shutter-wipe-overlay">
-          RECONFIGURING 6-DoF TELEMETRY // {mission.badge}
-        </div>
-      )}
+    <main className="viewport-fullscreen">
+      <div ref={containerRef} className="webgl-canvas-container" />
+      <div className={`shutter-wipe-overlay ${shutterTransition ? 'active' : ''}`} />
 
-      {/* Top Overlay: Monochrome Mission Briefing & Live Telemetry Pill Bar */}
-      <div className="hud-overlay-top">
-        <div
-          style={{
-            background: 'rgba(5, 5, 5, 0.9)',
-            border: '1px solid rgba(255, 255, 255, 0.4)',
-            borderRadius: '0.45rem',
-            padding: '0.6rem 0.85rem',
-            maxWidth: '440px',
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
-            <Sparkles size={14} color="#ffffff" />
-            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.09em' }}>
-              {mission.badge} • EPOCH <AnimatedNumber value={hyperparams.epochs} />
-            </span>
-          </div>
-          <h2 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#ffffff' }}>
-            <AnimatedDecodeText text={mission.title} />
-          </h2>
-          <p style={{ fontSize: '0.73rem', color: '#b3b3b3', marginTop: '0.2rem', lineHeight: 1.35 }}>
-            {mission.targetDescription}
-          </p>
+      {/* Minimalist Top-Center Stunt Status Pill */}
+      <div className="stunt-status-float">
+        <div className="stunt-status-top">
+          <span className="stunt-badge-bw">
+            <AnimatedDecodeText text={mission.badge} durationMs={320} />
+          </span>
+          <strong className="stunt-title-bw">
+            <AnimatedDecodeText text={mission.title} durationMs={400} />
+          </strong>
+          <HelpTooltip
+            title={mission.title}
+            explain={mission.targetDescription}
+            tip="Use the Practice Runs slider on the left to watch the AI improve!"
+          />
         </div>
 
-        <div className="telemetry-pill-bar">
-          <div className="telemetry-stat">
-            <span className="stat-label">Altitude (Y)</span>
-            <span className="stat-value">
-              <AnimatedNumber value={liveState.position.y} decimals={2} suffix=" m" />
-            </span>
+        <div className="stunt-metrics-strip">
+          <div className="metric-mini">
+            <span>HEIGHT</span>
+            <strong>
+              <AnimatedNumber value={hudState.position.y} decimals={1} suffix=" m" />
+            </strong>
           </div>
-          <div className="telemetry-stat">
-            <span className="stat-label">Pitch / Roll</span>
-            <span className="stat-value">
-              {((liveState.attitude.pitch * 180) / Math.PI).toFixed(0)}° /{' '}
-              {((liveState.attitude.roll * 180) / Math.PI).toFixed(0)}°
-            </span>
+          <div className="metric-mini">
+            <span>TILT / FLIP</span>
+            <strong>
+              {Math.round((hudState.attitude.pitch * 180) / Math.PI)}° /{' '}
+              {Math.round((hudState.attitude.roll * 180) / Math.PI)}°
+            </strong>
           </div>
-          <div className="telemetry-stat">
-            <span className="stat-label">
-              {mission.vehicle === 'roadster' ? 'COPV Tank' : 'Header Tank'}
-            </span>
-            <span className="stat-value">
-              <AnimatedNumber value={liveState.copvPressurePsi} decimals={0} suffix=" PSI" />
-            </span>
+          <div className="metric-mini">
+            <span>{mission.vehicle === 'roadster' ? 'AIR TANK' : 'FUEL'}</span>
+            <strong>
+              {mission.vehicle === 'roadster' ? (
+                <AnimatedNumber value={hudState.copvPressurePsi} decimals={0} suffix=" PSI" />
+              ) : (
+                `${hudState.propellantRemainingPct}%`
+              )}
+            </strong>
           </div>
-          {mission.id === 'roadster-wall-climb' && (
-            <div className="telemetry-stat">
-              <span className="stat-label">Wall Normal Force</span>
-              <span className="stat-value">
-                {(liveState.wallContactNormalForceN / 1000).toFixed(1)} kN
-              </span>
-            </div>
-          )}
-          <div className="telemetry-stat">
-            <span className="stat-label">Peak Load</span>
-            <span className="stat-value">{liveState.gForce.toFixed(2)} G</span>
-          </div>
-          <div className="telemetry-stat">
-            <span className="stat-label">Status</span>
-            <span
-              className="stat-value"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                color: '#ffffff',
-              }}
-            >
-              {liveState.crashed ? <ShieldAlert size={14} /> : <CheckCircle2 size={14} />}
-              {liveState.crashed
-                ? 'TUMBLED'
-                : liveState.isOnWall
-                  ? 'WALL PINNED'
-                  : `${liveState.missionProgressPct}%`}
-            </span>
+          <div className="metric-mini">
+            <span>STATUS</span>
+            <strong className={hudState.crashed ? 'status-crash' : 'status-ok'}>
+              {hudState.crashed ? 'CRASHED!' : hudState.isOnWall ? 'ON LOOP!' : 'FLYING'}
+            </strong>
           </div>
         </div>
       </div>
 
-      {/* Three.js Canvas Mount */}
-      <div ref={mountRef} className="canvas-mount" />
-
-      {/* Bottom Overlay: Monochrome Camera & Disturbance Controls */}
-      <div className="hud-overlay-bottom">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-          {(
-            [
-              { id: 'orbit', label: 'Orbit Cam' },
-              { id: 'thruster-cam', label: 'Plume / Smoke Cam' },
-              { id: 'chase', label: 'Stunt Chase Cam' },
-              { id: 'tower-cam', label: 'Paddock Crane / Ramp Cam' },
-            ] as { id: CameraMode; label: string }[]
-          ).map((cam) => (
+      {/* Minimalist Bottom Control Dock */}
+      <div className="bottom-dock-bw">
+        <div className="dock-group">
+          {(['orbit', 'chase', 'thruster-cam', 'tower-cam'] as CameraMode[]).map((mode) => (
             <button
-              key={cam.id}
+              key={mode}
               type="button"
-              onClick={() => handleCameraChange(cam.id)}
-              className={`action-btn ${cameraMode === cam.id ? 'primary' : ''}`}
+              className={`dock-btn-bw ${cameraMode === mode ? 'active' : ''}`}
+              onClick={() => handleCameraChange(mode)}
             >
               <Camera size={13} />
-              {cam.label}
+              <span>
+                {mode === 'orbit'
+                  ? 'Orbit'
+                  : mode === 'chase'
+                    ? 'Follow'
+                    : mode === 'thruster-cam'
+                      ? 'Jet Cam'
+                      : 'Wide'}
+              </span>
             </button>
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+        <div className="dock-group">
           {mission.vehicle === 'roadster' && (
-            <button
-              type="button"
-              onClick={handleWheelToggle}
-              className="action-btn"
-              title="Switch between Image 1 6-Spoke Track Rims and Image 2 Aero-Disc Covers"
-            >
-              <Disc size={14} />
-              Wheels: {wheelSpec === 'six-spoke' ? '6-Spoke Track' : 'Carbon Aero-Disc'}
+            <button type="button" className="dock-btn-bw" onClick={handleToggleWheel}>
+              <Disc size={13} />
+              <span>{wheelSpec === 'six-spoke' ? '10-Spoke Rims' : 'Carbon Discs'}</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={triggerWindGust}
-            className="action-btn"
-          >
-            <Wind size={14} />
-            Inject Lateral Wind Gust
+
+          <button type="button" className="dock-btn-bw" onClick={handleWindGust}>
+            <Wind size={13} />
+            <span>Push With Wind</span>
+            <HelpTooltip
+              title="Push With Wind Gust"
+              explain="Blasts the vehicle sideways with a strong gust of wind so you can see if the AI is smart enough to catch itself!"
+            />
           </button>
+
+          <button type="button" className="dock-btn-bw" onClick={handleToggleAudio}>
+            {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+            <span>{audioEnabled ? 'Sound On' : 'Muted'}</span>
+          </button>
+
           <button
             type="button"
-            onClick={() => resetEpisodeTriggerRef.current()}
-            className="action-btn primary"
+            className="dock-btn-bw"
+            onClick={() => setIsPaused((p) => !p)}
           >
-            <RotateCcw size={14} />
-            Respawn Vehicle
+            {isPaused ? <Play size={13} /> : <Pause size={13} />}
+            <span>{isPaused ? 'Resume' : 'Pause'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="dock-btn-bw"
+            onClick={onAutoResetAfterCrash}
+            title="Restart Stunt"
+          >
+            <RotateCcw size={13} />
+            <span>Restart</span>
+          </button>
+
+          <button
+            type="button"
+            className={`dock-btn-bw ${isFullScreenZen ? 'active' : ''}`}
+            onClick={onToggleFullScreenZen}
+            title="Toggle Full-Screen Zen Mode (Hide Side Panels)"
+          >
+            {isFullScreenZen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            <span>{isFullScreenZen ? 'Show Panels' : 'Full Screen'}</span>
           </button>
         </div>
       </div>
-    </section>
+    </main>
   );
 };

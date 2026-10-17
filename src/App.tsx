@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Rocket,
-  Car,
   BookOpen,
-  HelpCircle,
-  Volume2,
-  VolumeX,
+  Car,
+  Home,
+  Maximize2,
+  Minimize2,
+  Rocket,
+  RotateCcw,
 } from 'lucide-react';
 import type {
   MissionId,
@@ -19,269 +20,314 @@ import {
   MISSION_LIST,
   MISSIONS,
 } from './rl/missions.ts';
-import { createInitialRoadsterState } from './physics/roadsterPhysics.ts';
+import { generateEpochLearningCurve } from './rl/policyEngine.ts';
 import {
-  evaluateRLPolicy,
-  generateEpochLearningCurve,
-} from './rl/policyEngine.ts';
+  fetchCheckpoints,
+  saveCheckpointApi,
+} from './services/apiClient.ts';
 import { Viewport3D } from './components/Viewport3D.tsx';
 import { RLTrainingControls } from './components/RLTrainingControls.tsx';
 import { NeuralTelemetryHUD } from './components/NeuralTelemetryHUD.tsx';
 import { KnowledgeAndTriviaModal } from './components/KnowledgeAndTriviaModal.tsx';
-import { AnimatedDecodeText } from './components/AnimatedText.tsx';
-import { ProceduralSoundEngine } from './services/soundEngine.ts';
-import {
-  fetchCheckpoints,
-  recordSimulationRunApi,
-  saveCheckpointApi,
-} from './services/apiClient.ts';
+import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 
 export const App: React.FC = () => {
-  const [selectedMissionId, setSelectedMissionId] = useState<MissionId>('roadster-hover');
-  const [transitionKey, setTransitionKey] = useState<number>(0);
-  const [hyperparams, setHyperparams] = useState<RLHyperparameters>(DEFAULT_HYPERPARAMETERS);
-  const [isAutoTraining, setIsAutoTraining] = useState<boolean>(false);
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [modalTab, setModalTab] = useState<'knowledge' | 'trivia'>('knowledge');
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [missionId, setMissionId] = useState<MissionId>('roadster-wall-climb');
+  const [params, setParams] = useState<RLHyperparameters>(DEFAULT_HYPERPARAMETERS);
+  const [resetSignal, setResetSignal] = useState(0);
+  const [isAutoTraining, setIsAutoTraining] = useState(false);
+  const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
+
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+
   const [checkpoints, setCheckpoints] = useState<SavedCheckpoint[]>([]);
 
-  const soundEngineRef = useRef<ProceduralSoundEngine>(new ProceduralSoundEngine());
-
-  const currentMission = MISSIONS[selectedMissionId];
-
-  const [telemetryState, setTelemetryState] = useState<RigidBodyState>(() =>
-    createInitialRoadsterState('roadster-hover', DEFAULT_HYPERPARAMETERS)
-  );
-  const [nnSnapshot, setNnSnapshot] = useState<NeuralNetworkSnapshot>(() => {
-    const init = createInitialRoadsterState('roadster-hover', DEFAULT_HYPERPARAMETERS);
-    return evaluateRLPolicy(init, 'roadster-hover', DEFAULT_HYPERPARAMETERS).nnSnapshot;
+  const [nnSnapshot, setNnSnapshot] = useState<NeuralNetworkSnapshot>({
+    inputs: [
+      { label: 'Height', value: 0.1 },
+      { label: 'Speed Y', value: 0.05 },
+      { label: 'Roll', value: 0.02 },
+      { label: 'Pitch', value: -0.04 },
+      { label: 'Spin', value: 0.01 },
+      { label: 'Air PSI', value: 0.9 },
+    ],
+    hiddenLayer1: [0.5, -0.3, 0.7, 0.2, -0.6, 0.4, 0.8, -0.2],
+    hiddenLayer2: [0.6, 0.4, -0.5, 0.7, 0.3, -0.4],
+    outputs: [
+      { label: 'FL Jet', value: 0.55 },
+      { label: 'FR Jet', value: 0.55 },
+      { label: 'RL Jet', value: 0.56 },
+      { label: 'RR Jet', value: 0.56 },
+      { label: 'Loop Jet', value: 0.12 },
+      { label: 'Rear Jet', value: 0.1 },
+    ],
+    instantReward: 1.8,
+    cumulativeReward: 145,
+    policyEntropy: 0.12,
+    stabilityScore: 88,
   });
 
+  const activeMission = MISSIONS[missionId];
+  const isFullScreenZen = leftCollapsed && rightCollapsed;
+
+  const rewardHistory = useMemo(
+    () => generateEpochLearningCurve(missionId, params),
+    [missionId, params]
+  );
+
   useEffect(() => {
-    fetchCheckpoints(selectedMissionId)
-      .then((items) => setCheckpoints(items))
-      .catch(() => {});
-  }, [selectedMissionId]);
+    void fetchCheckpoints().then(setCheckpoints).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isAutoTraining) return;
-    const interval = setInterval(() => {
-      setHyperparams((prev) => {
+    const timer = window.setInterval(() => {
+      setParams((prev) => {
         if (prev.epochs >= 500) {
           setIsAutoTraining(false);
           return prev;
         }
-        const nextEpoch = Math.min(500, prev.epochs + 4);
-        const decayedNoise = Math.max(0.02, Number((prev.explorationNoise * 0.96).toFixed(2)));
-        return {
-          ...prev,
-          epochs: nextEpoch,
-          explorationNoise: decayedNoise,
-        };
+        const nextEpochs = Math.min(500, prev.epochs + 6);
+        const cooledNoise = Math.max(0.02, Number((0.45 * Math.exp(-nextEpochs / 110)).toFixed(2)));
+        return { ...prev, epochs: nextEpochs, explorationNoise: cooledNoise };
       });
-    }, 240);
-    return () => clearInterval(interval);
+    }, 200);
+    return () => window.clearInterval(timer);
   }, [isAutoTraining]);
 
-  const learningCurve = useMemo(
-    () => generateEpochLearningCurve(selectedMissionId, hyperparams),
-    [selectedMissionId, hyperparams]
-  );
+  const handleChangeParams = useCallback((patch: Partial<RLHyperparameters>) => {
+    setParams((prev) => ({ ...prev, ...patch }));
+  }, []);
 
-  const switchMissionWithTransition = (nextMissionId: MissionId) => {
-    if (nextMissionId === selectedMissionId) return;
-    setSelectedMissionId(nextMissionId);
-    setTransitionKey((k) => k + 1);
+  const handleSelectMission = (nextId: MissionId) => {
+    const target = MISSIONS[nextId];
+    setMissionId(nextId);
+    setParams((prev) => ({
+      ...prev,
+      epochs: target.recommendedEpochs,
+      explorationNoise: 0.04,
+    }));
+    setResetSignal((n) => n + 1);
   };
 
-  const handleTelemetryFrame = useCallback(
-    (state: RigidBodyState, _thrusters: unknown, nn: NeuralNetworkSnapshot) => {
-      setTelemetryState(state);
-      setNnSnapshot(nn);
+  const handleApplyPreset = (preset: 'untrained' | 'mid' | 'converged') => {
+    if (preset === 'untrained') {
+      setParams((prev) => ({ ...prev, epochs: 8, explorationNoise: 0.65 }));
+    } else if (preset === 'mid') {
+      setParams((prev) => ({ ...prev, epochs: 75, explorationNoise: 0.22 }));
+    } else {
+      setParams((prev) => ({
+        ...prev,
+        epochs: activeMission.recommendedEpochs,
+        explorationNoise: 0.03,
+      }));
+    }
+    setResetSignal((n) => n + 1);
+  };
+
+  const handleTelemetryUpdate = useCallback(
+    (_state: RigidBodyState, nextNn: NeuralNetworkSnapshot) => {
+      setNnSnapshot(nextNn);
     },
     []
   );
 
-  const handleEpisodeComplete = useCallback(
-    (finalState: RigidBodyState, cumulativeReward: number) => {
-      void recordSimulationRunApi({
-        missionId: selectedMissionId,
-        vehicle: MISSIONS[selectedMissionId].vehicle,
-        epochs: hyperparams.epochs,
-        cumulativeReward,
-        maxGForce: finalState.gForce,
-        peakWallNormalForceN: finalState.wallContactNormalForceN,
-        finalCopvPsi: finalState.copvPressurePsi,
-        succeeded: !finalState.crashed,
-      }).catch(() => {});
-    },
-    [selectedMissionId, hyperparams.epochs]
-  );
-
   const handleSaveCheckpoint = async (name: string) => {
-    const latestPoint = learningCurve[learningCurve.length - 1];
-    const saved = await saveCheckpointApi({
-      name,
-      missionId: selectedMissionId,
-      vehicle: currentMission.vehicle,
-      epochs: hyperparams.epochs,
-      learningRate: hyperparams.learningRate,
-      explorationNoise: hyperparams.explorationNoise,
-      discountFactor: hyperparams.discountFactor,
-      rewardAltitudeWeight: hyperparams.rewardAltitudeWeight,
-      rewardAttitudeWeight: hyperparams.rewardAttitudeWeight,
-      rewardFuelWeight: hyperparams.rewardFuelWeight,
-      rewardSmoothnessWeight: hyperparams.rewardSmoothnessWeight,
-      meanReward: latestPoint ? latestPoint.meanReward : nnSnapshot.cumulativeReward,
-      stabilityScore: nnSnapshot.stabilityScore,
-    });
-    setCheckpoints((prev) => [saved, ...prev]);
+    try {
+      const created = await saveCheckpointApi({
+        name,
+        vehicle: activeMission.vehicle,
+        missionId: activeMission.id,
+        epochs: params.epochs,
+        learningRate: params.learningRate,
+        explorationNoise: params.explorationNoise,
+        discountFactor: params.discountFactor,
+        rewardAltitudeWeight: params.rewardAltitudeWeight,
+        rewardAttitudeWeight: params.rewardAttitudeWeight,
+        rewardFuelWeight: params.rewardFuelWeight,
+        rewardSmoothnessWeight: params.rewardSmoothnessWeight,
+        meanReward: nnSnapshot.cumulativeReward,
+        stabilityScore: nnSnapshot.stabilityScore,
+      });
+      if (created) {
+        const updated = await fetchCheckpoints();
+        setCheckpoints(updated);
+      }
+    } catch {
+      // Offline fallback ignored
+    }
   };
 
-  const handleLoadCheckpoint = (chk: SavedCheckpoint) => {
-    switchMissionWithTransition(chk.missionId);
-    setHyperparams((prev) => ({
+  const handleLoadCheckpoint = (ckpt: SavedCheckpoint) => {
+    setMissionId(ckpt.missionId);
+    setParams((prev) => ({
       ...prev,
-      epochs: chk.epochs,
-      learningRate: chk.learningRate,
-      explorationNoise: chk.explorationNoise,
-      discountFactor: chk.discountFactor,
-      rewardAltitudeWeight: chk.rewardAltitudeWeight,
-      rewardAttitudeWeight: chk.rewardAttitudeWeight,
-      rewardFuelWeight: chk.rewardFuelWeight,
-      rewardSmoothnessWeight: chk.rewardSmoothnessWeight,
+      epochs: ckpt.epochs,
+      learningRate: ckpt.learningRate,
+      explorationNoise: ckpt.explorationNoise,
+      discountFactor: ckpt.discountFactor,
+      rewardAltitudeWeight: ckpt.rewardAltitudeWeight,
+      rewardAttitudeWeight: ckpt.rewardAttitudeWeight,
+      rewardFuelWeight: ckpt.rewardFuelWeight,
+      rewardSmoothnessWeight: ckpt.rewardSmoothnessWeight,
     }));
+    setResetSignal((n) => n + 1);
   };
 
-  const handleSimulateConcept = (missionId: MissionId, epochs: number) => {
-    setSelectedMissionId(missionId);
-    setTransitionKey((k) => k + 1);
-    setHyperparams((prev) => ({
-      ...prev,
-      epochs,
-      explorationNoise: epochs < 50 ? 0.55 : 0.03,
-    }));
+  const handleToggleFullScreenZen = () => {
+    if (isFullScreenZen) {
+      setLeftCollapsed(false);
+      setRightCollapsed(false);
+    } else {
+      setLeftCollapsed(true);
+      setRightCollapsed(true);
+    }
   };
 
-  const handleSoundToggle = () => {
-    const next = soundEngineRef.current.toggle();
-    setSoundEnabled(next);
-  };
+  if (showWelcome) {
+    return (
+      <WelcomeScreen
+        selectedMissionId={missionId}
+        onSelectMissionAndEnter={(mId) => {
+          handleSelectMission(mId);
+          setShowWelcome(false);
+        }}
+        onEnterPlayground={() => setShowWelcome(false)}
+      />
+    );
+  }
 
   return (
-    <div className="app-shell">
-      {/* Top Navigation & Mission Selector Header (Pure Monochrome) */}
-      <header className="top-header">
-        <div className="brand-block">
-          <span className="brand-badge">RL // 6-DoF LAB</span>
-          <div>
-            <h1 className="brand-title">
-              <AnimatedDecodeText text="THRUST // WEIGHT" durationMs={520} />
-            </h1>
-            <div className="brand-subtitle">
-              <AnimatedDecodeText text={currentMission.subtitle} durationMs={380} />
-            </div>
-          </div>
+    <div className="app-fullscreen-root">
+      {/* Minimalist Top Bar */}
+      <header className="top-minimal-bar">
+        <div className="top-left-group">
+          <button
+            type="button"
+            className="nav-pill-btn"
+            onClick={() => setShowWelcome(true)}
+            title="Back to Welcome Screen"
+          >
+            <Home size={14} />
+            <span>WELCOME</span>
+          </button>
+          <span className="brand-mini-title">THRUST // WEIGHT</span>
         </div>
 
-        {/* 5 Interactive Stunt & Rocket Launch Mission Tabs */}
-        <nav className="mission-tabs" aria-label="Stunt and Launch Scenarios">
+        {/* 5 Stunt Selector Pills */}
+        <nav className="stunt-pill-strip" aria-label="Stunt Selector">
           {MISSION_LIST.map((m) => {
-            const isActive = m.id === selectedMissionId;
-            const activeClass = isActive
-              ? m.vehicle === 'roadster'
-                ? 'active-roadster'
-                : 'active-starship'
-              : '';
+            const active = m.id === missionId;
+            const shortLabel =
+              m.id === 'roadster-hover'
+                ? '01 Hover'
+                : m.id === 'roadster-wall-climb'
+                  ? '02 Half-Loop'
+                  : m.id === 'roadster-barrel-roll'
+                    ? '03 Kickflip'
+                    : m.id === 'starship-launch'
+                      ? '04 Rocket Launch'
+                      : '05 Crane Catch';
             return (
               <button
                 key={m.id}
                 type="button"
-                onClick={() => switchMissionWithTransition(m.id)}
-                className={`mission-tab ${activeClass}`}
+                className={`stunt-pill-btn ${active ? 'active' : ''}`}
+                onClick={() => handleSelectMission(m.id)}
               >
-                {m.vehicle === 'roadster' ? <Car size={14} /> : <Rocket size={14} />}
-                {m.title.replace(/^(Stunt|Mission) \d+ \/\/ /, '')}
+                {m.vehicle === 'roadster' ? <Car size={13} /> : <Rocket size={13} />}
+                <span>{shortLabel}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* Knowledge Hub, Trivia & Sound Synthesizer Buttons */}
-        <div className="header-actions">
+        {/* Right Actions */}
+        <div className="top-right-group">
           <button
             type="button"
-            onClick={() => {
-              setModalTab('knowledge');
-              setModalOpen(true);
-            }}
-            className="action-btn"
+            className="nav-pill-btn"
+            onClick={() => setResetSignal((n) => n + 1)}
+            title="Restart Stunt"
           >
-            <BookOpen size={14} />
-            ML Knowledge Lab
+            <RotateCcw size={13} />
+            <span>Restart</span>
           </button>
+
           <button
             type="button"
-            onClick={() => {
-              setModalTab('trivia');
-              setModalOpen(true);
-            }}
-            className="action-btn primary"
+            className="nav-pill-btn"
+            onClick={handleToggleFullScreenZen}
+            title="Hide or Show Side Panels"
           >
-            <HelpCircle size={14} />
-            Trivia Challenge
+            {isFullScreenZen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            <span>{isFullScreenZen ? 'Show UI' : 'Full Screen'}</span>
           </button>
+
           <button
             type="button"
-            onClick={handleSoundToggle}
-            className="action-btn"
-            aria-label="Toggle Thruster Audio Synthesizer"
+            className="nav-pill-btn primary"
+            onClick={() => setIsKnowledgeModalOpen(true)}
           >
-            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-            {soundEnabled ? 'Audio ON' : 'Audio'}
+            <BookOpen size={13} />
+            <span>Kid Guide & Quiz</span>
           </button>
         </div>
       </header>
 
-      {/* Main 3-Column Interactive Simulation Workbench */}
-      <main className="workspace-grid">
-        <RLTrainingControls
-          mission={currentMission}
-          hyperparams={hyperparams}
-          isAutoTraining={isAutoTraining}
-          checkpoints={checkpoints}
-          stabilityScore={nnSnapshot.stabilityScore}
-          meanReward={learningCurve[learningCurve.length - 1]?.meanReward ?? 0}
-          onChangeHyperparams={setHyperparams}
-          onToggleAutoTrain={() => setIsAutoTraining((v) => !v)}
-          onSaveCheckpoint={handleSaveCheckpoint}
-          onLoadCheckpoint={handleLoadCheckpoint}
-        />
+      {/* Full-Screen 3D Playground */}
+      <Viewport3D
+        mission={activeMission}
+        params={params}
+        resetSignal={resetSignal}
+        isFullScreenZen={isFullScreenZen}
+        onToggleFullScreenZen={handleToggleFullScreenZen}
+        onTelemetryUpdate={handleTelemetryUpdate}
+        onAutoResetAfterCrash={() => setResetSignal((n) => n + 1)}
+      />
 
-        <Viewport3D
-          mission={currentMission}
-          hyperparams={hyperparams}
-          soundEngine={soundEngineRef.current}
-          transitionKey={transitionKey}
-          onTelemetryFrame={handleTelemetryFrame}
-          onEpisodeComplete={handleEpisodeComplete}
-        />
+      {/* Collapsible Floating Left Drawer (AI Controls) */}
+      <RLTrainingControls
+        mission={activeMission}
+        params={params}
+        stabilityScore={nnSnapshot.stabilityScore}
+        isAutoTraining={isAutoTraining}
+        collapsed={leftCollapsed}
+        onToggleCollapse={() => setLeftCollapsed((c) => !c)}
+        onChangeParams={handleChangeParams}
+        onToggleAutoTrain={() => setIsAutoTraining((a) => !a)}
+        onApplyPreset={handleApplyPreset}
+        checkpoints={checkpoints}
+        onSaveCheckpoint={handleSaveCheckpoint}
+        onLoadCheckpoint={handleLoadCheckpoint}
+      />
 
-        <NeuralTelemetryHUD
-          mission={currentMission}
-          state={telemetryState}
-          nnSnapshot={nnSnapshot}
-          learningCurve={learningCurve}
-          currentEpoch={hyperparams.epochs}
-        />
-      </main>
+      {/* Collapsible Floating Right Drawer (Inside the AI Brain) */}
+      <NeuralTelemetryHUD
+        mission={activeMission}
+        nnSnapshot={nnSnapshot}
+        epoch={params.epochs}
+        rewardHistory={rewardHistory}
+        collapsed={rightCollapsed}
+        onToggleCollapse={() => setRightCollapsed((c) => !c)}
+      />
 
+      {/* Kid-Friendly Guide & Quiz Modal */}
       <KnowledgeAndTriviaModal
-        isOpen={modalOpen}
-        initialTab={modalTab}
-        onClose={() => setModalOpen(false)}
-        onSimulateConcept={handleSimulateConcept}
+        isOpen={isKnowledgeModalOpen}
+        initialTab="knowledge"
+        onClose={() => setIsKnowledgeModalOpen(false)}
+        onSimulateConcept={(targetMissionId, demoEpochs) => {
+          setMissionId(targetMissionId);
+          setParams((prev) => ({
+            ...prev,
+            epochs: demoEpochs,
+            explorationNoise: 0.03,
+          }));
+          setResetSignal((n) => n + 1);
+        }}
       />
     </div>
   );

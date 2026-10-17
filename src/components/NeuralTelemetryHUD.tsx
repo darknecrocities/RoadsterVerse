@@ -1,327 +1,292 @@
-import React from 'react';
-import { Cpu, Activity, Flame, Compass } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Activity,
+  Cpu,
+  Flame,
+  Info,
+  Minimize2,
+} from 'lucide-react';
 import type {
   EpochHistoryPoint,
   MissionDefinition,
   NeuralNetworkSnapshot,
-  RigidBodyState,
 } from '../types/simulation.ts';
+import { HelpTooltip } from './HelpTooltip.tsx';
 import { AnimatedNumber } from './AnimatedText.tsx';
 
 interface NeuralTelemetryHUDProps {
   mission: MissionDefinition;
-  state: RigidBodyState;
   nnSnapshot: NeuralNetworkSnapshot;
-  learningCurve: EpochHistoryPoint[];
-  currentEpoch: number;
+  epoch: number;
+  rewardHistory: EpochHistoryPoint[];
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
   mission,
-  state,
   nnSnapshot,
-  learningCurve,
-  currentEpoch,
+  epoch,
+  rewardHistory,
+  collapsed,
+  onToggleCollapse,
 }) => {
-  const inputY = (idx: number) => 24 + idx * 27;
-  const h1Y = (idx: number) => 16 + idx * 21;
-  const h2Y = (idx: number) => 24 + idx * 27;
-  const outY = (idx: number) => 24 + idx * 27;
+  const [showBrainGraph, setShowBrainGraph] = useState(true);
 
-  const chartW = 310;
-  const chartH = 95;
-  const minR = -220;
-  const maxR = 1500;
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="floating-Collapsed-pill right"
+        onClick={onToggleCollapse}
+        title="Open AI Brain View"
+      >
+        <Cpu size={15} />
+        <span>AI BRAIN ({nnSnapshot.stabilityScore}%)</span>
+      </button>
+    );
+  }
 
-  const polylinePoints = learningCurve
-    .map((pt, idx) => {
-      const x = (idx / Math.max(1, learningCurve.length - 1)) * (chartW - 24) + 12;
-      const normY = (pt.meanReward - minR) / (maxR - minR);
-      const y = chartH - 14 - Math.max(0, Math.min(1, normY)) * (chartH - 26);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
+  const inputX = 48;
+  const h1X = 112;
+  const h2X = 172;
+  const outX = 236;
+
+  const getY = (idx: number, total: number, height = 148) => {
+    const pad = 16;
+    const usable = height - pad * 2;
+    return pad + (idx / Math.max(1, total - 1)) * usable;
+  };
 
   return (
-    <aside className="panel-card" aria-label="Live Neural Network and 6-DoF Telemetry HUD">
-      {/* 1. Live Policy Neural Network Activation Graph (Pure Monochrome) */}
-      <div className="panel-title">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+    <aside className="floating-drawer right-drawer">
+      <div className="drawer-header">
+        <div className="drawer-title-group">
           <Cpu size={15} />
-          Live Policy Network (100 Hz)
-        </span>
-        <span style={{ fontSize: '0.7rem', color: '#ffffff', fontFamily: 'monospace' }}>
-          R_inst: {nnSnapshot.instantReward >= 0 ? `+${nnSnapshot.instantReward}` : nnSnapshot.instantReward}
-        </span>
-      </div>
-
-      <div
-        style={{
-          background: '#050505',
-          border: '1px solid rgba(255, 255, 255, 0.28)',
-          borderRadius: '0.45rem',
-          padding: '0.4rem',
-        }}
-      >
-        <svg viewBox="0 0 320 182" width="100%" height="176" role="img" aria-label="Neural Network Activations">
-          {/* Synaptic Connections: Inputs -> Hidden 1 */}
-          {nnSnapshot.inputs.map((inp, i) =>
-            nnSnapshot.hiddenLayer1.map((h1, j) => {
-              const weightStrength = Math.abs(inp.value * h1);
-              return (
-                <line
-                  key={`i-h1-${i}-${j}`}
-                  x1={58}
-                  y1={inputY(i)}
-                  x2={125}
-                  y2={h1Y(j)}
-                  stroke={inp.value * h1 >= 0 ? '#ffffff' : '#737373'}
-                  strokeOpacity={0.14 + weightStrength * 0.65}
-                  strokeWidth={0.6 + weightStrength * 1.4}
-                />
-              );
-            })
-          )}
-
-          {/* Synaptic Connections: Hidden 1 -> Hidden 2 */}
-          {nnSnapshot.hiddenLayer1.map((h1, i) =>
-            nnSnapshot.hiddenLayer2.map((h2, j) => {
-              const weightStrength = Math.abs(h1 * h2);
-              return (
-                <line
-                  key={`h1-h2-${i}-${j}`}
-                  x1={125}
-                  y1={h1Y(i)}
-                  x2={195}
-                  y2={h2Y(j)}
-                  stroke={h1 * h2 >= 0 ? '#e5e5e5' : '#525252'}
-                  strokeOpacity={0.16 + weightStrength * 0.55}
-                  strokeWidth={0.6 + weightStrength * 1.3}
-                />
-              );
-            })
-          )}
-
-          {/* Synaptic Connections: Hidden 2 -> Thruster Outputs */}
-          {nnSnapshot.hiddenLayer2.map((h2, i) =>
-            nnSnapshot.outputs.map((out, j) => {
-              const weightStrength = Math.abs(h2 * out.value);
-              return (
-                <line
-                  key={`h2-o-${i}-${j}`}
-                  x1={195}
-                  y1={h2Y(i)}
-                  x2={258}
-                  y2={outY(j)}
-                  stroke="#ffffff"
-                  strokeOpacity={0.18 + weightStrength * 0.7}
-                  strokeWidth={0.7 + weightStrength * 1.6}
-                />
-              );
-            })
-          )}
-
-          {/* Input Nodes */}
-          {nnSnapshot.inputs.map((inp, i) => (
-            <g key={`inp-${inp.label}`}>
-              <text x={4} y={inputY(i) + 3} fill="#b3b3b3" fontSize="8.5" fontFamily="monospace">
-                {inp.label}
-              </text>
-              <circle
-                cx={58}
-                cy={inputY(i)}
-                r={5.5}
-                fill={inp.value >= 0 ? '#ffffff' : '#404040'}
-                stroke="#ffffff"
-                strokeWidth={1}
-              />
-            </g>
-          ))}
-
-          {/* Hidden Layer 1 Nodes */}
-          {nnSnapshot.hiddenLayer1.map((val, i) => (
-            <circle
-              key={`h1-${i}`}
-              cx={125}
-              cy={h1Y(i)}
-              r={4.5}
-              fill={val >= 0 ? '#ffffff' : '#737373'}
-              fillOpacity={0.35 + Math.abs(val) * 0.65}
-            />
-          ))}
-
-          {/* Hidden Layer 2 Nodes */}
-          {nnSnapshot.hiddenLayer2.map((val, i) => (
-            <circle
-              key={`h2-${i}`}
-              cx={195}
-              cy={h2Y(i)}
-              r={5}
-              fill={val >= 0 ? '#ffffff' : '#737373'}
-              fillOpacity={0.4 + Math.abs(val) * 0.6}
-            />
-          ))}
-
-          {/* Output Thruster / Flap Action Nodes */}
-          {nnSnapshot.outputs.map((out, i) => (
-            <g key={`out-${out.label}`}>
-              <circle
-                cx={258}
-                cy={outY(i)}
-                r={6}
-                fill={out.value > 0.15 ? '#ffffff' : '#171717'}
-                stroke="#ffffff"
-                strokeWidth={1.2}
-              />
-              <text x={269} y={outY(i) + 3} fill="#f5f5f5" fontSize="8.5" fontFamily="monospace">
-                {out.label}
-              </text>
-            </g>
-          ))}
-        </svg>
-      </div>
-
-      {/* 2. Live Thruster / Aero Flap Duty Cycle Bars */}
-      <div className="panel-title">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Flame size={15} />
-          {mission.vehicle === 'roadster'
-            ? 'COPV White Smoke Valve Duty'
-            : 'Raptor Fire & Flap Actuators'}
-        </span>
-        <span style={{ fontSize: '0.7rem', color: '#9e9e9e' }}>
-          Entropy: {nnSnapshot.policyEntropy}
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
-        {nnSnapshot.outputs.map((act) => {
-          const pct = Math.round(act.value * 100);
-          return (
-            <div
-              key={act.label}
-              style={{
-                background: '#0a0a0a',
-                border: '1px solid rgba(255, 255, 255, 0.22)',
-                borderRadius: '0.35rem',
-                padding: '0.38rem 0.55rem',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '0.7rem',
-                  marginBottom: '0.22rem',
-                }}
-              >
-                <span style={{ color: '#d4d4d4' }}>{act.label}</span>
-                <span style={{ fontFamily: 'monospace', color: '#ffffff', fontWeight: 800 }}>
-                  {pct}%
-                </span>
-              </div>
-              <div
-                style={{
-                  height: '6px',
-                  background: '#1f1f1f',
-                  borderRadius: '3px',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${pct}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #9e9e9e, #ffffff)',
-                    transition: 'width 0.08s linear',
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 3. Epoch Reward Convergence Curve */}
-      <div className="panel-title">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Activity size={15} />
-          Reward vs. Epoch Convergence
-        </span>
-        <span style={{ fontSize: '0.7rem', color: '#ffffff', fontFamily: 'monospace' }}>
-          Ep <AnimatedNumber value={currentEpoch} />
-        </span>
-      </div>
-
-      <div
-        style={{
-          background: '#050505',
-          border: '1px solid rgba(255, 255, 255, 0.25)',
-          borderRadius: '0.45rem',
-          padding: '0.45rem',
-        }}
-      >
-        <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height="92" role="img" aria-label="Reward Learning Curve">
-          <line x1={12} y1={chartH - 14} x2={chartW - 12} y2={chartH - 14} stroke="#333333" strokeWidth={1} />
-          <polyline
-            fill="none"
-            stroke="#ffffff"
-            strokeWidth={2.2}
-            points={polylinePoints}
+          <span>INSIDE THE AI BRAIN</span>
+          <HelpTooltip
+            title="Live AI Brain View"
+            explain="Watch how the computer brain sees the car's height and tilt on the left, thinks in the middle, and fires the air jets on the right!"
           />
-          <text x={14} y={14} fill="#9e9e9e" fontSize="8.5" fontFamily="monospace">
-            Mean Episode Return (PPO Clipped Objective)
-          </text>
-        </svg>
+        </div>
+        <button
+          type="button"
+          className="icon-min-btn"
+          onClick={onToggleCollapse}
+          title="Minimize Brain Panel"
+        >
+          <Minimize2 size={14} />
+        </button>
       </div>
 
-      {/* 4. ML & Physics Technique Brief Card */}
-      <div
-        style={{
-          background: '#0a0a0a',
-          border: '1px solid rgba(255, 255, 255, 0.25)',
-          borderRadius: '0.45rem',
-          padding: '0.65rem',
-          fontSize: '0.73rem',
-          color: '#d4d4d4',
-          lineHeight: 1.45,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            fontWeight: 800,
-            color: '#ffffff',
-            marginBottom: '0.25rem',
-          }}
-        >
-          <Compass size={14} />
-          How This Stunt Is Learned:
-        </div>
-        <p>{mission.mlTechniqueSummary}</p>
-        <div
-          style={{
-            marginTop: '0.45rem',
-            padding: '0.35rem 0.5rem',
-            background: '#000000',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            borderRadius: '0.35rem',
-            fontFamily: 'monospace',
-            fontSize: '0.68rem',
-            color: '#ffffff',
-            overflowX: 'auto',
-          }}
-        >
-          {mission.physicsFormulaLatex}
-        </div>
-        {state.isOnWall && (
-          <div style={{ marginTop: '0.35rem', color: '#ffffff', fontWeight: 800 }}>
-            ✓ Active Wall Adhesion: Lateral COPV jet generating{' '}
-            {(state.wallContactNormalForceN / 1000).toFixed(1)} kN normal force!
+      <div className="drawer-body">
+        {/* 1. Simple Story Card */}
+        <div className="simple-story-card">
+          <div className="story-header">
+            <Info size={13} />
+            <span>HOW THIS STUNT WORKS (SIMPLE GUIDE)</span>
           </div>
-        )}
+          <p className="story-text">{mission.mlTechniqueSummary}</p>
+          <div className="story-rule-pill">{mission.physicsFormulaLatex}</div>
+        </div>
+
+        {/* 2. Jet / Engine Power Meters */}
+        <div className="hud-card-bw">
+          <div className="hud-card-header-bw">
+            <span>
+              <Flame size={13} />{' '}
+              {mission.vehicle === 'roadster' ? 'AIR JET POWER' : 'ROCKET ENGINE POWER'}
+              <HelpTooltip
+                title="Jet & Engine Power Meters"
+                explain="Shows how hard each air nozzle or rocket engine is blasting right now from 0% (off) to 100% (full blast)!"
+              />
+            </span>
+            <small>SKILL: {nnSnapshot.stabilityScore}%</small>
+          </div>
+
+          <div className="jet-grid-bw">
+            {nnSnapshot.outputs.map((outItem) => {
+              const pct = Math.round(outItem.value * 100);
+              return (
+                <div key={outItem.label} className="jet-cell-bw">
+                  <div className="jet-cell-top">
+                    <span>{outItem.label}</span>
+                    <strong>{pct}%</strong>
+                  </div>
+                  <div className="jet-bar-track">
+                    <div className="jet-bar-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 3. Collapsible Live Neural Brain Wire Diagram */}
+        <div className="hud-card-bw">
+          <button
+            type="button"
+            className="brain-toggle-btn"
+            onClick={() => setShowBrainGraph((v) => !v)}
+          >
+            <span>
+              <Cpu size={13} /> LIVE BRAIN WIRES ({showBrainGraph ? 'HIDE' : 'SHOW'})
+            </span>
+            <strong>
+              SCORE: <AnimatedNumber value={nnSnapshot.cumulativeReward} decimals={0} />
+            </strong>
+          </button>
+
+          {showBrainGraph && (
+            <svg viewBox="0 0 284 148" className="nn-svg-bw">
+              {nnSnapshot.inputs.map((inItem, i) =>
+                nnSnapshot.hiddenLayer1.map((h1Val, j) => {
+                  const strength = Math.min(1, Math.abs(inItem.value * h1Val));
+                  return (
+                    <line
+                      key={`l1-${i}-${j}`}
+                      x1={inputX}
+                      y1={getY(i, nnSnapshot.inputs.length)}
+                      x2={h1X}
+                      y2={getY(j, nnSnapshot.hiddenLayer1.length)}
+                      stroke="#ffffff"
+                      strokeOpacity={0.05 + strength * 0.32}
+                      strokeWidth={0.5 + strength * 1.1}
+                    />
+                  );
+                })
+              )}
+
+              {nnSnapshot.hiddenLayer1.map((h1Val, i) =>
+                nnSnapshot.hiddenLayer2.map((h2Val, j) => {
+                  const strength = Math.min(1, Math.abs(h1Val * h2Val));
+                  return (
+                    <line
+                      key={`l2-${i}-${j}`}
+                      x1={h1X}
+                      y1={getY(i, nnSnapshot.hiddenLayer1.length)}
+                      x2={h2X}
+                      y2={getY(j, nnSnapshot.hiddenLayer2.length)}
+                      stroke="#d4d4d4"
+                      strokeOpacity={0.05 + strength * 0.35}
+                      strokeWidth={0.5 + strength * 1.1}
+                    />
+                  );
+                })
+              )}
+
+              {nnSnapshot.hiddenLayer2.map((h2Val, i) =>
+                nnSnapshot.outputs.map((outItem, j) => {
+                  const strength = Math.min(1, Math.abs(h2Val * outItem.value));
+                  return (
+                    <line
+                      key={`l3-${i}-${j}`}
+                      x1={h2X}
+                      y1={getY(i, nnSnapshot.hiddenLayer2.length)}
+                      x2={outX}
+                      y2={getY(j, nnSnapshot.outputs.length)}
+                      stroke="#ffffff"
+                      strokeOpacity={0.07 + strength * 0.5}
+                      strokeWidth={0.6 + strength * 1.3}
+                    />
+                  );
+                })
+              )}
+
+              {nnSnapshot.inputs.map((inItem, i) => {
+                const y = getY(i, nnSnapshot.inputs.length);
+                return (
+                  <g key={`in-${i}`}>
+                    <circle
+                      cx={inputX}
+                      cy={y}
+                      r={3.5}
+                      fill={Math.abs(inItem.value) > 0.25 ? '#ffffff' : '#171717'}
+                      stroke="#a3a3a3"
+                      strokeWidth={1.1}
+                    />
+                    <text x={3} y={y + 3} fill="#a3a3a3" fontSize="6.5" fontFamily="monospace">
+                      {inItem.label}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {nnSnapshot.hiddenLayer1.map((val, i) => (
+                <circle
+                  key={`h1-${i}`}
+                  cx={h1X}
+                  cy={getY(i, nnSnapshot.hiddenLayer1.length)}
+                  r={2.8}
+                  fill="#ffffff"
+                  fillOpacity={0.2 + Math.abs(val) * 0.75}
+                />
+              ))}
+
+              {nnSnapshot.hiddenLayer2.map((val, i) => (
+                <circle
+                  key={`h2-${i}`}
+                  cx={h2X}
+                  cy={getY(i, nnSnapshot.hiddenLayer2.length)}
+                  r={2.8}
+                  fill="#ffffff"
+                  fillOpacity={0.2 + Math.abs(val) * 0.75}
+                />
+              ))}
+
+              {nnSnapshot.outputs.map((outItem, i) => {
+                const y = getY(i, nnSnapshot.outputs.length);
+                return (
+                  <g key={`out-${i}`}>
+                    <circle
+                      cx={outX}
+                      cy={y}
+                      r={4}
+                      fill="#ffffff"
+                      fillOpacity={0.18 + outItem.value * 0.82}
+                      stroke="#ffffff"
+                      strokeWidth={1.1}
+                    />
+                    <text x={outX + 7} y={y + 3} fill="#f5f5f5" fontSize="6.5" fontFamily="monospace">
+                      {outItem.label}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+        </div>
+
+        {/* 4. Practice Score Progress Curve */}
+        <div className="hud-card-bw">
+          <div className="hud-card-header-bw">
+            <span>
+              <Activity size={13} /> PRACTICE SCORE CHART
+              <HelpTooltip
+                title="Practice Score Chart"
+                explain="As the line goes UP from left to right, the AI is getting smarter and earning more points on each stunt!"
+              />
+            </span>
+            <small>TRY #{epoch}</small>
+          </div>
+          <svg viewBox="0 0 280 68" className="reward-svg-bw">
+            {rewardHistory.length > 1 && (
+              <polyline
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2"
+                points={rewardHistory
+                  .map((pt, idx) => {
+                    const x = 8 + (idx / Math.max(1, rewardHistory.length - 1)) * 264;
+                    const normY = Math.max(0, Math.min(1, (pt.meanReward + 80) / 280));
+                    const y = 58 - normY * 46;
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                  })
+                  .join(' ')}
+              />
+            )}
+          </svg>
+        </div>
       </div>
     </aside>
   );
