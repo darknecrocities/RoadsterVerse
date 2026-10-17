@@ -147,10 +147,23 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
       );
 
       // Reset cycle condition for continuous dynamic stunt playback
-      const maxDurationSec = mId === 'starship-booster-catch' ? 14.0 : 10.0;
-      if (curState.crashed || curState.elapsedTimeSec > maxDurationSec) {
+      const maxDurationSec =
+        mId === 'starship-booster-catch'
+          ? 14.0
+          : mId === 'roadster-obstacle-race'
+            ? 18.0
+            : 10.0;
+      const reachedObstacleFinish =
+        mId === 'roadster-obstacle-race' && curState.position.x >= 1000.0;
+
+      if (
+        curState.crashed ||
+        curState.elapsedTimeSec > maxDurationSec ||
+        reachedObstacleFinish
+      ) {
         cooldownRef.current += dt;
-        if (cooldownRef.current > (curState.crashed ? 1.4 : 0.8)) {
+        const waitTime = curState.crashed ? 1.4 : reachedObstacleFinish ? 2.5 : 0.8;
+        if (cooldownRef.current > waitTime) {
           resetSimulation();
         }
       }

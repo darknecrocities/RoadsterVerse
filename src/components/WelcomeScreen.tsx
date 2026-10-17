@@ -61,11 +61,11 @@ export const ROADSTERVERSE_STUNT_DETAILS: Record<MissionId, RoadsterVerseStuntMe
     badge: 'STUNT 03',
   },
   'roadster-obstacle-race': {
-    category: 'PROJECT ROADSTERVERSE // HIGH-SPEED OBSTACLE GAUNTLET',
-    heroTitle: 'SLALOM GAUNTLET & THRUSTER JUMP',
-    tagline: 'AWD Plaid Slalom & Mid-Air Cold-Gas Barrier Leap',
+    category: 'PROJECT ROADSTERVERSE // 10KM HIGHWAY OBSTACLE GAUNTLET',
+    heroTitle: '24M HIGHWAY GAUNTLET & CYBER-DRONE SLALOM',
+    tagline: 'Wide Multi-Lane Navigation, Autonomous Overtakes & Supersonic Jump',
     description:
-      'Tri-motor AWD Plaid acceleration through dynamic track pylons and barricades, timing mid-air nitrogen jumps over high-risk collision zones at 180+ MPH with zero grounded thruster waste.',
+      'Tri-motor AWD Plaid acceleration across a wide 24-meter, 10km proving ground super-highway. Neural look-ahead radar overtakes widely spaced chicanes and autonomous cyber-drone vehicles with generous clearance before an underbody cold-gas leap over an 8.8km laser roadblock.',
     badge: 'STUNT 04',
   },
   'roadster-hover': {

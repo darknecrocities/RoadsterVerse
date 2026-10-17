@@ -52,7 +52,7 @@ export function createInitialRoadsterState(
   if (missionId === 'roadster-barrel-roll' || missionId === 'roadster-obstacle-race') {
     const isRace = missionId === 'roadster-obstacle-race';
     return {
-      position: { x: isRace ? -11.2 : -9.2, y: GROUND_Y, z: isRace ? 0.55 : 0 },
+      position: { x: isRace ? 0.0 : -9.2, y: GROUND_Y, z: isRace ? 2.5 : 0 },
       velocity: { x: 0, y: 0, z: 0 },
       attitude: { roll: 0, pitch: 0, yaw: 0 },
       angularVelocity: { x: 0, y: 0, z: 0 },

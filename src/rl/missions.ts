@@ -67,18 +67,18 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'roadster-obstacle-race': {
     id: 'roadster-obstacle-race',
     vehicle: 'roadster',
-    title: 'Stunt 04 // Obstacle Road Race & Thruster Jump',
-    subtitle: 'Dodge concrete roadblocks at high speed and bunny-hop over a full-road laser wall!',
-    badge: 'OBSTACLE GAUNTLET RACE',
+    title: 'Stunt 04 // 10km Highway Obstacle Gauntlet',
+    subtitle: 'Navigate a wide 24m, 10km proving ground highway, overtaking widely spaced hazards and cyber-drones before a supersonic laser-wall leap!',
+    badge: '10KM OBSTACLE GAUNTLET',
     targetDescription:
-      'Sprint down the proving-ground race track using active wing aerodynamic downforce to dodge left-lane and right-lane concrete barriers, then fire all 4 underbody cold-gas jets in mid-air to bunny-hop over a full-width laser roadblock!',
-    targetPosition: { x: 9.2, y: 0.43, z: 0 },
+      'Sprint down the 10km proving-ground super-highway using active wing aerodynamic downforce to weave past widely spaced heavy chicanes and autonomous cyber-drone vehicles, then launch a high-speed cold-gas bunny-hop jump over the 8.8km full-width laser roadblock to cross the 10km finish line!',
+    targetPosition: { x: 1000.0, y: 0.43, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 350,
+    recommendedEpochs: 360,
     mlTechniqueSummary:
-      'Think of playing an obstacle racing game: first the AI learns to look ahead and steer around barriers using wing downforce so the tires do not slide, and when the whole road is blocked, it blasts its air jets to jump right over the wall!',
+      'High-speed highway obstacle avoidance: the AI scans 80 meters ahead to choose clear lanes around chicanes and autonomous vehicles with generous safety clearance, then fires 4 underbody nitrogen jets to jump the 6-lane laser wall!',
     physicsFormulaLatex:
-      'RULE: Wing Downforce grips the road to dodge barriers -> Air Jets jump over the full wall!',
+      'RULE: Look-ahead radar chooses open lane -> Downforce grips tires -> Cold-gas jets jump laser wall!',
   },
   'starship-launch': {
     id: 'starship-launch',

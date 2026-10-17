@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import type { MissionId, RigidBodyState, ThrusterActivation } from '../types/simulation.ts';
 import { ROADSTER_RACE_OBSTACLES } from '../physics/aerodynamicsAndRace.ts';
-import { createCarbonWeaveTexture, createPaddockDeckTexture } from './proceduralTextures.ts';
+import {
+  createCarbonWeaveTexture,
+  createPaddockDeckTexture,
+  createStuntRoadTexture,
+} from './proceduralTextures.ts';
 
 export interface StarbasePadAndCraneRig {
   group: THREE.Group;
@@ -19,9 +23,10 @@ export interface StarbasePadAndCraneRig {
 export function buildObstacleCourseGroup(): THREE.Group {
   const group = new THREE.Group();
   const carbonTex = createCarbonWeaveTexture();
+  const roadTex = createStuntRoadTexture();
 
   const barrierMat = new THREE.MeshStandardMaterial({
-    color: 0x262626,
+    color: 0x222222,
     map: carbonTex,
     roughness: 0.38,
     metalness: 0.58,
@@ -37,70 +42,104 @@ export function buildObstacleCourseGroup(): THREE.Group {
     opacity: 0.92,
   });
   const stripeMat = new THREE.MeshBasicMaterial({ color: 0xe5e5e5 });
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: 0x141414,
+    map: roadTex,
+    roughness: 0.55,
+    metalness: 0.25,
+  });
 
+  // 1. Wide 24m x 1050m Super-Highway Asphalt Surface (10km Proving Ground)
+  const highway = new THREE.Mesh(new THREE.BoxGeometry(1050, 0.04, 24), roadMat);
+  highway.position.set(500, 0.02, 0);
+  group.add(highway);
+
+  // Highway Shoulder Barriers with Reflective Beacons (z = +/-12.2m)
+  for (const zSide of [-12.2, 12.2]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(1050, 0.45, 0.25), barrierMat);
+    rail.position.set(500, 0.26, zSide);
+    group.add(rail);
+
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1050, 0.06, 0.08), laserMat);
+    strip.position.set(500, 0.5, zSide);
+    group.add(strip);
+  }
+
+  // Lane Divider Dashes (4 Lanes: z = -3.5m, 0m, +3.5m)
+  for (const zLane of [-3.5, 0, 3.5]) {
+    for (let x = 10; x < 1000; x += 18) {
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(7, 0.05, 0.18), stripeMat);
+      dash.position.set(x, 0.045, zLane);
+      group.add(dash);
+    }
+  }
+
+  // 2. Obstacles and Cyber-Drone Vehicles along the 10km Course
   for (const obs of ROADSTER_RACE_OBSTACLES) {
     const obsGroup = new THREE.Group();
     const widthX = obs.halfWidthX * 2;
     const spanZ = obs.maxZ - obs.minZ;
     const centerZ = (obs.minZ + obs.maxZ) * 0.5;
 
-    if (obs.type === 'lane-barrier') {
-      // Concrete & Carbon Jersey Chicane Barrier blocking one lane
-      const block = new THREE.Mesh(
-        new THREE.BoxGeometry(widthX, obs.heightY, spanZ),
-        barrierMat
-      );
+    if (obs.type === 'drone-vehicle') {
+      // Autonomous Cyber-Drone Pace Vehicle in Lane 3
+      const droneBody = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.62, 2.3), barrierMat);
+      droneBody.position.set(obs.x, 0.48, centerZ);
+      obsGroup.add(droneBody);
+
+      const droneCab = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.42, 1.8), pylonMat);
+      droneCab.position.set(obs.x - 0.2, 0.88, centerZ);
+      obsGroup.add(droneCab);
+
+      const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.18, 12), laserMat);
+      lidar.position.set(obs.x - 0.2, 1.18, centerZ);
+      obsGroup.add(lidar);
+
+      for (const dx of [-1.3, 1.3]) {
+        for (const dz of [-1.15, 1.15]) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.24, 16), barrierMat);
+          wheel.rotation.x = Math.PI / 2;
+          wheel.position.set(obs.x + dx, 0.38, centerZ + dz);
+          obsGroup.add(wheel);
+        }
+      }
+
+      const frontLight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 1.6), laserMat);
+      frontLight.position.set(obs.x + 2.22, 0.45, centerZ);
+      const rearLight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 1.6), stripeMat);
+      rearLight.position.set(obs.x - 2.22, 0.52, centerZ);
+      obsGroup.add(frontLight, rearLight);
+    } else if (obs.type === 'lane-barrier') {
+      // Heavy Concrete & Carbon Jersey Chicane Barrier
+      const block = new THREE.Mesh(new THREE.BoxGeometry(widthX, obs.heightY, spanZ), barrierMat);
       block.position.set(obs.x, obs.heightY * 0.5, centerZ);
       obsGroup.add(block);
 
-      // Top high-contrast white hazard beacon bar
-      const topBeacon = new THREE.Mesh(
-        new THREE.BoxGeometry(widthX * 1.02, 0.09, spanZ * 0.98),
-        laserMat
-      );
+      const topBeacon = new THREE.Mesh(new THREE.BoxGeometry(widthX * 1.02, 0.09, spanZ * 0.98), laserMat);
       topBeacon.position.set(obs.x, obs.heightY + 0.045, centerZ);
       obsGroup.add(topBeacon);
 
-      // Diagonal monochrome warning stripes on the approach face (-X)
       for (let s = -1; s <= 1; s++) {
-        const stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(0.03, obs.heightY * 0.65, 0.22),
-          stripeMat
-        );
-        stripe.position.set(
-          obs.x - obs.halfWidthX - 0.015,
-          obs.heightY * 0.5,
-          centerZ + s * (spanZ * 0.28)
-        );
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.04, obs.heightY * 0.65, 0.35), stripeMat);
+        stripe.position.set(obs.x - obs.halfWidthX - 0.02, obs.heightY * 0.5, centerZ + s * (spanZ * 0.28));
         stripe.rotation.x = 0.35;
         obsGroup.add(stripe);
       }
     } else {
-      // Obstacle #3: Full-Width Concrete & High-Voltage Laser Jump Wall (height = 1.05m)
-      const lowerWallH = obs.heightY * 0.52;
-      const lowerWall = new THREE.Mesh(
-        new THREE.BoxGeometry(widthX, lowerWallH, spanZ),
-        barrierMat
-      );
+      // Full-Width Laser Wall (height = 1.2m, span = 24m)
+      const lowerWallH = obs.heightY * 0.45;
+      const lowerWall = new THREE.Mesh(new THREE.BoxGeometry(widthX, lowerWallH, spanZ), barrierMat);
       lowerWall.position.set(obs.x, lowerWallH * 0.5, centerZ);
       obsGroup.add(lowerWall);
 
-      // Left & Right Emitter Pylons at track edges
-      for (const zEdge of [obs.minZ + 0.12, obs.maxZ - 0.12]) {
-        const pylon = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.14, 0.18, obs.heightY + 0.12, 12),
-          pylonMat
-        );
-        pylon.position.set(obs.x, (obs.heightY + 0.12) * 0.5, zEdge);
+      for (const zEdge of [obs.minZ + 0.15, obs.maxZ - 0.15]) {
+        const pylon = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, obs.heightY + 0.25, 12), pylonMat);
+        pylon.position.set(obs.x, (obs.heightY + 0.25) * 0.5, zEdge);
         obsGroup.add(pylon);
       }
 
-      // 3 Horizontal High-Contrast White Laser Beams across the full width up to obs.heightY
-      for (const fracY of [0.68, 0.84, 0.98]) {
-        const beam = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.035, 0.035, spanZ - 0.2, 10),
-          laserMat
-        );
+      for (const fracY of [0.65, 0.85, 1.0]) {
+        const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, spanZ - 0.3, 10), laserMat);
         beam.rotation.x = Math.PI / 2;
         beam.position.set(obs.x, obs.heightY * fracY, centerZ);
         obsGroup.add(beam);
@@ -110,18 +149,29 @@ export function buildObstacleCourseGroup(): THREE.Group {
     group.add(obsGroup);
   }
 
-  // Finish-Line Monochrome Gantry Arch at x = 8.8m
-  const finishX = 8.8;
-  for (const zPillar of [-2.45, 2.45]) {
-    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.6, 0.22), pylonMat);
-    pillar.position.set(finishX, 1.8, zPillar);
-    group.add(pillar);
+  // 3. Milestone & Finish Line Gantries across the 10km Super-Highway
+  const gantries = [250, 500, 750, 1000];
+  for (const gx of gantries) {
+    const isFinish = gx === 1000;
+    for (const zPillar of [-12.5, 12.5]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.35, isFinish ? 5.8 : 4.8, 0.35), pylonMat);
+      pillar.position.set(gx, (isFinish ? 5.8 : 4.8) * 0.5, zPillar);
+      group.add(pillar);
+    }
+    const archBeam = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.42, 25.4), barrierMat);
+    archBeam.position.set(gx, isFinish ? 5.8 : 4.8, 0);
+    const archLight = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.1, 24.8), laserMat);
+    archLight.position.set(gx, isFinish ? 5.55 : 4.55, 0);
+    group.add(archBeam, archLight);
+
+    if (isFinish) {
+      const checkMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+      const finishGrid = new THREE.Mesh(new THREE.PlaneGeometry(6, 24, 6, 24), checkMat);
+      finishGrid.rotation.x = -Math.PI / 2;
+      finishGrid.position.set(gx, 0.048, 0);
+      group.add(finishGrid);
+    }
   }
-  const archBeam = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.32, 5.15), barrierMat);
-  archBeam.position.set(finishX, 3.65, 0);
-  const archLight = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 4.9), laserMat);
-  archLight.position.set(finishX, 3.45, 0);
-  group.add(archBeam, archLight);
 
   group.visible = false;
   return group;

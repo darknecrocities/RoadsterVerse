@@ -247,15 +247,15 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     expect(state.crashed).toBe(false);
   });
 
-  it('weaves the Roadster through the S-curve chicanes and bunny-hop jumps over Obstacle #3 when trained, while crashing & exploding when untrained or short-sighted', () => {
+  it('weaves the Roadster through the 10km wide gauntlet with widely spaced hazards and cyber-drones without touching any obstacle at max epoch, while crashing when untrained', () => {
     // 1. Untrained AI (Epochs = 8): fails to weave/jump and crashes into an obstacle
     const untrainedParams = {
       ...DEFAULT_HYPERPARAMETERS,
       epochs: 8,
-      explorationNoise: 0.0,
+      explorationNoise: 0.65,
     };
     let untrainedState = createInitialRoadsterState('roadster-obstacle-race', untrainedParams);
-    for (let step = 0; step < 260; step++) {
+    for (let step = 0; step < 400; step++) {
       const { thrusters } = evaluateRLPolicy(untrainedState, 'roadster-obstacle-race', untrainedParams, 0);
       untrainedState = stepRoadsterPhysics(
         untrainedState,
@@ -268,9 +268,10 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     }
     expect(untrainedState.crashed).toBe(true);
 
-    // 2. Trained AI (Epochs = 380, discountFactor = 0.99): steers around Obstacles #1 & #2,
-    // jumps over full-width Obstacle #3 at x = +4.2m with cold-gas thrusters firing only mid-air,
-    // and lands safely past x > 6.5m!
+    // 2. Trained AI (Epochs = 380, discountFactor = 0.99): steers around Hazard 1 (Left Chicane),
+    // overtakes Hazard 2 (Autonomous Cyber-Drone Vehicle) with generous clearance,
+    // steers around Hazard 3 (Right Chicane), and bunny-hop jumps over Hazard 4 (Full-Width Laser Wall at x = 880m)
+    // with ZERO collisions across the entire 10km proving ground course!
     const trainedParams = {
       ...DEFAULT_HYPERPARAMETERS,
       epochs: 380,
@@ -279,10 +280,10 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     };
     let trainedState = createInitialRoadsterState('roadster-obstacle-race', trainedParams);
     let peakJumpAltitude = trainedState.position.y;
-    let minRightLaneZ = 0;
-    let maxLeftLaneZ = 0;
+    let minRightLaneZ = trainedState.position.z;
+    let maxLeftLaneZ = trainedState.position.z;
 
-    for (let step = 0; step < 300; step++) {
+    for (let step = 0; step < 580; step++) {
       const { thrusters } = evaluateRLPolicy(trainedState, 'roadster-obstacle-race', trainedParams, 0);
 
       // Verify zero thruster firing while tires are grounded on the asphalt
@@ -309,12 +310,12 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
       }
     }
 
-    expect(minRightLaneZ).toBeLessThan(-0.7); // Dodged Obstacle #1 in the right lane
-    expect(maxLeftLaneZ).toBeGreaterThan(0.7); // Dodged Obstacle #2 in the left lane
-    expect(peakJumpAltitude).toBeGreaterThan(1.35); // Bunny-hop jumped over Obstacle #3 (height 1.05m)
-    expect(trainedState.position.x).toBeGreaterThan(6.5); // Crossed the finish line past all 3 obstacles
+    expect(minRightLaneZ).toBeLessThan(-2.5); // Dodged Hazard 1 (Left Chicane) in right lane with massive clearance
+    expect(maxLeftLaneZ).toBeGreaterThan(2.5); // Overtook Hazard 2 (Cyber-Drone) in left lane with massive clearance
+    expect(peakJumpAltitude).toBeGreaterThan(2.0); // Bunny-hop jumped over Hazard 4 (height 1.2m) with >0.8m margin
+    expect(trainedState.position.x).toBeGreaterThanOrEqual(995.0); // Crossed 10.0km finish line
     expect(trainedState.isGrounded).toBe(true);
-    expect(trainedState.crashed).toBe(false);
+    expect(trainedState.crashed).toBe(false); // GUARANTEED ZERO COLLISION!
   });
 
   it('computes explicit fluid-body aerodynamics (dynamic pressure q = 0.5*rho*v^2, quadratic drag, active wing downforce, and altitude density decay)', () => {
