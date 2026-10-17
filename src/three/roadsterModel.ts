@@ -399,6 +399,12 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
 
   root.add(fl, fr, rl, rr, latLeft, latRight, rearBoost);
 
+  // Shift all car body, wheel, and nozzle meshes down by -0.39m so tire bottoms sit at y = -0.39m
+  // (physically flush on the road and ramps when root is at CAR_RIDE_HEIGHT = 0.39m above surface)
+  for (const child of root.children) {
+    child.position.y -= 0.39;
+  }
+
   const plumeLight = new THREE.PointLight(0xffffff, 0, 12);
   plumeLight.position.set(0, -0.5, 0);
   if (!isGhost) {
@@ -442,43 +448,43 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
       return [
         {
           id: 'fl',
-          localOffset: new THREE.Vector3(1.25, 0.14, 0.88),
+          localOffset: new THREE.Vector3(1.25, -0.25, 0.88),
           localDirection: new THREE.Vector3(0, -0.96, 0.28),
           intensity: t.frontLeftLift,
         },
         {
           id: 'fr',
-          localOffset: new THREE.Vector3(1.25, 0.14, -0.88),
+          localOffset: new THREE.Vector3(1.25, -0.25, -0.88),
           localDirection: new THREE.Vector3(0, -0.96, -0.28),
           intensity: t.frontRightLift,
         },
         {
           id: 'rl',
-          localOffset: new THREE.Vector3(-1.25, 0.14, 0.9),
+          localOffset: new THREE.Vector3(-1.25, -0.25, 0.9),
           localDirection: new THREE.Vector3(0, -0.96, 0.28),
           intensity: t.rearLeftLift,
         },
         {
           id: 'rr',
-          localOffset: new THREE.Vector3(-1.25, 0.14, -0.9),
+          localOffset: new THREE.Vector3(-1.25, -0.25, -0.9),
           localDirection: new THREE.Vector3(0, -0.96, -0.28),
           intensity: t.rearRightLift,
         },
         {
           id: 'latLeft',
-          localOffset: new THREE.Vector3(0.0, 0.24, 0.98),
+          localOffset: new THREE.Vector3(0.0, -0.15, 0.98),
           localDirection: new THREE.Vector3(0, -0.26, 0.96),
           intensity: t.lateralLeft,
         },
         {
           id: 'latRight',
-          localOffset: new THREE.Vector3(0.0, 0.24, -0.98),
+          localOffset: new THREE.Vector3(0.0, -0.15, -0.98),
           localDirection: new THREE.Vector3(0, -0.26, -0.96),
           intensity: t.lateralRight,
         },
         {
           id: 'rearBoost',
-          localOffset: new THREE.Vector3(-2.15, 0.26, 0),
+          localOffset: new THREE.Vector3(-2.15, -0.13, 0),
           localDirection: new THREE.Vector3(-1, -0.08, 0),
           intensity: t.rearBoost,
         },

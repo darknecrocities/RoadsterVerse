@@ -98,17 +98,22 @@ export function createStarshipModel(isGhost = false): StarshipRig {
     opacity,
   });
 
-  // 1. Starship Upper Stage Cylindrical Barrel + Parabolic Ogive Nosecone + Black TPS Tip (Images 3 & 4)
+  // 1. Starship Upper Stage Barrel (Disjoint Stainless Leeward + Black TPS Windward Half-Cylinders — Zero Z-Fighting!)
   const shipRadius = 0.56;
   const shipBarrelHeight = 2.6;
-  const shipBarrel = new THREE.Mesh(
-    new THREE.CylinderGeometry(shipRadius, shipRadius, shipBarrelHeight, 36),
+  const shipBarrelLeeward = new THREE.Mesh(
+    new THREE.CylinderGeometry(shipRadius, shipRadius, shipBarrelHeight, 24, 1, false, 0, Math.PI),
     stainlessMat
   );
-  shipBarrel.position.y = 1.3;
-  shipGroup.add(shipBarrel);
+  shipBarrelLeeward.position.y = 1.3;
+  const tpsWindwardShell = new THREE.Mesh(
+    new THREE.CylinderGeometry(shipRadius, shipRadius, shipBarrelHeight, 24, 1, false, Math.PI, Math.PI),
+    tpsDarkMat
+  );
+  tpsWindwardShell.position.y = 1.3;
+  shipGroup.add(shipBarrelLeeward, tpsWindwardShell);
 
-  // Lower Stainless Ogive Section + Upper Black Thermal Protection Nosecone Cap (Image 3)
+  // Disjoint Lower Stainless Ogive Section (i=0..10) + Upper Black TPS Nosecone Cap (i=10..18)
   const lowerOgivePts: THREE.Vector2[] = [];
   const upperTipPts: THREE.Vector2[] = [];
   const ogiveHeight = 1.58;
@@ -116,8 +121,8 @@ export function createStarshipModel(isGhost = false): StarshipRig {
     const t = i / 18;
     const r = shipRadius * Math.pow(1 - t, 0.68);
     const pt = new THREE.Vector2(Math.max(0.01, r), t * ogiveHeight);
-    if (t <= 0.62) lowerOgivePts.push(pt);
-    if (t >= 0.55) upperTipPts.push(pt);
+    if (i <= 10) lowerOgivePts.push(pt);
+    if (i >= 10) upperTipPts.push(pt);
   }
   const nosecone = new THREE.Mesh(new THREE.LatheGeometry(lowerOgivePts, 36), stainlessMat);
   nosecone.position.y = 2.6;
@@ -125,27 +130,10 @@ export function createStarshipModel(isGhost = false): StarshipRig {
   blackNoseTip.position.y = 2.6;
   shipGroup.add(nosecone, blackNoseTip);
 
-  // Stepped Black Heat-Shield Windward Cladding Shell (Image 3 & 4 contrast)
-  const tpsWindwardShell = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      shipRadius + 0.006,
-      shipRadius + 0.006,
-      shipBarrelHeight * 0.96,
-      24,
-      1,
-      true,
-      -Math.PI * 0.42,
-      Math.PI * 0.84
-    ),
-    tpsDarkMat
-  );
-  tpsWindwardShell.position.y = 1.3;
-  shipGroup.add(tpsWindwardShell);
-
   // Circumferential weld rings, Central Vertical Raceway Spine & Circular Porthole Vents (Image 3)
   for (const ry of [0.35, 1.05, 1.85, 2.58]) {
     const weldRing = new THREE.Mesh(
-      new THREE.TorusGeometry(shipRadius + 0.009, 0.012, 8, 36),
+      new THREE.TorusGeometry(shipRadius + 0.014, 0.012, 8, 36),
       chromeRingMat
     );
     weldRing.rotation.x = Math.PI / 2;
@@ -158,15 +146,15 @@ export function createStarshipModel(isGhost = false): StarshipRig {
       new THREE.BoxGeometry(0.05, 2.55, 0.04),
       chromeRingMat
     );
-    racewaySpine.position.set(0, 1.32, zSign * (shipRadius + 0.015));
+    racewaySpine.position.set(0, 1.32, zSign * (shipRadius + 0.02));
     const portholeLow = new THREE.Mesh(
       new THREE.CylinderGeometry(0.055, 0.055, 0.03, 16),
       tpsDarkMat
     );
     portholeLow.rotation.x = Math.PI / 2;
-    portholeLow.position.set(0.18, 1.96, zSign * (shipRadius + 0.01));
+    portholeLow.position.set(0.18, 1.96, zSign * (shipRadius + 0.015));
     const portholeHigh = portholeLow.clone();
-    portholeHigh.position.set(-0.14, 2.74, zSign * (shipRadius * 0.84));
+    portholeHigh.position.set(-0.14, 2.74, zSign * (shipRadius * 0.85));
     const catchPin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.22), chromeRingMat);
     catchPin.position.set(0, 2.25, zSign * (shipRadius + 0.06));
     shipGroup.add(racewaySpine, portholeLow, portholeHigh, catchPin);
@@ -212,13 +200,14 @@ export function createStarshipModel(isGhost = false): StarshipRig {
     );
     bell.position.set(
       Math.cos(a) * (isVac ? 0.32 : 0.14),
-      -0.1,
+      0.12,
       Math.sin(a) * (isVac ? 0.32 : 0.14)
     );
     shipGroup.add(bell);
   }
 
-  // 3. Super Heavy Booster + Hot-Stage Vented Interstage + 4 Waffle Grid Fins + 33 Raptor Bells (Image 4)
+  // 3. Super Heavy Booster built in positive local Y (y = 0.0m at Raptor nozzles -> y = 4.75m at Hot-Stage Ring)
+  // so it NEVER sits underground!
   const hotStageRing = new THREE.Mesh(
     new THREE.CylinderGeometry(shipRadius, shipRadius, 0.38, 28, 2, true),
     new THREE.MeshStandardMaterial({
@@ -230,20 +219,20 @@ export function createStarshipModel(isGhost = false): StarshipRig {
       opacity,
     })
   );
-  hotStageRing.position.y = -0.19;
+  hotStageRing.position.y = 4.56;
   boosterGroup.add(hotStageRing);
 
   const boosterHull = new THREE.Mesh(
     new THREE.CylinderGeometry(shipRadius, shipRadius, 4.3, 36),
     stainlessMat
   );
-  boosterHull.position.y = -2.52;
+  boosterHull.position.y = 2.23;
   boosterGroup.add(boosterHull);
 
   // Booster Weld Rings & Vertical Pressurization Chines (Image 4)
-  for (const by of [-0.9, -1.8, -2.7, -3.6, -4.4]) {
+  for (const by of [3.85, 2.95, 2.05, 1.15, 0.35]) {
     const bRing = new THREE.Mesh(
-      new THREE.TorusGeometry(shipRadius + 0.008, 0.011, 8, 36),
+      new THREE.TorusGeometry(shipRadius + 0.014, 0.011, 8, 36),
       chromeRingMat
     );
     bRing.rotation.x = Math.PI / 2;
@@ -252,7 +241,7 @@ export function createStarshipModel(isGhost = false): StarshipRig {
   }
   for (const zSign of [-1, 1]) {
     const boosterChine = new THREE.Mesh(new THREE.BoxGeometry(0.08, 4.1, 0.07), chromeRingMat);
-    boosterChine.position.set(0, -2.52, zSign * (shipRadius + 0.02));
+    boosterChine.position.set(0, 2.23, zSign * (shipRadius + 0.02));
     boosterGroup.add(boosterChine);
   }
 
@@ -261,33 +250,37 @@ export function createStarshipModel(isGhost = false): StarshipRig {
   for (let i = 0; i < 4; i++) {
     const angle = (i * Math.PI) / 2 + Math.PI / 4;
     const fin = new THREE.Mesh(gridFinGeo, tpsDarkMat);
-    fin.position.set(Math.cos(angle) * 0.74, -0.58, Math.sin(angle) * 0.74);
+    fin.position.set(Math.cos(angle) * 0.74, 4.17, Math.sin(angle) * 0.74);
     fin.rotation.y = -angle;
     boosterGroup.add(fin);
   }
 
-  // 33 Super Heavy Raptor Engine Nozzles
+  // 33 Super Heavy Raptor Engine Nozzles at local y = 0.03m (flush with Booster base!)
   for (let i = 0; i < 16; i++) {
     const a = (i * Math.PI) / 8;
     const bell = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.22, 10, 1, true), tpsDarkMat);
-    bell.position.set(Math.cos(a) * 0.46, -4.72, Math.sin(a) * 0.46);
+    bell.position.set(Math.cos(a) * 0.46, 0.03, Math.sin(a) * 0.46);
     boosterGroup.add(bell);
   }
   for (let i = 0; i < 8; i++) {
     const a = (i * Math.PI) / 4;
     const bell = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.22, 10, 1, true), tpsDarkMat);
-    bell.position.set(Math.cos(a) * 0.24, -4.72, Math.sin(a) * 0.24);
+    bell.position.set(Math.cos(a) * 0.24, 0.03, Math.sin(a) * 0.24);
     boosterGroup.add(bell);
   }
 
-  // 4. Dual-Stage Raptor Fire Plumes (Booster Plume + Upper-Stage Ship Plume)
+  // 4. Dual-Stage Raptor Fire Plumes (Booster Plume at y = 0 + Upper-Stage Ship Plume at y = 0)
   const boosterPlume = createRaptorFirePlumeMesh(6.2, 0.68);
-  boosterPlume.position.set(0, -4.75, 0);
+  boosterPlume.position.set(0, 0.0, 0);
   boosterGroup.add(boosterPlume);
 
   const shipPlume = createRaptorFirePlumeMesh(4.2, 0.44);
-  shipPlume.position.set(0, -0.1, 0);
+  shipPlume.position.set(0, 0.0, 0);
   shipGroup.add(shipPlume);
+
+  // Default stacked position: Booster at y = 0, Upper Stage Ship stacked at y = 4.75m
+  boosterGroup.position.set(0, 0, 0);
+  shipGroup.position.set(0, 4.75, 0);
 
   const plumeLight = new THREE.PointLight(0xf97316, 0, 26);
   plumeLight.position.set(0, -1.5, 0);
@@ -314,9 +307,9 @@ export function createStarshipModel(isGhost = false): StarshipRig {
       const flicker = 0.9 + 0.16 * Math.sin(timeSec * 75);
 
       if (isLaunchMission) {
-        // Both Super Heavy Booster AND Starship Upper Stage stay visible!
+        // Both Super Heavy Booster (y = 0..4.75m) AND Starship Upper Stage (y = 4.75..9.0m) stay visible!
         boosterGroup.visible = true;
-        boosterGroup.position.set(0, 4.75, 0);
+        boosterGroup.position.set(0, 0, 0);
 
         if (!t.hotStageSeparated) {
           // Stacked together during Full-Stack Ascent

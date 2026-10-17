@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,
-  Car,
-  Home,
+  Cpu,
   Maximize2,
   Minimize2,
-  Rocket,
+  Pause,
+  Play,
   RotateCcw,
 } from 'lucide-react';
 import type {
@@ -28,16 +28,25 @@ import {
 import { Viewport3D } from './components/Viewport3D.tsx';
 import { RLTrainingControls } from './components/RLTrainingControls.tsx';
 import { NeuralTelemetryHUD } from './components/NeuralTelemetryHUD.tsx';
+import {
+  NeuralNetworkModal,
+  type SelectedBrainNode,
+} from './components/NeuralNetworkModal.tsx';
 import { KnowledgeAndTriviaModal } from './components/KnowledgeAndTriviaModal.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 
 export const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [missionId, setMissionId] = useState<MissionId>('roadster-wall-climb');
+  const [missionId, setMissionId] = useState<MissionId>('starship-booster-catch');
   const [params, setParams] = useState<RLHyperparameters>(DEFAULT_HYPERPARAMETERS);
   const [resetSignal, setResetSignal] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const [isAutoTraining, setIsAutoTraining] = useState(false);
   const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
+  const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
+  const [selectedBrainNode, setSelectedBrainNode] = useState<SelectedBrainNode | undefined>(
+    undefined
+  );
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -81,8 +90,23 @@ export const App: React.FC = () => {
     void fetchCheckpoints().then(setCheckpoints).catch(() => {});
   }, []);
 
+  // Spacebar Pause / Resume keyboard shortcut
   useEffect(() => {
-    if (!isAutoTraining) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (showWelcome || isKnowledgeModalOpen || isBrainModalOpen) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON') return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPaused((p) => !p);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showWelcome, isKnowledgeModalOpen, isBrainModalOpen]);
+
+  useEffect(() => {
+    if (!isAutoTraining || isPaused) return;
     const timer = window.setInterval(() => {
       setParams((prev) => {
         if (prev.epochs >= 500) {
@@ -95,7 +119,7 @@ export const App: React.FC = () => {
       });
     }, 200);
     return () => window.clearInterval(timer);
-  }, [isAutoTraining]);
+  }, [isAutoTraining, isPaused]);
 
   const handleChangeParams = useCallback((patch: Partial<RLHyperparameters>) => {
     setParams((prev) => ({ ...prev, ...patch }));
@@ -109,6 +133,7 @@ export const App: React.FC = () => {
       epochs: target.recommendedEpochs,
       explorationNoise: 0.04,
     }));
+    setIsPaused(false);
     setResetSignal((n) => n + 1);
   };
 
@@ -124,6 +149,7 @@ export const App: React.FC = () => {
         explorationNoise: 0.03,
       }));
     }
+    setIsPaused(false);
     setResetSignal((n) => n + 1);
   };
 
@@ -173,6 +199,7 @@ export const App: React.FC = () => {
       rewardFuelWeight: ckpt.rewardFuelWeight,
       rewardSmoothnessWeight: ckpt.rewardSmoothnessWeight,
     }));
+    setIsPaused(false);
     setResetSignal((n) => n + 1);
   };
 
@@ -184,6 +211,11 @@ export const App: React.FC = () => {
       setLeftCollapsed(true);
       setRightCollapsed(true);
     }
+  };
+
+  const handleOpenFullBrain = (node?: SelectedBrainNode) => {
+    setSelectedBrainNode(node);
+    setIsBrainModalOpen(true);
   };
 
   if (showWelcome) {
@@ -201,80 +233,99 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-fullscreen-root">
-      {/* Minimalist Top Bar */}
-      <header className="top-minimal-bar">
-        <div className="top-left-group">
+      {/* Frameless SpaceX Top Navigation Bar */}
+      <header className="sx-frameless-navbar in-app">
+        <div className="sx-nav-left">
           <button
             type="button"
-            className="nav-pill-btn"
+            className="sx-wordmark-btn"
             onClick={() => setShowWelcome(true)}
-            title="Back to RoadsterVerse Landing Page"
+            title="Return to SpaceX-Style RoadsterVerse Landing Page"
           >
-            <Home size={14} />
-            <span>HOME</span>
+            <span className="sx-wordmark-text">ROADSTERVERSE</span>
           </button>
-          <span className="brand-mini-title">ROADSTERVERSE</span>
+
+          <nav className="sx-nav-links" aria-label="Stunt Selector">
+            {MISSION_LIST.map((m) => {
+              const active = m.id === missionId;
+              const shortLabel =
+                m.id === 'roadster-hover'
+                  ? '01 HOVER'
+                  : m.id === 'roadster-wall-climb'
+                    ? '02 HALF-LOOP'
+                    : m.id === 'roadster-barrel-roll'
+                      ? '03 KICKFLIP'
+                      : m.id === 'starship-launch'
+                        ? '04 STAGE RELEASE'
+                        : m.id === 'starship-belly-flop'
+                          ? '05 CRANE CATCH'
+                          : '06 BOOSTER CATCH';
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`sx-nav-link ${active ? 'active' : ''}`}
+                  onClick={() => handleSelectMission(m.id)}
+                >
+                  {shortLabel}
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* 6 Stunt Selector Pills */}
-        <nav className="stunt-pill-strip" aria-label="Stunt Selector">
-          {MISSION_LIST.map((m) => {
-            const active = m.id === missionId;
-            const shortLabel =
-              m.id === 'roadster-hover'
-                ? '01 Hover'
-                : m.id === 'roadster-wall-climb'
-                  ? '02 Half-Loop'
-                  : m.id === 'roadster-barrel-roll'
-                    ? '03 Kickflip'
-                    : m.id === 'starship-launch'
-                      ? '04 Stage Release'
-                      : m.id === 'starship-belly-flop'
-                        ? '05 Crane Catch'
-                        : '06 Booster Catch';
-            return (
-              <button
-                key={m.id}
-                type="button"
-                className={`stunt-pill-btn ${active ? 'active' : ''}`}
-                onClick={() => handleSelectMission(m.id)}
-              >
-                {m.vehicle === 'roadster' ? <Car size={13} /> : <Rocket size={13} />}
-                <span>{shortLabel}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Right Actions */}
-        <div className="top-right-group">
+        {/* Right Rectangular SpaceX Action Controls */}
+        <div className="sx-nav-right">
           <button
             type="button"
-            className="nav-pill-btn"
-            onClick={() => setResetSignal((n) => n + 1)}
-            title="Restart Stunt"
+            className={`sx-action-btn ${isPaused ? 'active' : ''}`}
+            onClick={() => setIsPaused((p) => !p)}
+            title="Pause or Resume 6-DoF Simulation (Spacebar)"
           >
-            <RotateCcw size={13} />
-            <span>Restart</span>
+            {isPaused ? <Play size={12} /> : <Pause size={12} />}
+            <span>{isPaused ? 'RESUME' : 'PAUSE'}</span>
           </button>
 
           <button
             type="button"
-            className="nav-pill-btn"
+            className="sx-action-btn"
+            onClick={() => {
+              setIsPaused(false);
+              setResetSignal((n) => n + 1);
+            }}
+            title="Restart Stunt"
+          >
+            <RotateCcw size={12} />
+            <span>RESTART</span>
+          </button>
+
+          <button
+            type="button"
+            className="sx-action-btn"
+            onClick={() => handleOpenFullBrain()}
+            title="Open Full Neural Network & Epoch Node Previewer"
+          >
+            <Cpu size={12} />
+            <span>BRAIN NET</span>
+          </button>
+
+          <button
+            type="button"
+            className="sx-action-btn"
             onClick={handleToggleFullScreenZen}
             title="Hide or Show Side Panels"
           >
-            {isFullScreenZen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-            <span>{isFullScreenZen ? 'Show UI' : 'Full Screen'}</span>
+            {isFullScreenZen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            <span>{isFullScreenZen ? 'SHOW HUD' : 'FULL SCREEN'}</span>
           </button>
 
           <button
             type="button"
-            className="nav-pill-btn primary"
+            className="sx-action-btn primary"
             onClick={() => setIsKnowledgeModalOpen(true)}
           >
-            <BookOpen size={13} />
-            <span>Kid Guide & Quiz</span>
+            <BookOpen size={12} />
+            <span>KID GUIDE</span>
           </button>
         </div>
       </header>
@@ -284,6 +335,8 @@ export const App: React.FC = () => {
         mission={activeMission}
         params={params}
         resetSignal={resetSignal}
+        isPaused={isPaused}
+        onTogglePause={() => setIsPaused((p) => !p)}
         isFullScreenZen={isFullScreenZen}
         onToggleFullScreenZen={handleToggleFullScreenZen}
         onTelemetryUpdate={handleTelemetryUpdate}
@@ -314,6 +367,27 @@ export const App: React.FC = () => {
         rewardHistory={rewardHistory}
         collapsed={rightCollapsed}
         onToggleCollapse={() => setRightCollapsed((c) => !c)}
+        onOpenFullBrain={handleOpenFullBrain}
+      />
+
+      {/* Interactive Full Neural Network & Epoch Failure/Success Node Previewer */}
+      <NeuralNetworkModal
+        isOpen={isBrainModalOpen}
+        mission={activeMission}
+        params={params}
+        liveSnapshot={nnSnapshot}
+        initialSelectedNode={selectedBrainNode}
+        onClose={() => setIsBrainModalOpen(false)}
+        onApplyEpochToSimulator={(targetEpoch) => {
+          setParams((prev) => ({
+            ...prev,
+            epochs: targetEpoch,
+            explorationNoise:
+              targetEpoch < 25 ? 0.58 : targetEpoch < 90 ? 0.24 : 0.03,
+          }));
+          setIsPaused(false);
+          setResetSignal((n) => n + 1);
+        }}
       />
 
       {/* Kid-Friendly Guide & Quiz Modal */}
@@ -328,6 +402,7 @@ export const App: React.FC = () => {
             epochs: demoEpochs,
             explorationNoise: 0.03,
           }));
+          setIsPaused(false);
           setResetSignal((n) => n + 1);
         }}
       />

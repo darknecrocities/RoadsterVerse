@@ -31,7 +31,7 @@ export const HALF_LOOP_ARC_LENGTH = HALF_LOOP_RADIUS * HALF_LOOP_MAX_ANGLE; // ~
 export const HALF_LOOP_OVERHANG_LIP_LENGTH = 3.6;
 export const HALF_LOOP_TOTAL_LENGTH =
   HALF_LOOP_RUNWAY_LENGTH + HALF_LOOP_ARC_LENGTH + HALF_LOOP_OVERHANG_LIP_LENGTH;
-export const CAR_RIDE_HEIGHT = 0.44;
+export const CAR_RIDE_HEIGHT = 0.39;
 
 /**
  * Exact parametric geometry for the Giant C-Shaped Overhanging Half-Loop Ramp (Image 1 & Image 3).

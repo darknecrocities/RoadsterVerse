@@ -6,6 +6,7 @@ import {
   Cpu,
   Flame,
   Info,
+  Maximize2,
   Minimize2,
 } from 'lucide-react';
 import type {
@@ -13,6 +14,7 @@ import type {
   MissionDefinition,
   NeuralNetworkSnapshot,
 } from '../types/simulation.ts';
+import type { SelectedBrainNode } from './NeuralNetworkModal.tsx';
 import { HelpTooltip } from './HelpTooltip.tsx';
 import { AnimatedNumber } from './AnimatedText.tsx';
 
@@ -23,6 +25,7 @@ interface NeuralTelemetryHUDProps {
   rewardHistory: EpochHistoryPoint[];
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onOpenFullBrain: (node?: SelectedBrainNode) => void;
 }
 
 export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
@@ -32,6 +35,7 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
   rewardHistory,
   collapsed,
   onToggleCollapse,
+  onOpenFullBrain,
 }) => {
   const [showStoryCard, setShowStoryCard] = useState(true);
   const [showJetsCard, setShowJetsCard] = useState(true);
@@ -71,7 +75,7 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
           <span>INSIDE THE AI BRAIN</span>
           <HelpTooltip
             title="Live AI Brain View"
-            explain="Watch how the computer brain sees the car's height and tilt on the left, thinks in the middle, and fires the air jets on the right!"
+            explain="Watch how the computer brain sees the car's height and tilt on the left, thinks in the middle, and fires the air jets on the right! Click LIVE BRAIN WIRES to inspect every neuron!"
           />
         </div>
         <button
@@ -131,10 +135,15 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
 
           {showJetsCard && (
             <div className="jet-grid-bw">
-              {nnSnapshot.outputs.map((outItem) => {
+              {nnSnapshot.outputs.map((outItem, idx) => {
                 const pct = Math.round(outItem.value * 100);
                 return (
-                  <div key={outItem.label} className="jet-cell-bw">
+                  <div
+                    key={outItem.label}
+                    className="jet-cell-bw clickable"
+                    onClick={() => onOpenFullBrain({ layer: 'output', index: idx })}
+                    title="Click to inspect this thruster output neuron in the Full Neural Network"
+                  >
                     <div className="jet-cell-top">
                       <span>{outItem.label}</span>
                       <strong>{pct}%</strong>
@@ -149,7 +158,7 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
           )}
         </div>
 
-        {/* 3. Minimizable Live Neural Brain Wire Diagram */}
+        {/* 3. Minimizable & Clickable Live Neural Brain Wire Diagram */}
         <div className="hud-card-bw">
           <button
             type="button"
@@ -168,122 +177,161 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
           </button>
 
           {showBrainGraph && (
-            <svg viewBox="0 0 284 148" className="nn-svg-bw">
-              {nnSnapshot.inputs.map((inItem, i) =>
-                nnSnapshot.hiddenLayer1.map((h1Val, j) => {
-                  const strength = Math.min(1, Math.abs(inItem.value * h1Val));
+            <div className="brain-mini-interactive-wrap">
+              <svg
+                viewBox="0 0 284 148"
+                className="nn-svg-bw clickable-brain-svg"
+                onClick={() => onOpenFullBrain()}
+              >
+                {nnSnapshot.inputs.map((inItem, i) =>
+                  nnSnapshot.hiddenLayer1.map((h1Val, j) => {
+                    const strength = Math.min(1, Math.abs(inItem.value * h1Val));
+                    return (
+                      <line
+                        key={`l1-${i}-${j}`}
+                        x1={inputX}
+                        y1={getY(i, nnSnapshot.inputs.length)}
+                        x2={h1X}
+                        y2={getY(j, nnSnapshot.hiddenLayer1.length)}
+                        stroke="#ffffff"
+                        strokeOpacity={0.05 + strength * 0.32}
+                        strokeWidth={0.5 + strength * 1.1}
+                      />
+                    );
+                  })
+                )}
+
+                {nnSnapshot.hiddenLayer1.map((h1Val, i) =>
+                  nnSnapshot.hiddenLayer2.map((h2Val, j) => {
+                    const strength = Math.min(1, Math.abs(h1Val * h2Val));
+                    return (
+                      <line
+                        key={`l2-${i}-${j}`}
+                        x1={h1X}
+                        y1={getY(i, nnSnapshot.hiddenLayer1.length)}
+                        x2={h2X}
+                        y2={getY(j, nnSnapshot.hiddenLayer2.length)}
+                        stroke="#d4d4d4"
+                        strokeOpacity={0.05 + strength * 0.35}
+                        strokeWidth={0.5 + strength * 1.1}
+                      />
+                    );
+                  })
+                )}
+
+                {nnSnapshot.hiddenLayer2.map((h2Val, i) =>
+                  nnSnapshot.outputs.map((outItem, j) => {
+                    const strength = Math.min(1, Math.abs(h2Val * outItem.value));
+                    return (
+                      <line
+                        key={`l3-${i}-${j}`}
+                        x1={h2X}
+                        y1={getY(i, nnSnapshot.hiddenLayer2.length)}
+                        x2={outX}
+                        y2={getY(j, nnSnapshot.outputs.length)}
+                        stroke="#ffffff"
+                        strokeOpacity={0.07 + strength * 0.5}
+                        strokeWidth={0.6 + strength * 1.3}
+                      />
+                    );
+                  })
+                )}
+
+                {nnSnapshot.inputs.map((inItem, i) => {
+                  const y = getY(i, nnSnapshot.inputs.length);
                   return (
-                    <line
-                      key={`l1-${i}-${j}`}
-                      x1={inputX}
-                      y1={getY(i, nnSnapshot.inputs.length)}
-                      x2={h1X}
-                      y2={getY(j, nnSnapshot.hiddenLayer1.length)}
-                      stroke="#ffffff"
-                      strokeOpacity={0.05 + strength * 0.32}
-                      strokeWidth={0.5 + strength * 1.1}
-                    />
+                    <g
+                      key={`in-${i}`}
+                      className="nn-clickable-node"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenFullBrain({ layer: 'input', index: i });
+                      }}
+                    >
+                      <circle
+                        cx={inputX}
+                        cy={y}
+                        r={3.8}
+                        fill={Math.abs(inItem.value) > 0.25 ? '#ffffff' : '#171717'}
+                        stroke="#a3a3a3"
+                        strokeWidth={1.1}
+                      />
+                      <text x={3} y={y + 3} fill="#a3a3a3" fontSize="6.5" fontFamily="monospace">
+                        {inItem.label}
+                      </text>
+                    </g>
                   );
-                })
-              )}
+                })}
 
-              {nnSnapshot.hiddenLayer1.map((h1Val, i) =>
-                nnSnapshot.hiddenLayer2.map((h2Val, j) => {
-                  const strength = Math.min(1, Math.abs(h1Val * h2Val));
+                {nnSnapshot.hiddenLayer1.map((val, i) => (
+                  <circle
+                    key={`h1-${i}`}
+                    className="nn-clickable-node"
+                    cx={h1X}
+                    cy={getY(i, nnSnapshot.hiddenLayer1.length)}
+                    r={3.2}
+                    fill="#ffffff"
+                    fillOpacity={0.2 + Math.abs(val) * 0.75}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenFullBrain({ layer: 'h1', index: i });
+                    }}
+                  />
+                ))}
+
+                {nnSnapshot.hiddenLayer2.map((val, i) => (
+                  <circle
+                    key={`h2-${i}`}
+                    className="nn-clickable-node"
+                    cx={h2X}
+                    cy={getY(i, nnSnapshot.hiddenLayer2.length)}
+                    r={3.2}
+                    fill="#ffffff"
+                    fillOpacity={0.2 + Math.abs(val) * 0.75}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenFullBrain({ layer: 'h2', index: i });
+                    }}
+                  />
+                ))}
+
+                {nnSnapshot.outputs.map((outItem, i) => {
+                  const y = getY(i, nnSnapshot.outputs.length);
                   return (
-                    <line
-                      key={`l2-${i}-${j}`}
-                      x1={h1X}
-                      y1={getY(i, nnSnapshot.hiddenLayer1.length)}
-                      x2={h2X}
-                      y2={getY(j, nnSnapshot.hiddenLayer2.length)}
-                      stroke="#d4d4d4"
-                      strokeOpacity={0.05 + strength * 0.35}
-                      strokeWidth={0.5 + strength * 1.1}
-                    />
+                    <g
+                      key={`out-${i}`}
+                      className="nn-clickable-node"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenFullBrain({ layer: 'output', index: i });
+                      }}
+                    >
+                      <circle
+                        cx={outX}
+                        cy={y}
+                        r={4.2}
+                        fill="#ffffff"
+                        fillOpacity={0.18 + outItem.value * 0.82}
+                        stroke="#ffffff"
+                        strokeWidth={1.1}
+                      />
+                      <text x={outX + 7} y={y + 3} fill="#f5f5f5" fontSize="6.5" fontFamily="monospace">
+                        {outItem.label}
+                      </text>
+                    </g>
                   );
-                })
-              )}
+                })}
+              </svg>
 
-              {nnSnapshot.hiddenLayer2.map((h2Val, i) =>
-                nnSnapshot.outputs.map((outItem, j) => {
-                  const strength = Math.min(1, Math.abs(h2Val * outItem.value));
-                  return (
-                    <line
-                      key={`l3-${i}-${j}`}
-                      x1={h2X}
-                      y1={getY(i, nnSnapshot.hiddenLayer2.length)}
-                      x2={outX}
-                      y2={getY(j, nnSnapshot.outputs.length)}
-                      stroke="#ffffff"
-                      strokeOpacity={0.07 + strength * 0.5}
-                      strokeWidth={0.6 + strength * 1.3}
-                    />
-                  );
-                })
-              )}
-
-              {nnSnapshot.inputs.map((inItem, i) => {
-                const y = getY(i, nnSnapshot.inputs.length);
-                return (
-                  <g key={`in-${i}`}>
-                    <circle
-                      cx={inputX}
-                      cy={y}
-                      r={3.5}
-                      fill={Math.abs(inItem.value) > 0.25 ? '#ffffff' : '#171717'}
-                      stroke="#a3a3a3"
-                      strokeWidth={1.1}
-                    />
-                    <text x={3} y={y + 3} fill="#a3a3a3" fontSize="6.5" fontFamily="monospace">
-                      {inItem.label}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {nnSnapshot.hiddenLayer1.map((val, i) => (
-                <circle
-                  key={`h1-${i}`}
-                  cx={h1X}
-                  cy={getY(i, nnSnapshot.hiddenLayer1.length)}
-                  r={2.8}
-                  fill="#ffffff"
-                  fillOpacity={0.2 + Math.abs(val) * 0.75}
-                />
-              ))}
-
-              {nnSnapshot.hiddenLayer2.map((val, i) => (
-                <circle
-                  key={`h2-${i}`}
-                  cx={h2X}
-                  cy={getY(i, nnSnapshot.hiddenLayer2.length)}
-                  r={2.8}
-                  fill="#ffffff"
-                  fillOpacity={0.2 + Math.abs(val) * 0.75}
-                />
-              ))}
-
-              {nnSnapshot.outputs.map((outItem, i) => {
-                const y = getY(i, nnSnapshot.outputs.length);
-                return (
-                  <g key={`out-${i}`}>
-                    <circle
-                      cx={outX}
-                      cy={y}
-                      r={4}
-                      fill="#ffffff"
-                      fillOpacity={0.18 + outItem.value * 0.82}
-                      stroke="#ffffff"
-                      strokeWidth={1.1}
-                    />
-                    <text x={outX + 7} y={y + 3} fill="#f5f5f5" fontSize="6.5" fontFamily="monospace">
-                      {outItem.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+              <button
+                type="button"
+                className="expand-full-brain-btn"
+                onClick={() => onOpenFullBrain()}
+              >
+                <Maximize2 size={12} />
+                <span>CLICK ANY WIRE OR NODE // EXPAND FULL NEURAL NETWORK &amp; EPOCH PREVIEW</span>
+              </button>
+            </div>
           )}
         </div>
 

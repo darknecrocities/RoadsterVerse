@@ -429,9 +429,20 @@ export class ProvingGroundSceneController {
       this.ghostRoadsters[i].root.visible = Boolean(isRoadster && gState);
       this.ghostStarships[i].root.visible = Boolean(!isRoadster && gState);
       if (gState) {
+        const laneZ = (i % 2 === 0 ? 1 : -1) * (1.85 + Math.floor(i / 2) * 1.45);
         const targetRig = isRoadster ? this.ghostRoadsters[i].root : this.ghostStarships[i].root;
-        targetRig.position.set(gState.position.x, gState.position.y, gState.position.z + (i - 2) * 0.45);
+        targetRig.position.set(gState.position.x, gState.position.y, gState.position.z + laneZ);
         targetRig.rotation.set(gState.attitude.roll, gState.attitude.yaw, gState.attitude.pitch);
+        if (!isRoadster) {
+          this.ghostStarships[i].updateStarship(
+            primaryThrusters,
+            missionId === 'starship-launch' || missionId === 'starship-booster-catch',
+            gState.elapsedTimeSec,
+            gState.position.y,
+            gState.attitude.pitch,
+            Math.max(0, -gState.velocity.z)
+          );
+        }
       }
     }
 

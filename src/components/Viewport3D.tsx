@@ -38,6 +38,8 @@ interface Viewport3DProps {
   mission: MissionDefinition;
   params: RLHyperparameters;
   resetSignal: number;
+  isPaused: boolean;
+  onTogglePause: () => void;
   isFullScreenZen: boolean;
   onToggleFullScreenZen: () => void;
   onTelemetryUpdate: (
@@ -51,6 +53,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   mission,
   params,
   resetSignal,
+  isPaused,
+  onTogglePause,
   isFullScreenZen,
   onToggleFullScreenZen,
   onTelemetryUpdate,
@@ -60,7 +64,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const controllerRef = useRef<ProvingGroundSceneController | null>(null);
   const soundEngineRef = useRef<ProceduralSoundEngine>(new ProceduralSoundEngine());
 
-  const [isPaused, setIsPaused] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [wheelSpec, setWheelSpec] = useState<WheelSpec>('six-spoke');
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -300,7 +303,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             <div className="metric-mini">
               <span>STATUS</span>
               <strong className={hudState.crashed ? 'status-crash' : 'status-ok'}>
-                {hudState.crashed ? 'CRASHED!' : hudState.isOnWall ? 'ON LOOP!' : 'FLYING'}
+                {isPaused
+                  ? 'PAUSED'
+                  : hudState.crashed
+                    ? 'CRASHED!'
+                    : hudState.isOnWall
+                      ? 'ON LOOP!'
+                      : 'FLYING'}
               </strong>
             </div>
           </div>
@@ -335,7 +344,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           {mission.vehicle === 'roadster' && (
             <button type="button" className="dock-btn-bw" onClick={handleToggleWheel}>
               <Disc size={13} />
-              <span>{wheelSpec === 'six-spoke' ? '10-Spoke Rims' : 'Carbon Discs'}</span>
+              <span>{wheelSpec === 'six-spoke' ? '6-Spoke Rims' : 'Carbon Discs'}</span>
             </button>
           )}
 
@@ -355,8 +364,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
           <button
             type="button"
-            className="dock-btn-bw"
-            onClick={() => setIsPaused((p) => !p)}
+            className={`dock-btn-bw ${isPaused ? 'active' : ''}`}
+            onClick={onTogglePause}
           >
             {isPaused ? <Play size={13} /> : <Pause size={13} />}
             <span>{isPaused ? 'Resume' : 'Pause'}</span>
