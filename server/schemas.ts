@@ -6,6 +6,7 @@ export const MissionIdSchema = z.enum([
   'roadster-barrel-roll',
   'starship-launch',
   'starship-belly-flop',
+  'starship-booster-catch',
 ]);
 
 export const VehicleIdSchema = z.enum(['roadster', 'starship']);

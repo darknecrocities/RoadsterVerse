@@ -155,77 +155,92 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
     expect(state.crashed).toBe(false);
   });
 
-  it('accelerates Full-Stack Starship upward during 33-Raptor coastal launch', () => {
-    let state = createInitialStarshipState('starship-launch');
-    const launchThrusters: ThrusterActivation = {
-      frontLeftLift: 0,
-      frontRightLift: 0,
-      rearLeftLift: 0,
-      rearRightLift: 0,
-      lateralLeft: 0,
-      lateralRight: 0,
-      rearBoost: 0,
-      activeWingAngle: 0,
-      raptorThrottle: 0.95,
-      gimbalPitch: 0,
-      gimbalYaw: 0,
-      flapFrontLeft: 0.5,
-      flapFrontRight: 0.5,
-      flapAftLeft: 0.5,
-      flapAftRight: 0.5,
-      hotStageSeparated: false,
+  it('launches Full-Stack Starship in Mission 04, releases the Upper Stage at Hot-Stage Separation, and lands the Booster vertically slowly', () => {
+    const trainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 360,
+      explorationNoise: 0.01,
     };
+    let state = createInitialStarshipState('starship-launch');
+    let peakAltitude = state.position.y;
+    let didSeparate = false;
+    let finalDescentSpeedBeforeTouchdown = 0;
 
-    for (let i = 0; i < 60; i++) {
-      state = stepStarshipPhysics(
-        state,
-        launchThrusters,
-        'starship-launch',
-        DEFAULT_HYPERPARAMETERS,
-        0.025
-      );
+    for (let i = 0; i < 360; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-launch', trainedParams, 0);
+      if (thrusters.hotStageSeparated) {
+        didSeparate = true;
+      }
+      if (!state.isGrounded && state.velocity.z < 0 && state.position.y < 2.2) {
+        finalDescentSpeedBeforeTouchdown = Math.abs(state.velocity.y);
+      }
+      state = stepStarshipPhysics(state, thrusters, 'starship-launch', trainedParams, 0.025);
+      if (state.position.y > peakAltitude) {
+        peakAltitude = state.position.y;
+      }
     }
 
-    expect(state.position.y).toBeGreaterThan(5.0);
-    expect(state.velocity.y).toBeGreaterThan(4.0);
+    expect(peakAltitude).toBeGreaterThanOrEqual(13.5);
+    expect(didSeparate).toBe(true);
+    expect(finalDescentSpeedBeforeTouchdown).toBeLessThan(1.5); // Slow vertical landing burn!
+    expect(state.isGrounded).toBe(true);
+    expect(state.position.y).toBeCloseTo(1.35, 2);
     expect(state.crashed).toBe(false);
   });
 
-  it('rotates Starship from horizontal belly-flop to vertical during flip-and-burn maneuver', () => {
-    let state = createInitialStarshipState('starship-belly-flop');
-    state.position.y = 10.0;
-    const initialPitch = state.attitude.pitch;
-
-    const flipThrusters: ThrusterActivation = {
-      frontLeftLift: 0,
-      frontRightLift: 0,
-      rearLeftLift: 0,
-      rearRightLift: 0,
-      lateralLeft: 0,
-      lateralRight: 0,
-      rearBoost: 0,
-      activeWingAngle: 0,
-      raptorThrottle: 0.85,
-      gimbalPitch: -0.9,
-      gimbalYaw: 0,
-      flapFrontLeft: 0.1,
-      flapFrontRight: 0.1,
-      flapAftLeft: 0.9,
-      flapAftRight: 0.9,
-      hotStageSeparated: true,
+  it('flips Starship from horizontal belly-flop to vertical and thrusts a slow vertical landing in Mission 05', () => {
+    const trainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 360,
+      explorationNoise: 0.01,
     };
+    let state = createInitialStarshipState('starship-belly-flop');
+    const initialPitch = state.attitude.pitch;
+    let finalTouchdownSpeed = 0;
 
-    for (let i = 0; i < 40; i++) {
-      state = stepStarshipPhysics(
-        state,
-        flipThrusters,
-        'starship-belly-flop',
-        DEFAULT_HYPERPARAMETERS,
-        0.025
-      );
+    for (let i = 0; i < 360; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-belly-flop', trainedParams, 0);
+      if (!state.isGrounded && state.position.y < 2.2) {
+        finalTouchdownSpeed = Math.abs(state.velocity.y);
+      }
+      state = stepStarshipPhysics(state, thrusters, 'starship-belly-flop', trainedParams, 0.025);
     }
 
-    expect(state.attitude.pitch).toBeLessThan(initialPitch);
+    expect(initialPitch).toBeGreaterThan(1.4);
+    expect(finalTouchdownSpeed).toBeLessThan(1.5); // Slow vertical landing!
+    expect(state.isGrounded).toBe(true);
+    expect(state.position.y).toBeCloseTo(1.5, 2);
+    expect(state.attitude.pitch).toBeCloseTo(0, 2);
+    expect(state.crashed).toBe(false);
+  });
+
+  it('releases the Upper Stage, executes a Boostback pitch flip, and catches the Super Heavy Booster vertically in Mission 06', () => {
+    const trainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 380,
+      explorationNoise: 0.01,
+    };
+    let state = createInitialStarshipState('starship-booster-catch');
+    let maxDownrangeX = 0;
+    let didSeparate = false;
+
+    for (let i = 0; i < 380; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-booster-catch', trainedParams, 0);
+      if (thrusters.hotStageSeparated) {
+        didSeparate = true;
+      }
+      state = stepStarshipPhysics(state, thrusters, 'starship-booster-catch', trainedParams, 0.025);
+      if (state.position.x > maxDownrangeX) {
+        maxDownrangeX = state.position.x;
+      }
+    }
+
+    expect(didSeparate).toBe(true);
+    expect(maxDownrangeX).toBeGreaterThan(0.5); // Flew downrange before boostback flip!
+    expect(state.isGrounded).toBe(true);
+    expect(state.position.y).toBeCloseTo(1.5, 2);
+    expect(Math.abs(state.position.x)).toBeLessThan(1.5); // Returned to Chopstick tower!
+    expect(state.crashed).toBe(false);
   });
 
   it('enforces 100% pure Black and White monochrome colors across all UI stylesheets and React components', () => {

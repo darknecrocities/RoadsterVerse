@@ -67,34 +67,50 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'starship-launch': {
     id: 'starship-launch',
     vehicle: 'starship',
-    title: 'Mission 04 // Giant Rocket Launch',
-    subtitle: 'Blast off from the Launch Paddock Crane Tower with 33 fire engines!',
-    badge: 'SPACEX STARSHIP // LAUNCH',
+    title: 'Mission 04 // Full-Stack Launch & Stage Landing',
+    subtitle: 'Blast off with both rocket halves, release the Ship to space, and land the Booster slowly!',
+    badge: '2-STAGE RELEASE & LANDING',
     targetDescription:
-      'Light up 33 giant fire engines at the bottom of the rocket, clear the tall Crane Tower without bumping into it, and drop the bottom booster high in the sky!',
-    targetPosition: { x: 4.5, y: 26.0, z: 0 },
-    targetAttitude: { roll: 0, pitch: -0.18, yaw: 0 },
+      'Light all 33 fire engines to launch the giant 2-part rocket past the Crane Tower, release the top Starship so it blasts into space, then fire the bottom Booster engines to land vertically slowly and softly!',
+    targetPosition: { x: 0, y: 0.6, z: 0 },
+    targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 300,
     mlTechniqueSummary:
-      'Have you ever tried balancing a tall broomstick upright on your palm? You have to move your hand underneath it constantly. The AI wiggles the rocket engines at the bottom to keep the giant skyscraper rocket balanced!',
+      'The rocket has two halves! First the bottom Booster pushes the top Ship high into the sky and lets it go. Then the AI catches the falling Booster with its fire engines and lowers it back down like a gentle elevator!',
     physicsFormulaLatex:
-      'RULE: Wiggle the fire engines underneath the rocket to keep it pointing up!',
+      'RULE: Launch full stack -> Release top Ship -> Brake Booster slowly to 0 m/s!',
   },
   'starship-belly-flop': {
     id: 'starship-belly-flop',
     vehicle: 'starship',
-    title: 'Mission 05 // Skydiver Flip & Crane Catch',
-    subtitle: 'Fall flat like a skydiver, flip upright with fire engines, and get caught by giant chopsticks!',
-    badge: 'CHOPSTICK TOWER CATCH',
+    title: 'Mission 05 // Skydiver Flip & Slow Landing',
+    subtitle: 'Fall flat like a skydiver, swing upright with fire engines, and land vertically slowly!',
+    badge: 'BELLY-FLOP & FLIP BURN',
     targetDescription:
-      'Fall through the sky belly-first using 4 wing flaps like a skydiver, light the fire engines at the last second to swing upright, and let the giant Paddock Crane Chopstick arms catch the rocket!',
+      'Fall through the sky belly-first using 4 wing flaps like a skydiver, light the fire engines to swing upright, and throttle the engines so the Starship descends slowly into the Launch Tower arms!',
     targetPosition: { x: 0, y: 1.5, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 420,
     mlTechniqueSummary:
-      'First the rocket falls flat on its belly so the air slows it down for free. Right before the ground, the AI lights the fire engines and swings the tail down so it stops right inside the giant catching arms!',
+      'First the top Starship falls flat on its belly so the air slows it down for free. Near the ground, the AI lights the fire engines, swings the tail down, and hovers down super slowly!',
     physicsFormulaLatex:
       'RULE: Belly-flop to slow down, then flip upright and brake gently to zero speed!',
+  },
+  'starship-booster-catch': {
+    id: 'starship-booster-catch',
+    vehicle: 'starship',
+    title: 'Mission 06 // Booster Boostback & Tower Catch',
+    subtitle: 'Launch at an angle, release the top Ship, flip the Booster back, and catch it on the Tower!',
+    badge: 'MECHAZILLA BOOSTER CATCH',
+    targetDescription:
+      'Launch the full 2-stage rocket downrange, release the top Starship into orbit, flip the giant Super Heavy Booster in mid-air to fly back to the tower, and hover-land slowly inside the giant Chopstick arms!',
+    targetPosition: { x: 0, y: 1.5, z: 0 },
+    targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
+    recommendedEpochs: 380,
+    mlTechniqueSummary:
+      'After dropping off the top spaceship high in the sky, the bottom Booster is far away from the pad! The AI flips the Booster around in mid-air, fires its engines to fly back home, and lands slowly inside the giant robot arms!',
+    physicsFormulaLatex:
+      'RULE: Release top Ship -> Flip Booster back toward Tower -> Hover-land slowly!',
   },
 };
 

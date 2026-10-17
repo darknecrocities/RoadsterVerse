@@ -216,7 +216,7 @@ export const App: React.FC = () => {
           <span className="brand-mini-title">ROADSTERVERSE</span>
         </div>
 
-        {/* 5 Stunt Selector Pills */}
+        {/* 6 Stunt Selector Pills */}
         <nav className="stunt-pill-strip" aria-label="Stunt Selector">
           {MISSION_LIST.map((m) => {
             const active = m.id === missionId;
@@ -228,8 +228,10 @@ export const App: React.FC = () => {
                   : m.id === 'roadster-barrel-roll'
                     ? '03 Kickflip'
                     : m.id === 'starship-launch'
-                      ? '04 Rocket Launch'
-                      : '05 Crane Catch';
+                      ? '04 Stage Release'
+                      : m.id === 'starship-belly-flop'
+                        ? '05 Crane Catch'
+                        : '06 Booster Catch';
             return (
               <button
                 key={m.id}

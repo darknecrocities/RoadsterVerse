@@ -11,8 +11,8 @@ export function createInitialStarshipState(missionId: MissionId): RigidBodyState
   if (missionId === 'starship-belly-flop') {
     // Starts high in horizontal skydiver belly-flop attitude (pitch ~ 1.48 rad / 85 deg)
     return {
-      position: { x: -3.2, y: 26.0, z: 0 },
-      velocity: { x: 1.1, y: -5.2, z: 0 },
+      position: { x: -2.6, y: 24.0, z: 0 },
+      velocity: { x: 1.0, y: -4.8, z: 0 },
       attitude: { roll: 0, pitch: 1.48, yaw: 0 },
       angularVelocity: { x: 0, y: 0, z: 0 },
       copvPressurePsi: 9500,
@@ -27,9 +27,10 @@ export function createInitialStarshipState(missionId: MissionId): RigidBodyState
     };
   }
 
-  // Mission 04: Full-Stack Starship + Super Heavy on Orbital Launch Mount
+  // Mission 04 (starship-launch) & Mission 06 (starship-booster-catch):
+  // Full 2-Stage Starship + Super Heavy Booster on the Orbital Launch Mount (y = 1.35m)
   return {
-    position: { x: 0, y: 0.6, z: 0 },
+    position: { x: 0, y: 1.35, z: 0 },
     velocity: { x: 0, y: 0, z: 0 },
     attitude: { roll: 0, pitch: 0, yaw: 0 },
     angularVelocity: { x: 0, y: 0, z: 0 },
@@ -75,59 +76,140 @@ export function stepStarshipPhysics(
 
   const gravity = EARTH_GRAVITY * params.gravityMultiplier;
 
-  if (missionId === 'starship-launch') {
-    // 33-Raptor Full-Stack Ascent, Gravity Turn, and Hot-Stage Separation
-    const maxAscentAccel = 16.8; // ~1.71 TWR
-    const thrustAccel = thrusters.raptorThrottle * maxAscentAccel;
+  if (missionId === 'starship-launch' || missionId === 'starship-booster-catch') {
+    const isSeparated = state.velocity.z < 0;
 
-    // Pitch-over torque from Raptor TVC gimbal
-    const pitchTorque = thrusters.gimbalPitch * 2.8 - next.angularVelocity.y * 1.9;
-    const rollTorque = thrusters.gimbalYaw * 2.0 - next.angularVelocity.x * 2.1;
+    if (!isSeparated) {
+      // Phase 1: 33-Raptor Full-Stack Ascent up to Stage Separation Altitude (y >= 13.5m)
+      const maxAscentAccel = 19.2;
+      const thrustAccel = thrusters.raptorThrottle * maxAscentAccel;
 
+      const pitchTorque = thrusters.gimbalPitch * 3.2 - next.angularVelocity.y * 2.2;
+      const rollTorque = thrusters.gimbalYaw * 2.2 - next.angularVelocity.x * 2.4;
+
+      next.angularVelocity.y += pitchTorque * dt;
+      next.angularVelocity.x += rollTorque * dt;
+      next.attitude.pitch = Math.max(
+        -0.75,
+        Math.min(0.75, next.attitude.pitch + next.angularVelocity.y * dt)
+      );
+      next.attitude.roll = Math.max(
+        -0.65,
+        Math.min(0.65, next.attitude.roll + next.angularVelocity.x * dt)
+      );
+
+      const sinPitch = Math.sin(-next.attitude.pitch);
+      const cosPitch = Math.cos(next.attitude.pitch);
+
+      const ax = thrustAccel * sinPitch + windImpulseX * 0.2 - 0.08 * next.velocity.x;
+      const ay = thrustAccel * cosPitch - gravity - 0.04 * next.velocity.y;
+
+      next.velocity.x += ax * dt;
+      next.velocity.y += ay * dt;
+      next.position.x += next.velocity.x * dt;
+      next.position.y = Math.max(1.35, next.position.y + next.velocity.y * dt);
+
+      if (next.position.y <= 1.38 && state.position.y > 3.2) {
+        next.crashed = true;
+      }
+
+      // Trigger Hot-Stage Release once stack reaches separation altitude (y >= 13.5m)
+      if (next.position.y >= 13.5) {
+        next.velocity.z = -0.02; // Starts stageSepTime timer (-velocity.z)
+        next.velocity.y = Math.min(1.6, next.velocity.y * 0.22); // Hot-stage pushback impulse on Booster
+      }
+
+      next.gForce = Number((Math.max(1.0, thrustAccel / EARTH_GRAVITY)).toFixed(2));
+      next.propellantRemainingPct = Math.max(
+        12,
+        Number((next.propellantRemainingPct - thrusters.raptorThrottle * 4.2 * dt).toFixed(2))
+      );
+      next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 70);
+      next.missionProgressPct = Math.min(50, Math.round(((next.position.y - 1.35) / 12.15) * 50));
+      return next;
+    }
+
+    // Phase 2: Post-Separation — Upper Stage Starship climbs to orbit while Super Heavy Booster
+    // executes Boostback / Grid-Fin descent and thrusts a SLOW VERTICAL LANDING!
+    next.velocity.z = state.velocity.z - dt;
+    const maxLandingAccel = 22.8;
+    const thrustAccel = thrusters.raptorThrottle * maxLandingAccel;
+
+    const pitchTorque = thrusters.gimbalPitch * 4.5 - next.angularVelocity.y * 2.8;
+    const rollTorque = thrusters.gimbalYaw * 2.8 - next.angularVelocity.x * 2.8;
     next.angularVelocity.y += pitchTorque * dt;
     next.angularVelocity.x += rollTorque * dt;
-    next.attitude.pitch = Math.max(-0.85, Math.min(0.85, next.attitude.pitch + next.angularVelocity.y * dt));
-    next.attitude.roll = Math.max(-0.7, Math.min(0.7, next.attitude.roll + next.angularVelocity.x * dt));
+    next.attitude.pitch = Math.max(
+      -0.85,
+      Math.min(0.85, next.attitude.pitch + next.angularVelocity.y * dt)
+    );
+    next.attitude.roll = Math.max(
+      -0.65,
+      Math.min(0.65, next.attitude.roll + next.angularVelocity.x * dt)
+    );
 
     const sinPitch = Math.sin(-next.attitude.pitch);
     const cosPitch = Math.cos(next.attitude.pitch);
+    const gridFinDragY =
+      next.velocity.y < 0 ? 0.065 * Math.abs(next.velocity.y) * -next.velocity.y : 0;
 
-    const ax = thrustAccel * sinPitch + windImpulseX * 0.25 - 0.08 * next.velocity.x;
-    const ay = thrustAccel * cosPitch - gravity - 0.04 * next.velocity.y;
+    const ax = thrustAccel * sinPitch - 0.38 * next.velocity.x + windImpulseX * 0.18;
+    const ay = thrustAccel * cosPitch - gravity + gridFinDragY;
 
     next.velocity.x += ax * dt;
     next.velocity.y += ay * dt;
     next.position.x += next.velocity.x * dt;
-    next.position.y = Math.max(0.6, next.position.y + next.velocity.y * dt);
+    next.position.y += next.velocity.y * dt;
 
-    if (next.position.y <= 0.65 && state.position.y > 3.0) {
-      next.crashed = true;
+    const targetLandingY = missionId === 'starship-booster-catch' ? 1.5 : 1.35;
+    if (next.position.y <= targetLandingY) {
+      const impactSpeed = Math.abs(next.velocity.y);
+      const pitchErr = Math.abs(next.attitude.pitch);
+      const xErr = Math.abs(next.position.x);
+      if (
+        impactSpeed > 3.8 ||
+        pitchErr > 0.36 ||
+        (missionId === 'starship-booster-catch' && xErr > 2.2)
+      ) {
+        next.crashed = true;
+      }
+      next.position.y = targetLandingY;
+      next.velocity.y = 0;
+      next.velocity.x = 0;
+      next.angularVelocity.x = 0;
+      next.angularVelocity.y = 0;
+      next.attitude.pitch = 0;
+      next.attitude.roll = 0;
+      next.isGrounded = true;
     }
 
-    next.gForce = Number((Math.max(1.0, thrustAccel / EARTH_GRAVITY)).toFixed(2));
+    next.gForce = Number((Math.max(0.8, thrustAccel / EARTH_GRAVITY)).toFixed(2));
     next.propellantRemainingPct = Math.max(
-      8,
-      Number((next.propellantRemainingPct - thrusters.raptorThrottle * 4.5 * dt).toFixed(2))
+      6,
+      Number((next.propellantRemainingPct - thrusters.raptorThrottle * 3.8 * dt).toFixed(2))
     );
-    next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 70);
-    next.missionProgressPct = Math.min(100, Math.round((next.position.y / 26.0) * 100));
+    next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 68);
+    const descentFrac = Math.max(
+      0,
+      Math.min(1, (14.2 - next.position.y) / (14.2 - targetLandingY))
+    );
+    next.missionProgressPct = next.isGrounded ? 100 : Math.min(99, 50 + Math.round(descentFrac * 50));
     return next;
   }
 
-  // Mission 05: Starship Belly-Flop Skydiver + 3-Raptor Flip-and-Burn Landing
-  const isFlipPhase = next.position.y < 12.5;
+  // Mission 05: Starship Belly-Flop Skydiver + 3-Raptor Flip-and-Burn Slow Vertical Landing
+  const isFlipPhase = next.position.y < 12.2;
   const aeroFlapDifferential =
-    (thrusters.flapFrontLeft + thrusters.flapFrontRight) -
+    thrusters.flapFrontLeft +
+    thrusters.flapFrontRight -
     (thrusters.flapAftLeft + thrusters.flapAftRight);
 
-  // Aerodynamic drag is high when belly-flopping horizontally (sin(pitch) near 1)
   const bellyAreaFactor = Math.abs(Math.sin(next.attitude.pitch));
   const aeroDragY = 0.22 * bellyAreaFactor * Math.abs(next.velocity.y) * next.velocity.y;
 
-  // TVC gimbal + Aero Flaps control pitch rotation during flip maneuver
-  const tvcPitchTorque = isFlipPhase ? thrusters.gimbalPitch * 5.2 : 0;
-  const aeroPitchTorque = aeroFlapDifferential * 2.4;
-  const pitchAccel = tvcPitchTorque + aeroPitchTorque - next.angularVelocity.y * 2.6;
+  const tvcPitchTorque = isFlipPhase ? thrusters.gimbalPitch * 5.4 : 0;
+  const aeroPitchTorque = aeroFlapDifferential * 2.5;
+  const pitchAccel = tvcPitchTorque + aeroPitchTorque - next.angularVelocity.y * 2.8;
 
   next.angularVelocity.y += pitchAccel * dt;
   next.attitude.pitch = Math.max(
@@ -135,35 +217,30 @@ export function stepStarshipPhysics(
     Math.min(1.65, next.attitude.pitch + next.angularVelocity.y * dt)
   );
 
-  // Roll control from left vs right flaps
   const flapRollDiff =
-    (thrusters.flapFrontLeft + thrusters.flapAftLeft) -
+    thrusters.flapFrontLeft +
+    thrusters.flapAftLeft -
     (thrusters.flapFrontRight + thrusters.flapAftRight);
   next.angularVelocity.x = (next.angularVelocity.x + flapRollDiff * 1.8 * dt) * 0.9;
   next.attitude.roll += next.angularVelocity.x * dt;
 
-  // Raptor landing burn thrust vector
-  const maxLandingDecel = 24.5; // 3 Center Raptors high TWR on nearly empty Ship
+  const maxLandingDecel = 24.5;
   const thrustMag = thrusters.raptorThrottle * maxLandingDecel;
   const ax =
     -thrustMag * Math.sin(next.attitude.pitch) -
-    0.45 * next.velocity.x +
+    0.48 * next.velocity.x +
     windImpulseX * 0.2;
-  const ay =
-    thrustMag * Math.cos(next.attitude.pitch) -
-    gravity -
-    aeroDragY;
+  const ay = thrustMag * Math.cos(next.attitude.pitch) - gravity - aeroDragY;
 
   next.velocity.x += ax * dt;
   next.velocity.y += ay * dt;
   next.position.x += next.velocity.x * dt;
   next.position.y += next.velocity.y * dt;
 
-  // Pad / Mechazilla catch height check at y = 1.5m
   if (next.position.y <= 1.5) {
     const impactSpeed = Math.abs(next.velocity.y);
     const pitchErr = Math.abs(next.attitude.pitch);
-    if (impactSpeed > 4.2 || pitchErr > 0.38) {
+    if (impactSpeed > 3.8 || pitchErr > 0.36) {
       next.crashed = true;
     }
     next.position.y = 1.5;
@@ -171,6 +248,7 @@ export function stepStarshipPhysics(
     next.velocity.x = 0;
     next.angularVelocity.x = 0;
     next.angularVelocity.y = 0;
+    next.attitude.pitch = 0;
     next.isGrounded = true;
   }
 
@@ -179,12 +257,12 @@ export function stepStarshipPhysics(
   );
   next.propellantRemainingPct = Math.max(
     5,
-    Math.round(next.propellantRemainingPct - thrusters.raptorThrottle * 4.5 * dt)
+    Math.round(next.propellantRemainingPct - thrusters.raptorThrottle * 4.2 * dt)
   );
   next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 65);
   next.missionProgressPct = Math.min(
     100,
-    Math.max(0, Math.round(((26.0 - next.position.y) / 24.5) * 100))
+    Math.max(0, Math.round(((24.0 - next.position.y) / 22.5) * 100))
   );
 
   return next;

@@ -5,7 +5,8 @@ export type MissionId =
   | 'roadster-wall-climb'
   | 'roadster-barrel-roll'
   | 'starship-launch'
-  | 'starship-belly-flop';
+  | 'starship-belly-flop'
+  | 'starship-booster-catch';
 
 export type WheelSpec = 'aero-disc' | 'six-spoke';
 

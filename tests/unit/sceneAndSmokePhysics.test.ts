@@ -115,9 +115,26 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     const stats = smokeSystem.getActiveParticleStats();
     expect(stats.activeFirePlumeCount).toBeGreaterThan(20);
     expect(stats.activeWhiteSmokeCount).toBe(0);
+
+    // Verify 2-Stage Release: when hotStageSeparated is true, BOTH boosterGroup and shipGroup stay visible,
+    // shipGroup climbs above boosterGroup, and both shipPlume and boosterPlume fire!
+    starshipRig.updateStarship(
+      { ...launchThrusters, hotStageSeparated: true, raptorThrottle: 0.65 },
+      true,
+      2.5,
+      8.0,
+      0.0,
+      1.8
+    );
+    expect(starshipRig.boosterGroup.visible).toBe(true);
+    expect(starshipRig.shipGroup.visible).toBe(true);
+    expect(starshipRig.shipGroup.position.y).toBeGreaterThan(starshipRig.boosterGroup.position.y + 4.0);
+    expect(starshipRig.shipPlume.visible).toBe(true);
+    expect(starshipRig.boosterPlume.visible).toBe(true);
   });
 
-  it('runs all 5 missions across untrained, mid-training, and converged curriculum regimes without NaN states or runtime exceptions', () => {
+  it('runs all 6 missions across untrained, mid-training, and converged curriculum regimes without NaN states or runtime exceptions', () => {
+    expect(MISSION_LIST).toHaveLength(6);
     const epochRegimes = [5, 80, 240, 420];
     for (const mission of MISSION_LIST) {
       for (const epochs of epochRegimes) {

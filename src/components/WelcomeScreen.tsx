@@ -27,13 +27,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <div className="rv-brand-mark">
           <span className="rv-dot" />
           <span className="rv-brand-name">ROADSTERVERSE</span>
-          <span className="rv-brand-tag">v4.0 // 6-DoF ROCKET LAB</span>
+          <span className="rv-brand-tag">v5.0 // 6-DoF ROCKET LAB</span>
         </div>
 
         <div className="rv-nav-telemetry">
           <span>10,000 PSI COLD-GAS</span>
           <span className="rv-sep">/</span>
-          <span>33 RAPTOR GIMBALS</span>
+          <span>2-STAGE RELEASE &amp; CATCH</span>
           <span className="rv-sep">/</span>
           <span>REAL GRAVITY</span>
         </div>
@@ -57,9 +57,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         <p className="rv-hero-lead">
           Train a live neural brain to fly a{' '}
-          <strong>Cold-Gas Rocket Roadster Coupé</strong> and catch a{' '}
-          <strong>SpaceX Starship</strong> under real gravity. Slide from{' '}
-          <strong>Try #8 (Clumsy Crash)</strong> to <strong>Try #360 (Stunt Master)</strong>.
+          <strong>Cold-Gas Rocket Roadster Coupé</strong>, release a{' '}
+          <strong>2-Stage SpaceX Starship</strong>, and thrust slow vertical landings under real
+          gravity. Slide from <strong>Try #8 (Clumsy Crash)</strong> to{' '}
+          <strong>Try #380 (Stunt Master)</strong>.
         </p>
 
         {/* Primary Action Row */}
@@ -71,10 +72,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
           <div className="rv-mini-badges">
             <span className="rv-glass-chip">
-              <Flame size={12} /> Side-Jet Kickflips
+              <Flame size={12} /> 2-Stage Booster Release &amp; Slow Landing
             </span>
             <span className="rv-glass-chip">
-              <Compass size={12} /> Zero-Levitation Gravity Arcs
+              <Compass size={12} /> Side-Jet Kickflips &amp; Boostback Flips
             </span>
             <span className="rv-glass-chip">
               <HelpCircle size={12} /> Kid-Friendly &ldquo;?&rdquo; Guides
@@ -86,7 +87,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <section className="rv-stunt-deck" aria-label="Select Stunt Arena">
           <div className="rv-deck-header">
             <span>SELECT A STUNT ARENA TO LAUNCH IMMEDIATELY</span>
-            <span>01 — 05</span>
+            <span>01 — 06</span>
           </div>
 
           <div className="rv-stunt-grid">

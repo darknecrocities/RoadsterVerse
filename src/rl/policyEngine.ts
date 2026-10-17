@@ -233,43 +233,106 @@ export function evaluateRLPolicy(
       // Smooth post-landing rollout on the Stunt Road deck
       thrusters.activeWingAngle = 0.95;
     }
-  } else if (missionId === 'starship-launch') {
-    const targetPitch = state.position.y > 6.0 ? -0.18 : 0.0;
-    const pitchErr = targetPitch - state.attitude.pitch;
+  } else if (missionId === 'starship-launch' || missionId === 'starship-booster-catch') {
+    const isSeparated = state.velocity.z < 0;
+    const isCatchStunt = missionId === 'starship-booster-catch';
 
-    thrusters.raptorThrottle = clamp(0.88 * competence + 0.25 + n1 * 0.25, 0.35, 1.0);
-    thrusters.gimbalPitch = clamp(
-      1.4 * competence * pitchErr - 0.65 * competence * state.angularVelocity.y + n2 * 0.6 + lrOscillation,
-      -1,
-      1
-    );
-    thrusters.gimbalYaw = clamp(
-      -1.2 * competence * state.attitude.roll - 0.5 * competence * state.angularVelocity.x + n3 * 0.5,
-      -1,
-      1
-    );
-    thrusters.hotStageSeparated = state.position.y >= 17.5;
+    if (!isSeparated) {
+      // Phase 1: Full-Stack Ascent up to Hot-Stage Separation (y >= 13.5m)
+      const targetPitch =
+        state.position.y > 4.2 ? (isCatchStunt ? -0.24 : -0.06) : 0.0;
+      const pitchErr = targetPitch - state.attitude.pitch;
+
+      thrusters.raptorThrottle = clamp(0.88 * competence + 0.25 + n1 * 0.22, 0.35, 1.0);
+      thrusters.gimbalPitch = clamp(
+        1.6 * competence * pitchErr - 0.7 * competence * state.angularVelocity.y + n2 * 0.45 + lrOscillation,
+        -1,
+        1
+      );
+      thrusters.gimbalYaw = clamp(
+        -1.3 * competence * state.attitude.roll - 0.55 * competence * state.angularVelocity.x + n3 * 0.45,
+        -1,
+        1
+      );
+      thrusters.hotStageSeparated = false;
+    } else {
+      // Phase 2: Hot-Stage Released! Upper Stage Starship climbs to orbit while
+      // Super Heavy Booster executes Boostback / Descent and thrusts a SLOW VERTICAL LANDING!
+      thrusters.hotStageSeparated = true;
+      const targetY = isCatchStunt ? 1.5 : 1.35;
+      const heightAbovePad = Math.max(0, state.position.y - targetY);
+
+      // Desired horizontal velocity toward x = 0 (Launch Mount / Chopstick Tower)
+      const desiredVx = clamp(-state.position.x * 0.85, -3.6, 3.6);
+      const vxError = desiredVx - state.velocity.x;
+      // Since ax = thrustAccel * sin(-pitch), positive pitch tilts thrust toward -X!
+      const targetPitch =
+        heightAbovePad > 2.2
+          ? clamp(-vxError * 0.16 * competence, -0.42, 0.42)
+          : 0.0;
+      const pitchErr = targetPitch - state.attitude.pitch;
+
+      // Progressive slow vertical descent speed profile (approaches ~0.4 m/s near touchdown)
+      const desiredVy = -Math.max(0.35, Math.min(4.8, heightAbovePad * 0.52));
+      const vyError = desiredVy - state.velocity.y;
+      const hoverThrottle = (9.81 * params.gravityMultiplier) / 22.8;
+      const needsBoostback = isCatchStunt && Math.abs(state.position.x) > 0.9 && heightAbovePad > 5.0;
+
+      const rawLandingThrottle =
+        heightAbovePad > 8.5 && state.velocity.y > -2.2 && !needsBoostback
+          ? 0.08 * competence
+          : clamp(
+              (hoverThrottle + vyError * 0.18 + (needsBoostback ? 0.24 : 0)) * competence +
+                n1 * 0.22,
+              0.05,
+              1.0
+            );
+
+      thrusters.raptorThrottle = state.isGrounded ? 0 : rawLandingThrottle;
+      thrusters.gimbalPitch = clamp(
+        2.1 * competence * pitchErr - 0.85 * competence * state.angularVelocity.y + n2 * 0.45,
+        -1,
+        1
+      );
+      thrusters.gimbalYaw = clamp(
+        -1.5 * competence * state.attitude.roll - 0.65 * competence * state.angularVelocity.x + n3 * 0.4,
+        -1,
+        1
+      );
+    }
   } else {
-    const isFlipPhase = state.position.y < 12.5;
+    // Mission 05: Starship Belly-Flop Skydiver + 3-Raptor Flip-and-Burn Slow Vertical Landing
+    const isFlipPhase = state.position.y < 12.2;
+    const heightAboveCatch = Math.max(0, state.position.y - 1.5);
     const targetPitch = isFlipPhase ? 0.0 : 1.45;
     const pitchErr = targetPitch - state.attitude.pitch;
 
-    const flapPitchCmd = clamp(0.8 * competence * pitchErr - 0.3 * state.angularVelocity.y + n1 * 0.4, -0.45, 0.45);
+    const flapPitchCmd = clamp(
+      0.85 * competence * pitchErr - 0.32 * state.angularVelocity.y + n1 * 0.35,
+      -0.45,
+      0.45
+    );
     thrusters.flapFrontLeft = clamp(0.5 + flapPitchCmd, 0.05, 0.95);
     thrusters.flapFrontRight = clamp(0.5 + flapPitchCmd, 0.05, 0.95);
     thrusters.flapAftLeft = clamp(0.5 - flapPitchCmd, 0.05, 0.95);
     thrusters.flapAftRight = clamp(0.5 - flapPitchCmd, 0.05, 0.95);
 
-    if (isFlipPhase) {
-      const descentBrake = clamp((-state.velocity.y - 0.8) * 0.26 * competence + 0.42, 0.2, 1.0);
-      thrusters.raptorThrottle = clamp(descentBrake + n2 * 0.3, 0.1, 1.0);
+    if (isFlipPhase && !state.isGrounded) {
+      const desiredVy = -Math.max(0.35, Math.min(4.5, heightAboveCatch * 0.52));
+      const vyError = desiredVy - state.velocity.y;
+      const hoverThrottle = (9.81 * params.gravityMultiplier) / 24.5;
+      thrusters.raptorThrottle = clamp(
+        (hoverThrottle + vyError * 0.19) * competence + n2 * 0.24,
+        0.08,
+        1.0
+      );
       thrusters.gimbalPitch = clamp(
-        1.8 * competence * pitchErr - 0.7 * competence * state.angularVelocity.y + n3 * 0.5,
+        2.0 * competence * pitchErr - 0.78 * competence * state.angularVelocity.y + n3 * 0.45,
         -1,
         1
       );
     } else {
-      thrusters.raptorThrottle = incompetence > 0.6 ? clamp(Math.abs(n1) * 0.35, 0, 0.4) : 0;
+      thrusters.raptorThrottle = incompetence > 0.6 && !state.isGrounded ? clamp(Math.abs(n1) * 0.35, 0, 0.4) : 0;
       thrusters.gimbalPitch = 0;
     }
   }
