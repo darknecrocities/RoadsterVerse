@@ -55,10 +55,10 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     roadsterRig.updateThrusters(fullThrusters, 0.5);
     const nozzleEmitters = roadsterRig.getActiveNozzleEmitters(fullThrusters);
 
-    // All 7 cold-gas nozzles on the 2026 Tesla Roadster must be active and emit along their nozzle vector
-    expect(nozzleEmitters).toHaveLength(7);
+    // All 8 cold-gas nozzles on the 2026 Tesla Roadster must be active and emit along their nozzle vector
+    expect(nozzleEmitters).toHaveLength(8);
 
-    // Verify ZERO roof thruster: every nozzle is mounted at or below y=0.30m and fires downward/sideways (localDirection.y <= 0)
+    // Verify ZERO roof thruster: every nozzle is mounted at or below y=0.30m and fires downward/sideways/backwards (localDirection.y <= 0)
     for (const emitter of nozzleEmitters) {
       expect(emitter.localOffset.y).toBeLessThanOrEqual(0.3);
       expect(emitter.localDirection.y).toBeLessThanOrEqual(0);
@@ -71,6 +71,16 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     expect(latLeft?.localDirection.z).toBeGreaterThan(0.9);
     expect(latRight?.localOffset.z).toBeLessThan(-0.9);
     expect(latRight?.localDirection.z).toBeLessThan(-0.9);
+
+    // Verify dual rear SpaceX rocket thrusters flanking rear fascia (z = ±0.38m) firing straight backward (-X)
+    const rearLeft = nozzleEmitters.find((e) => e.id === 'rearBoostLeft');
+    const rearRight = nozzleEmitters.find((e) => e.id === 'rearBoostRight');
+    expect(rearLeft).toBeDefined();
+    expect(rearRight).toBeDefined();
+    expect(rearLeft?.localOffset.z).toBeCloseTo(0.38, 2);
+    expect(rearRight?.localOffset.z).toBeCloseTo(-0.38, 2);
+    expect(rearLeft?.localDirection.x).toBeLessThan(-0.9);
+    expect(rearRight?.localDirection.x).toBeLessThan(-0.9);
 
     for (let step = 0; step < 30; step++) {
       smokeSystem.update(0.025, 'roadster', state, fullThrusters, nozzleEmitters);
