@@ -93,35 +93,68 @@ export function stepStarshipPhysics(
       const thrustAccel = thrusters.raptorThrottle * maxAscentAccel;
 
       const pitchTorque =
-        thrusters.gimbalPitch * 3.2 - next.angularVelocity.y * 2.2 + aero.flapPitchTorque * 0.12;
-      const rollTorque = thrusters.gimbalYaw * 2.2 - next.angularVelocity.x * 2.4;
+        thrusters.gimbalPitch * 3.6 - next.angularVelocity.y * 2.2 + aero.flapPitchTorque * 0.12;
+      const rollTorque = thrusters.gimbalYaw * 2.6 - next.angularVelocity.x * 2.4;
 
       next.angularVelocity.y += pitchTorque * dt;
       next.angularVelocity.x += rollTorque * dt;
       next.attitude.pitch = Math.max(
-        -0.75,
-        Math.min(0.75, next.attitude.pitch + next.angularVelocity.y * dt)
+        -1.8,
+        Math.min(1.8, next.attitude.pitch + next.angularVelocity.y * dt)
       );
       next.attitude.roll = Math.max(
-        -0.65,
-        Math.min(0.65, next.attitude.roll + next.angularVelocity.x * dt)
+        -1.5,
+        Math.min(1.5, next.attitude.roll + next.angularVelocity.x * dt)
       );
 
       const sinPitch = Math.sin(-next.attitude.pitch);
       const cosPitch = Math.cos(next.attitude.pitch);
 
+      // Pad rest logic: If resting on the pad and thrust cannot overcome gravity:
+      if (state.position.y <= 1.36 && thrustAccel * cosPitch <= gravity + 0.1) {
+        next.isGrounded = true;
+        next.position.y = 1.35;
+        next.velocity.y = 0;
+        next.velocity.x = 0;
+        next.angularVelocity.x = 0;
+        next.angularVelocity.y = 0;
+        next.attitude.pitch = 0;
+        next.attitude.roll = 0;
+        next.gForce = 1.0;
+        next.missionProgressPct = 0;
+        return next;
+      }
+
+      next.isGrounded = false;
+
       const ax =
-        thrustAccel * sinPitch + windImpulseX * 0.2 - 0.06 * next.velocity.x + aero.dragForceX * 0.25;
+        thrustAccel * sinPitch + windImpulseX * 0.2 - 0.08 * next.velocity.x + aero.dragForceX * 0.25;
       const ay =
-        thrustAccel * cosPitch - gravity - 0.03 * next.velocity.y + aero.dragForceY * 0.25;
+        thrustAccel * cosPitch - gravity - 0.04 * next.velocity.y + aero.dragForceY * 0.25;
 
       next.velocity.x += ax * dt;
       next.velocity.y += ay * dt;
       next.position.x += next.velocity.x * dt;
-      next.position.y = Math.max(1.35, next.position.y + next.velocity.y * dt);
+      next.position.y += next.velocity.y * dt;
 
-      if (next.position.y <= 1.38 && state.position.y > 3.2) {
+      // Crash / Fall detection during ascent:
+      if (state.position.y > 1.38 && next.position.y <= 1.36) {
         next.crashed = true;
+        next.position.y = 1.35;
+      }
+      if (next.position.y < 4.0 && (Math.abs(next.attitude.pitch) > 0.50 || Math.abs(next.attitude.roll) > 0.50)) {
+        next.crashed = true;
+      }
+      if (Math.abs(next.attitude.pitch) > 0.95) {
+        next.crashed = true;
+      }
+      if (next.position.y < 1.35) {
+        next.position.y = 1.35;
+        if (state.position.y > 1.36) next.crashed = true;
+      }
+
+      if (next.crashed) {
+        return next;
       }
 
       // Trigger Hot-Stage Release once stack reaches separation altitude (y >= 13.5m)
@@ -182,20 +215,22 @@ export function stepStarshipPhysics(
       const pitchErr = Math.abs(next.attitude.pitch);
       const xErr = Math.abs(next.position.x);
       if (
-        impactSpeed > 3.8 ||
-        pitchErr > 0.36 ||
-        (missionId === 'starship-booster-catch' && xErr > 2.2)
+        impactSpeed > 1.8 ||
+        pitchErr > 0.22 ||
+        (missionId === 'starship-booster-catch' && xErr > 1.2)
       ) {
         next.crashed = true;
       }
       next.position.y = targetLandingY;
-      next.velocity.y = 0;
-      next.velocity.x = 0;
-      next.angularVelocity.x = 0;
-      next.angularVelocity.y = 0;
-      next.attitude.pitch = 0;
-      next.attitude.roll = 0;
-      next.isGrounded = true;
+      if (!next.crashed) {
+        next.velocity.y = 0;
+        next.velocity.x = 0;
+        next.angularVelocity.x = 0;
+        next.angularVelocity.y = 0;
+        next.attitude.pitch = 0;
+        next.attitude.roll = 0;
+        next.isGrounded = true;
+      }
     }
 
     next.gForce = Number((Math.max(0.8, thrustAccel / EARTH_GRAVITY)).toFixed(2));
@@ -247,16 +282,18 @@ export function stepStarshipPhysics(
   if (next.position.y <= 1.5) {
     const impactSpeed = Math.abs(next.velocity.y);
     const pitchErr = Math.abs(next.attitude.pitch);
-    if (impactSpeed > 3.8 || pitchErr > 0.36) {
+    if (impactSpeed > 1.8 || pitchErr > 0.22) {
       next.crashed = true;
     }
     next.position.y = 1.5;
-    next.velocity.y = 0;
-    next.velocity.x = 0;
-    next.angularVelocity.x = 0;
-    next.angularVelocity.y = 0;
-    next.attitude.pitch = 0;
-    next.isGrounded = true;
+    if (!next.crashed) {
+      next.velocity.y = 0;
+      next.velocity.x = 0;
+      next.angularVelocity.x = 0;
+      next.angularVelocity.y = 0;
+      next.attitude.pitch = 0;
+      next.isGrounded = true;
+    }
   }
 
   next.gForce = Number(

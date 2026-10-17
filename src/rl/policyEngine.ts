@@ -254,9 +254,29 @@ export function evaluateRLPolicy(
       const targetPitch = state.position.y > 4.2 ? (isCatchStunt ? -0.24 : -0.06) : 0.0;
       const pitchErr = targetPitch - state.attitude.pitch;
 
-      thrusters.raptorThrottle = clamp((0.88 * competence * altGain + 0.22 + n1 * 0.22) * fuelCap, 0.35, 1.0);
-      thrusters.gimbalPitch = clamp(1.6 * competence * attGain * pitchErr - 0.7 * competence * smoothGain * state.angularVelocity.y + n2 * 0.45 + lrOscillation, -1, 1);
-      thrusters.gimbalYaw = clamp(-1.3 * competence * attGain * state.attitude.roll - 0.55 * competence * smoothGain * state.angularVelocity.x + n3 * 0.45, -1, 1);
+      const baseThrottle = clamp(
+        (0.72 + 0.22 * competence * altGain + n1 * (0.35 * incompetence + 0.05)) * fuelCap,
+        0.45,
+        1.0
+      );
+      thrusters.raptorThrottle = baseThrottle;
+
+      const tvcNoiseScale = 0.72 * incompetence + 0.12;
+      thrusters.gimbalPitch = clamp(
+        1.85 * competence * attGain * pitchErr -
+          0.75 * competence * smoothGain * state.angularVelocity.y +
+          n2 * tvcNoiseScale +
+          lrOscillation,
+        -1,
+        1
+      );
+      thrusters.gimbalYaw = clamp(
+        -1.45 * competence * attGain * state.attitude.roll -
+          0.6 * competence * smoothGain * state.angularVelocity.x +
+          n3 * tvcNoiseScale,
+        -1,
+        1
+      );
       thrusters.hotStageSeparated = false;
     } else {
       thrusters.hotStageSeparated = true;

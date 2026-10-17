@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,
+  ChevronDown,
   Cpu,
   Maximize2,
   Minimize2,
@@ -38,6 +39,7 @@ import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 export const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   const [missionId, setMissionId] = useState<MissionId>('starship-booster-catch');
+  const [isMissionMenuOpen, setIsMissionMenuOpen] = useState(false);
   const [params, setParams] = useState<RLHyperparameters>(DEFAULT_HYPERPARAMETERS);
   const [resetSignal, setResetSignal] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -245,35 +247,48 @@ export const App: React.FC = () => {
             <span className="sx-wordmark-text">ROADSTERVERSE</span>
           </button>
 
-          <nav className="sx-nav-links" aria-label="Stunt Selector">
-            {MISSION_LIST.map((m) => {
-              const active = m.id === missionId;
-              const shortLabel =
-                m.id === 'roadster-hover'
-                  ? '01 HOVER'
-                  : m.id === 'roadster-wall-climb'
-                    ? '02 HALF-LOOP'
-                    : m.id === 'roadster-barrel-roll'
-                      ? '03 KICKFLIP'
-                      : m.id === 'roadster-obstacle-race'
-                        ? '04 OBSTACLE RACE'
-                        : m.id === 'starship-launch'
-                          ? '05 STAGE RELEASE'
-                          : m.id === 'starship-belly-flop'
-                            ? '06 CRANE CATCH'
-                            : '07 BOOSTER CATCH';
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  className={`sx-nav-link ${active ? 'active' : ''}`}
-                  onClick={() => handleSelectMission(m.id)}
-                >
-                  {shortLabel}
-                </button>
-              );
-            })}
-          </nav>
+          {/* Decluttered In-App Compact Mission Switcher Pill */}
+          <div className="sx-inapp-mission-selector">
+            <button
+              type="button"
+              className="sx-inapp-mission-pill"
+              onClick={() => setIsMissionMenuOpen((o) => !o)}
+              title="Switch Active Mission"
+            >
+              <span className="sx-mission-badge">{activeMission.badge}</span>
+              <span className="sx-mission-title">
+                {activeMission.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '')}
+              </span>
+              <ChevronDown
+                size={13}
+                className={`sx-dropdown-icon ${isMissionMenuOpen ? 'open' : ''}`}
+              />
+            </button>
+
+            {isMissionMenuOpen && (
+              <div className="sx-inapp-mission-menu">
+                {MISSION_LIST.map((m) => {
+                  const active = m.id === missionId;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className={`sx-inapp-menu-item ${active ? 'active' : ''}`}
+                      onClick={() => {
+                        handleSelectMission(m.id);
+                        setIsMissionMenuOpen(false);
+                      }}
+                    >
+                      <span className="badge">{m.badge}</span>
+                      <span className="title">
+                        {m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Rectangular SpaceX Action Controls */}
