@@ -1,7 +1,7 @@
-import React from 'react';
-import { ArrowUpRight, Car, Compass, Flame, HelpCircle, Rocket, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowRight, ChevronDown, Cpu, Play } from 'lucide-react';
 import type { MissionId } from '../types/simulation.ts';
-import { MISSION_LIST } from '../rl/missions.ts';
+import { MISSION_LIST, MISSIONS } from '../rl/missions.ts';
 import { AnimatedDecodeText } from './AnimatedText.tsx';
 
 interface WelcomeScreenProps {
@@ -10,118 +10,358 @@ interface WelcomeScreenProps {
   onEnterPlayground: () => void;
 }
 
+const SPACEX_HEADLINES: Record<MissionId, { dateTag: string; heroTitle: string }> = {
+  'starship-booster-catch': {
+    dateTag: 'OCTOBER 17, 2026 // FLIGHT 14 MISSION',
+    heroTitle: 'STARSHIP FLIGHT 14',
+  },
+  'starship-launch': {
+    dateTag: 'OCTOBER 17, 2026 // ORBITAL ASCENT & STAGE RELEASE',
+    heroTitle: 'HOT-STAGE & BOOSTER RETURN',
+  },
+  'starship-belly-flop': {
+    dateTag: 'OCTOBER 17, 2026 // TERMINAL FLIP & MECHAZILLA CATCH',
+    heroTitle: 'STARSHIP TOWER CATCH',
+  },
+  'roadster-wall-climb': {
+    dateTag: 'OCTOBER 17, 2026 // SPACEX COLD-GAS THRUSTER PACKAGE',
+    heroTitle: 'ROADSTER HALF-LOOP FLIGHT',
+  },
+  'roadster-barrel-roll': {
+    dateTag: 'OCTOBER 17, 2026 // 10,000 PSI COPV AEROBATICS',
+    heroTitle: 'ROADSTER 360° KICKFLIP',
+  },
+  'roadster-hover': {
+    dateTag: 'OCTOBER 17, 2026 // 6-DoF COLD-GAS HOVER TEST',
+    heroTitle: 'ROADSTER SUPERSONIC HOVER',
+  },
+};
+
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   selectedMissionId,
   onSelectMissionAndEnter,
   onEnterPlayground,
 }) => {
+  const [previewMissionId, setPreviewMissionId] = useState<MissionId>(selectedMissionId);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const activeMission = MISSIONS[previewMissionId];
+  const heroMeta = SPACEX_HEADLINES[previewMissionId];
+
+  // Full-bleed 60fps SpaceX Flight 14 & Roadster Stunt Monochrome Canvas Backdrop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let raf = 0;
+    let t = 0;
+
+    const resize = () => {
+      canvas.width = window.innerWidth * Math.min(window.devicePixelRatio, 2);
+      canvas.height = window.innerHeight * Math.min(window.devicePixelRatio, 2);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      t += 0.016;
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w * 0.5;
+
+      // 1. Deep Stratosphere Monochrome Sky Gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+      skyGrad.addColorStop(0.0, '#050505');
+      skyGrad.addColorStop(0.48, '#171717');
+      skyGrad.addColorStop(0.78, '#262626');
+      skyGrad.addColorStop(1.0, '#070707');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 2. Diagonal High-Altitude Contrail Streak (matching SpaceX Flight 14 backdrop)
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+      ctx.lineWidth = Math.max(2, w * 0.004);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.18, h * 0.06);
+      ctx.quadraticCurveTo(w * 0.48, h * 0.34, w * 0.86, h * 0.68);
+      ctx.stroke();
+      ctx.restore();
+
+      // 3. Lower Horizon Cumulus Cloud Banks (lit by plume glow)
+      for (let i = 0; i < 9; i++) {
+        const cloudX = (w * (i + 0.3)) / 8.5 + Math.sin(t * 0.25 + i) * 18;
+        const cloudY = h * (0.76 + (i % 3) * 0.06);
+        const cloudR = Math.max(w, h) * (0.11 + (i % 2) * 0.05);
+        const cg = ctx.createRadialGradient(cloudX, cloudY, cloudR * 0.1, cloudX, cloudY, cloudR);
+        cg.addColorStop(0, 'rgba(212, 212, 212, 0.22)');
+        cg.addColorStop(0.55, 'rgba(82, 82, 82, 0.12)');
+        cg.addColorStop(1, 'rgba(10, 10, 10, 0)');
+        ctx.fillStyle = cg;
+        ctx.beginPath();
+        ctx.arc(cloudX, cloudY, cloudR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (activeMission.vehicle === 'starship') {
+        // 4A. Center Ascending 2-Stage SpaceX Starship + Super Heavy Booster Silhouette & Plume
+        const bobY = Math.sin(t * 2.2) * 6;
+        const rocketTopY = h * 0.24 + bobY;
+        const shipH = h * 0.17;
+        const boosterH = h * 0.26;
+        const radius = Math.max(11, w * 0.0095);
+
+        // Supersonic Raptor Mach-Diamond Plume Column below Booster
+        const plumeTopY = rocketTopY + shipH + boosterH;
+        const plumeGrad = ctx.createLinearGradient(cx, plumeTopY, cx, h * 0.98);
+        plumeGrad.addColorStop(0.0, 'rgba(255, 255, 255, 0.98)');
+        plumeGrad.addColorStop(0.25, 'rgba(245, 245, 245, 0.78)');
+        plumeGrad.addColorStop(0.65, 'rgba(163, 163, 163, 0.32)');
+        plumeGrad.addColorStop(1.0, 'rgba(23, 23, 23, 0)');
+        ctx.fillStyle = plumeGrad;
+        ctx.beginPath();
+        ctx.moveTo(cx - radius * 0.95, plumeTopY);
+        ctx.lineTo(cx + radius * 0.95, plumeTopY);
+        ctx.lineTo(cx + radius * 2.8, h * 0.98);
+        ctx.lineTo(cx - radius * 2.8, h * 0.98);
+        ctx.closePath();
+        ctx.fill();
+
+        // Super Heavy Booster (White/Silver Cryogenic Frost Cladding + Grid Fins)
+        ctx.fillStyle = '#e5e5e5';
+        ctx.fillRect(cx - radius, rocketTopY + shipH, radius * 2, boosterH);
+        ctx.fillStyle = '#262626';
+        ctx.fillRect(cx - radius, rocketTopY + shipH, radius * 2, 6); // Hot-stage ring
+        ctx.fillRect(cx - radius * 1.7, rocketTopY + shipH + 10, radius * 0.7, 5); // Left grid fin
+        ctx.fillRect(cx + radius, rocketTopY + shipH + 10, radius * 0.7, 5); // Right grid fin
+        ctx.fillRect(cx - radius * 0.22, rocketTopY + shipH + boosterH * 0.55, radius * 0.44, boosterH * 0.45); // Chine
+
+        // Upper Stage Starship (Dark Windward TPS + Stainless Edge + Aft & Fwd Flaps)
+        ctx.fillStyle = '#171717';
+        ctx.beginPath();
+        ctx.moveTo(cx, rocketTopY);
+        ctx.quadraticCurveTo(cx + radius, rocketTopY + shipH * 0.22, cx + radius, rocketTopY + shipH * 0.35);
+        ctx.lineTo(cx + radius, rocketTopY + shipH);
+        ctx.lineTo(cx - radius, rocketTopY + shipH);
+        ctx.lineTo(cx - radius, rocketTopY + shipH * 0.35);
+        ctx.quadraticCurveTo(cx - radius, rocketTopY + shipH * 0.22, cx, rocketTopY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Aft & Forward Aero Flaps
+        ctx.fillStyle = '#262626';
+        ctx.beginPath();
+        ctx.moveTo(cx - radius, rocketTopY + shipH * 0.68);
+        ctx.lineTo(cx - radius * 1.85, rocketTopY + shipH * 0.92);
+        ctx.lineTo(cx - radius, rocketTopY + shipH * 0.96);
+        ctx.moveTo(cx + radius, rocketTopY + shipH * 0.68);
+        ctx.lineTo(cx + radius * 1.85, rocketTopY + shipH * 0.92);
+        ctx.lineTo(cx + radius, rocketTopY + shipH * 0.96);
+        ctx.fill();
+      } else {
+        // 4B. Center 2026 Tesla Roadster Coupé Firing Cold-Gas Jets Over Stunt Track
+        const carY = h * 0.46 + Math.sin(t * 2.8) * 10;
+        const carW = Math.max(220, w * 0.22);
+        const carH = carW * 0.28;
+
+        // Cold-Gas Supersonic White Plume Jets under all 4 corners
+        for (const ox of [-carW * 0.32, carW * 0.32]) {
+          const jg = ctx.createLinearGradient(cx + ox, carY + carH * 0.3, cx + ox, carY + carH * 1.9);
+          jg.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+          jg.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          ctx.fillStyle = jg;
+          ctx.beginPath();
+          ctx.moveTo(cx + ox - 12, carY + carH * 0.3);
+          ctx.lineTo(cx + ox + 12, carY + carH * 0.3);
+          ctx.lineTo(cx + ox + 36, carY + carH * 1.85);
+          ctx.lineTo(cx + ox - 36, carY + carH * 1.85);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Sleek White 2026 Roadster Coupé Silhouette + Rear Wing
+        ctx.fillStyle = '#f5f5f5';
+        ctx.beginPath();
+        ctx.moveTo(cx - carW * 0.5, carY + carH * 0.25);
+        ctx.lineTo(cx - carW * 0.46, carY - carH * 0.12);
+        ctx.quadraticCurveTo(cx - carW * 0.1, carY - carH * 0.58, cx + carW * 0.16, carY - carH * 0.15);
+        ctx.lineTo(cx + carW * 0.5, carY + carH * 0.12);
+        ctx.lineTo(cx + carW * 0.48, carY + carH * 0.28);
+        ctx.closePath();
+        ctx.fill();
+      }
+    };
+
+    raf = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, [activeMission.vehicle]);
+
+  const cycleNextMission = () => {
+    const idx = MISSION_LIST.findIndex((m) => m.id === previewMissionId);
+    const next = MISSION_LIST[(idx + 1) % MISSION_LIST.length];
+    setPreviewMissionId(next.id);
+  };
+
   return (
-    <div className="rv-landing">
-      {/* Subtle Architectural Grid & Orbital Halo Backdrop */}
-      <div className="rv-grid-backdrop" />
-      <div className="rv-orbital-ring rv-ring-outer" />
-      <div className="rv-orbital-ring rv-ring-inner" />
+    <div className="sx-landing-root">
+      <canvas ref={canvasRef} className="sx-hero-canvas" />
+      <div className="sx-vignette-overlay" />
 
-      {/* Minimalist Top Bar */}
-      <header className="rv-top-nav">
-        <div className="rv-brand-mark">
-          <span className="rv-dot" />
-          <span className="rv-brand-name">ROADSTERVERSE</span>
-          <span className="rv-brand-tag">v5.0 // 6-DoF ROCKET LAB</span>
-        </div>
-
-        <div className="rv-nav-telemetry">
-          <span>10,000 PSI COLD-GAS</span>
-          <span className="rv-sep">/</span>
-          <span>2-STAGE RELEASE &amp; CATCH</span>
-          <span className="rv-sep">/</span>
-          <span>REAL GRAVITY</span>
-        </div>
-
-        <button type="button" className="rv-nav-cta" onClick={onEnterPlayground}>
-          <span>LAUNCH SANDBOX</span>
-          <ArrowUpRight size={14} />
-        </button>
-      </header>
-
-      {/* Center Minimalist Hero */}
-      <main className="rv-hero-center">
-        <div className="rv-pill-eyebrow">
-          <Sparkles size={12} />
-          <span>2026 TESLA ROADSTER COUPÉ &amp; SPACEX STARSHIP AI PLAYGROUND</span>
-        </div>
-
-        <h1 className="rv-hero-title">
-          <AnimatedDecodeText text="RoadsterVerse" durationMs={560} />
-        </h1>
-
-        <p className="rv-hero-lead">
-          Train a live neural brain to fly a{' '}
-          <strong>Cold-Gas Rocket Roadster Coupé</strong>, release a{' '}
-          <strong>2-Stage SpaceX Starship</strong>, and thrust slow vertical landings under real
-          gravity. Slide from <strong>Try #8 (Clumsy Crash)</strong> to{' '}
-          <strong>Try #380 (Stunt Master)</strong>.
-        </p>
-
-        {/* Primary Action Row */}
-        <div className="rv-hero-actions">
-          <button type="button" className="rv-primary-btn" onClick={onEnterPlayground}>
-            <span>ENTER ROADSTERVERSE</span>
-            <ArrowUpRight size={17} />
+      {/* Frameless SpaceX Top Navigation Bar */}
+      <header className="sx-frameless-navbar">
+        <div className="sx-nav-left">
+          <button
+            type="button"
+            className="sx-wordmark-btn"
+            onClick={() => onSelectMissionAndEnter(previewMissionId)}
+          >
+            <span className="sx-wordmark-text">ROADSTERVERSE</span>
           </button>
 
-          <div className="rv-mini-badges">
-            <span className="rv-glass-chip">
-              <Flame size={12} /> 2-Stage Booster Release &amp; Slow Landing
-            </span>
-            <span className="rv-glass-chip">
-              <Compass size={12} /> Side-Jet Kickflips &amp; Boostback Flips
-            </span>
-            <span className="rv-glass-chip">
-              <HelpCircle size={12} /> Kid-Friendly &ldquo;?&rdquo; Guides
-            </span>
-          </div>
-        </div>
-
-        {/* Minimalist Glassmorphic Stunt Selector Strip */}
-        <section className="rv-stunt-deck" aria-label="Select Stunt Arena">
-          <div className="rv-deck-header">
-            <span>SELECT A STUNT ARENA TO LAUNCH IMMEDIATELY</span>
-            <span>01 — 06</span>
-          </div>
-
-          <div className="rv-stunt-grid">
+          <nav className="sx-nav-links" aria-label="Mission Navigation">
             {MISSION_LIST.map((m, idx) => {
-              const active = m.id === selectedMissionId;
-              const cleanName = m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '');
+              const isSelected = m.id === previewMissionId;
+              const label =
+                m.id === 'roadster-hover'
+                  ? '01 HOVER'
+                  : m.id === 'roadster-wall-climb'
+                    ? '02 HALF-LOOP'
+                    : m.id === 'roadster-barrel-roll'
+                      ? '03 KICKFLIP'
+                      : m.id === 'starship-launch'
+                        ? '04 STAGE RELEASE'
+                        : m.id === 'starship-belly-flop'
+                          ? '05 CRANE CATCH'
+                          : '06 BOOSTER CATCH';
               return (
                 <button
                   key={m.id}
                   type="button"
-                  className={`rv-stunt-card ${active ? 'active' : ''}`}
-                  onClick={() => onSelectMissionAndEnter(m.id)}
+                  className={`sx-nav-link ${isSelected ? 'active' : ''}`}
+                  onClick={() => setPreviewMissionId(m.id)}
+                  onDoubleClick={() => onSelectMissionAndEnter(m.id)}
+                  title={`Preview Stunt 0${idx + 1}: ${m.title}`}
                 >
-                  <div className="rv-stunt-card-top">
-                    <span className="rv-stunt-num">0{idx + 1}</span>
-                    {m.vehicle === 'roadster' ? <Car size={14} /> : <Rocket size={14} />}
-                  </div>
-                  <div className="rv-stunt-card-title">{cleanName}</div>
-                  <div className="rv-stunt-card-sub">{m.subtitle}</div>
+                  {label}
                 </button>
               );
             })}
+          </nav>
+        </div>
+
+        {/* Right Rectangular SpaceX Dropdown Selector */}
+        <div className="sx-nav-right">
+          <div className="sx-dropdown-wrap">
+            <button
+              type="button"
+              className="sx-upcoming-btn"
+              onClick={() => setDropdownOpen((o) => !o)}
+            >
+              <span>UPCOMING STUNTS ({MISSION_LIST.length})</span>
+              <ChevronDown size={14} />
+            </button>
+
+            {dropdownOpen && (
+              <div className="sx-dropdown-menu">
+                {MISSION_LIST.map((m, i) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`sx-dropdown-item ${m.id === previewMissionId ? 'active' : ''}`}
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onSelectMissionAndEnter(m.id);
+                    }}
+                  >
+                    <small>0{i + 1}</small>
+                    <div>
+                      <strong>{m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '')}</strong>
+                      <span>{m.subtitle}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        </section>
+        </div>
+      </header>
+
+      {/* Bottom-Left SpaceX Flight 14 Mission Headline & Rectangular Ghost Button */}
+      <main className="sx-bottom-left-hero">
+        <div className="sx-date-eyebrow">{heroMeta.dateTag}</div>
+        <h1 className="sx-hero-headline">
+          <AnimatedDecodeText text={heroMeta.heroTitle} durationMs={420} />
+        </h1>
+        <p className="sx-hero-subtitle">
+          {activeMission.subtitle} — Train the neural brain from{' '}
+          <strong>Epoch #8 (Clumsy Failure)</strong> to{' '}
+          <strong>Epoch #{activeMission.recommendedEpochs} (Stunt Master)</strong> under real 6-DoF
+          gravity.
+        </p>
+
+        <div className="sx-cta-row">
+          <button
+            type="button"
+            className="sx-watch-btn"
+            onClick={() => onSelectMissionAndEnter(previewMissionId)}
+          >
+            <span>WATCH &amp; TRAIN</span>
+            <ArrowRight size={15} />
+          </button>
+
+          <button
+            type="button"
+            className="sx-watch-btn secondary"
+            onClick={onEnterPlayground}
+          >
+            <Cpu size={14} />
+            <span>ENTER SIMULATOR</span>
+          </button>
+        </div>
       </main>
 
-      {/* Minimalist Bottom Footnote */}
-      <footer className="rv-footer">
-        <span>PURE MONOCHROME EDITION</span>
-        <span>•</span>
-        <span>CLICK ANY &ldquo;?&rdquo; BADGE INSIDE FOR SIMPLE KID-FRIENDLY EXPLANATIONS</span>
-        <span>•</span>
-        <span>GLASSMORPHIC MINIMIZABLE HUD</span>
-      </footer>
+      {/* Bottom-Right Picture-in-Picture Mission Preview Card (matching SpaceX bottom-right video card) */}
+      <aside className="sx-pip-preview-card" aria-label="Mission Preview Switcher">
+        <div
+          className="sx-pip-screen"
+          onClick={() => onSelectMissionAndEnter(previewMissionId)}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="sx-pip-top-row">
+            <span className="sx-pip-badge">{activeMission.badge}</span>
+            <span className="sx-pip-play">
+              <Play size={11} /> LIVE 3D
+            </span>
+          </div>
+
+          <div className="sx-pip-center-art">
+            <strong>{activeMission.title}</strong>
+            <span>TARGET EPOCH: #{activeMission.recommendedEpochs}</span>
+          </div>
+
+          <div className="sx-pip-bottom-row">
+            <span>{ heroMeta.heroTitle }</span>
+            <button
+              type="button"
+              className="sx-pip-next-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                cycleNextMission();
+              }}
+            >
+              NEXT STUNT →
+            </button>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 };

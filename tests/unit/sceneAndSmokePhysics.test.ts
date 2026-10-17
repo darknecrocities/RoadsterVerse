@@ -79,11 +79,27 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     roadsterRig.setWheelSpec('six-spoke');
     roadsterRig.setWheelSpec('aero-disc');
     expect(roadsterRig.root.children.length).toBeGreaterThan(8);
+
+    // Verify the 4 wheels inside wheelsGroup have their tire bottoms (front r=0.38m, rear r=0.41m) at local y = -0.39m (CAR_RIDE_HEIGHT = 0.39m)
+    const wheelsGroup = roadsterRig.root.children.find((c) => c.children.length === 4);
+    expect(wheelsGroup).toBeDefined();
+    for (const wheel of wheelsGroup!.children) {
+      const tireRadius = wheel.position.x < 0 ? 0.41 : 0.38;
+      const tireBottomY = wheelsGroup!.position.y + wheel.position.y - tireRadius;
+      expect(tireBottomY).toBeCloseTo(-0.39, 3);
+    }
   });
 
-  it('emits physics-based combustion fire thruster particles from Starship Raptor nozzles with thermal cooling', () => {
+  it('emits physics-based combustion fire thruster particles from Starship Raptor nozzles with thermal cooling and keeps the Super Heavy Booster above ground', () => {
     const starshipRig = createStarshipModel(false);
     const smokeSystem = new VolumetricPlumeSmokeSystem(220);
+
+    // Verify Super Heavy Booster meshes inside boosterGroup sit at positive local Y (>= 0.0m) so the lower half is never buried in the ground!
+    for (const child of starshipRig.boosterGroup.children) {
+      if (child !== starshipRig.boosterPlume) {
+        expect(child.position.y).toBeGreaterThanOrEqual(0.0);
+      }
+    }
 
     let state = createInitialStarshipState('starship-launch');
     const launchThrusters = {

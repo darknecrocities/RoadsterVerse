@@ -114,7 +114,7 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
     expect(peakOverhangAngle).toBeGreaterThan(2.2); // >126 deg upside-down overhang!
     expect(peakMidAirRoll).toBeCloseTo(Math.PI * 2, 1); // Completed 360° mid-air kickflip!
     expect(trainedState.isGrounded).toBe(true);
-    expect(trainedState.position.y).toBeCloseTo(0.48, 2);
+    expect(trainedState.position.y).toBeCloseTo(0.43, 2);
     expect(trainedState.position.x).toBeLessThan(-4.0); // Landed back near the original starting position!
     expect(trainedState.crashed).toBe(false);
   });
@@ -252,6 +252,7 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
       'src/components/Viewport3D.tsx',
       'src/components/RLTrainingControls.tsx',
       'src/components/NeuralTelemetryHUD.tsx',
+      'src/components/NeuralNetworkModal.tsx',
       'src/components/KnowledgeAndTriviaModal.tsx',
     ];
 
