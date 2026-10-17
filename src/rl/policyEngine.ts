@@ -18,8 +18,9 @@ function pseudoNoise(seed: number): number {
 }
 
 /**
- * Computes the effective policy competence [0.02 .. 0.995] from the user's selected
+ * Computes the effective policy competence [0.03 .. 0.995] from the user's selected
  * Epochs and RL Hyperparameters (learning rate, discount factor, exploration noise, reward weights).
+ * Calibrated across the exact UI slider ranges so every adjustment reflects in the live 3D simulation.
  */
 export function computePolicyCompetence(
   missionId: MissionId,
@@ -29,26 +30,34 @@ export function computePolicyCompetence(
   const mission = MISSIONS[missionId];
   const currentEpoch = epochOverride ?? params.epochs;
 
-  const lrPenalty =
-    params.learningRate > 0.01
-      ? Math.max(0.25, 1 - (params.learningRate - 0.01) * 14)
-      : params.learningRate < 0.0001
-        ? 0.65
-        : 1.0;
+  // Calibrated across UI slider [0.0001 .. 0.01]:
+  // - < 0.0003: sluggish under-stepping
+  // - 0.0003 .. 0.0020: optimal PPO convergence sweet spot
+  // - > 0.0020: policy gradient overshoot & instability
+  const lrEfficiency =
+    params.learningRate < 0.0003
+      ? 0.55 + (params.learningRate / 0.0003) * 0.45
+      : params.learningRate <= 0.002
+        ? 1.04
+        : Math.max(0.28, 1.04 - (params.learningRate - 0.002) * 85);
 
-  const gammaFactor = clamp((params.discountFactor - 0.75) / 0.24, 0.35, 1.04);
+  const gammaFactor = clamp((params.discountFactor - 0.78) / 0.21, 0.32, 1.05);
 
-  const rewardBalance = clamp(
-    (params.rewardAltitudeWeight * 0.35 +
-      params.rewardAttitudeWeight * 0.4 +
-      params.rewardSmoothnessWeight * 0.25) /
-      2.1,
-    0.4,
-    1.12
-  );
+  const fuelBalancePenalty =
+    params.rewardFuelWeight > 1.8 ? Math.max(0.72, 1 - (params.rewardFuelWeight - 1.8) * 0.25) : 1.0;
+
+  const rewardBalance =
+    clamp(
+      (params.rewardAltitudeWeight * 0.35 +
+        params.rewardAttitudeWeight * 0.4 +
+        params.rewardSmoothnessWeight * 0.25) /
+        2.1,
+      0.38,
+      1.14
+    ) * fuelBalancePenalty;
 
   const normalizedEpochs = currentEpoch / (mission.recommendedEpochs * 0.55);
-  const rawGrowth = 1 - Math.exp(-normalizedEpochs * lrPenalty * gammaFactor * rewardBalance);
+  const rawGrowth = 1 - Math.exp(-normalizedEpochs * lrEfficiency * gammaFactor * rewardBalance);
   const noiseDamping = 1 - params.explorationNoise * 0.68;
 
   return clamp(rawGrowth * noiseDamping, 0.03, 0.995);
@@ -74,10 +83,20 @@ export function evaluateRLPolicy(
   const n2 = pseudoNoise(t * 13.7 + agentSeedOffset * 31.1) * noiseScale;
   const n3 = pseudoNoise(t * 7.3 + agentSeedOffset * 47.9) * noiseScale;
 
+  // High learning rate (> 0.0022) induces visible policy gradient oscillation; very low (< 0.0003) lags
   const lrOscillation =
-    params.learningRate > 0.008
-      ? Math.sin(t * 18.0 + agentSeedOffset) * (params.learningRate * 12)
+    params.learningRate > 0.0022
+      ? Math.sin(t * 18.0 + agentSeedOffset) * ((params.learningRate - 0.0022) * 46)
       : 0;
+  const lrResponseScale =
+    params.learningRate < 0.0003 ? 0.68 + (params.learningRate / 0.0003) * 0.32 : 1.0;
+
+  // Calibrated gain multipliers for all 4 reward weights + discount factor look-ahead horizon
+  const lookAheadFactor = clamp((params.discountFactor - 0.8) / 0.19, 0.25, 1.15);
+  const altGain = clamp(params.rewardAltitudeWeight / 2.0, 0.35, 1.65) * lrResponseScale;
+  const attGain = clamp(params.rewardAttitudeWeight / 2.4, 0.35, 1.65) * lrResponseScale;
+  const smoothGain = clamp(params.rewardSmoothnessWeight / 1.3, 0.35, 1.65);
+  const fuelCap = clamp(1.14 - params.rewardFuelWeight * 0.16, 0.65, 1.04);
 
   const thrusters: ThrusterActivation = {
     frontLeftLift: 0,
@@ -103,126 +122,128 @@ export function evaluateRLPolicy(
 
   if (missionId === 'roadster-hover') {
     const hoverFeedforward = 0.54 * params.gravityMultiplier;
-    const kpAlt = 0.24 * competence * clamp(params.rewardAltitudeWeight / 1.8, 0.4, 1.6);
-    const kdAlt = 0.19 * competence * clamp(params.rewardSmoothnessWeight / 1.2, 0.4, 1.5);
+    const kpAlt = 0.24 * competence * altGain;
+    const kdAlt = 0.19 * competence * smoothGain;
     const baseLift = clamp(
-      hoverFeedforward + kpAlt * altError - kdAlt * state.velocity.y + n1 * 0.45 + lrOscillation,
+      (hoverFeedforward + kpAlt * altError - kdAlt * state.velocity.y + n1 * 0.45 + lrOscillation) *
+        fuelCap,
       0,
       1
     );
 
-    const kpAtt = 0.65 * competence * clamp(params.rewardAttitudeWeight / 2.0, 0.3, 1.6);
+    const kpAtt = 0.65 * competence * attGain;
     const rollCorr =
-      -kpAtt * state.attitude.roll - 0.25 * competence * state.angularVelocity.x + n2 * 0.42;
+      -kpAtt * state.attitude.roll - 0.25 * competence * smoothGain * state.angularVelocity.x + n2 * 0.42;
     const pitchCorr =
-      -kpAtt * state.attitude.pitch - 0.28 * competence * state.angularVelocity.y + n3 * 0.38;
+      -kpAtt * state.attitude.pitch - 0.28 * competence * smoothGain * state.angularVelocity.y + n3 * 0.38;
 
     thrusters.frontLeftLift = clamp(baseLift + rollCorr + pitchCorr, 0, 1);
     thrusters.frontRightLift = clamp(baseLift - rollCorr + pitchCorr, 0, 1);
     thrusters.rearLeftLift = clamp(baseLift + rollCorr - pitchCorr, 0, 1);
     thrusters.rearRightLift = clamp(baseLift - rollCorr - pitchCorr, 0, 1);
 
-    const latCmd = clamp(0.28 * competence * xError - 0.22 * competence * state.velocity.x + n2 * 0.35, -1, 1);
+    const latCmd = clamp(0.28 * competence * altGain * xError - 0.22 * competence * smoothGain * state.velocity.x + n2 * 0.35, -1, 1);
     thrusters.lateralLeft = clamp(latCmd, 0, 1);
     thrusters.lateralRight = clamp(-latCmd, 0, 1);
     thrusters.activeWingAngle = clamp(0.4 + Math.abs(state.velocity.x) * 0.1, 0.2, 0.9);
+  } else if (missionId === 'roadster-obstacle-race') {
+    // Stunt 04: High-Speed Obstacle Gauntlet & Cold-Gas Thruster Bunny-Hop Jump!
+    const lookAheadDistM = 1.6 + 5.4 * lookAheadFactor * competence;
+
+    let targetZ = 0.0;
+    if (state.position.x < -5.5) {
+      targetZ = -6.2 - state.position.x <= lookAheadDistM ? -1.35 * competence : 0.38;
+    } else if (state.position.x < 0.0) {
+      targetZ = -0.6 - state.position.x <= lookAheadDistM ? 1.35 * competence : -1.25;
+    }
+
+    const zError = targetZ - state.position.z;
+    const steerCmd = clamp(
+      2.15 * competence * attGain * zError - 0.32 * competence * smoothGain * state.velocity.z + n2 * 0.45 + lrOscillation,
+      -1,
+      1
+    );
+
+    const isAirborne = !state.isGrounded && !state.crashed;
+
+    // Cold-gas lift & rear boost thrusters fire STRICTLY when airborne in mid-air!
+    if (isAirborne) {
+      const isBoostingOverWall = state.position.x <= 4.85 && state.position.y < 2.15;
+      const isLandingCushion = state.position.x > 4.85 && state.position.y < 1.55 && state.velocity.y < -0.5;
+      const baseJumpLift = isBoostingOverWall
+        ? clamp((0.55 * altGain * competence + n1 * 0.15 + lrOscillation) * fuelCap, 0.2, 0.68)
+        : isLandingCushion
+          ? clamp((0.36 + (-state.velocity.y) * 0.04) * competence * altGain * fuelCap, 0.12, 0.48)
+          : 0.08 * competence;
+
+      const rollTrim = -0.55 * competence * attGain * state.attitude.roll - 0.22 * competence * smoothGain * state.angularVelocity.x + n2 * 0.25;
+      const pitchTrim = -0.58 * competence * attGain * state.attitude.pitch - 0.24 * competence * smoothGain * state.angularVelocity.y + n3 * 0.25;
+
+      thrusters.frontLeftLift = clamp(baseJumpLift + rollTrim + pitchTrim, 0, 1);
+      thrusters.frontRightLift = clamp(baseJumpLift - rollTrim + pitchTrim, 0, 1);
+      thrusters.rearLeftLift = clamp(baseJumpLift + rollTrim - pitchTrim, 0, 1);
+      thrusters.rearRightLift = clamp(baseJumpLift - rollTrim - pitchTrim, 0, 1);
+      thrusters.rearBoost = isBoostingOverWall ? clamp(0.65 * competence * fuelCap, 0, 1) : 0;
+    }
+
+    thrusters.lateralRight = clamp(steerCmd, 0, 1);
+    thrusters.lateralLeft = clamp(-steerCmd, 0, 1);
+    thrusters.activeWingAngle = state.position.x < 1.5 ? clamp(0.88 * competence + 0.12 * altGain, 0.25, 1.0) : 0.45;
   } else if (missionId === 'roadster-wall-climb') {
-    // Stunt 02: Hot-Wheels Giant Half-Loop -> Mid-Air Kickflip (No Levitation!) -> Slow Retro Landing at Origin
     const isAirborneDismount = state.velocity.z < 0 && !state.isGrounded && !state.crashed;
     const onLoopArc = state.velocity.z >= 0 && (state.position.x > 0.5 || state.position.y > 0.9);
 
     if (!isAirborneDismount) {
-      // On the flat approach road or riding on the 180-deg Half-Loop ramp:
-      // Electric Plaid AWD wheel motors propel the car — ZERO cold-gas thrusters or smoke on road/ramp!
-      thrusters.frontLeftLift = 0;
-      thrusters.frontRightLift = 0;
-      thrusters.rearLeftLift = 0;
-      thrusters.rearRightLift = 0;
-      thrusters.lateralLeft = 0;
-      thrusters.lateralRight = 0;
-      thrusters.rearBoost = 0;
-      thrusters.activeWingAngle = onLoopArc ? 0.95 : 0.45;
+      thrusters.activeWingAngle = onLoopArc ? clamp(0.95 * altGain, 0.35, 1.0) : 0.45;
     } else {
-      // Mid-Air after launching off the top lip:
-      // Ignite cold-gas thrusters & realistic white smoke in mid-air for the 360-deg Kickflip & retro-cushion landing!
       const rollRemaining = Math.PI * 2 - state.attitude.roll;
       const isKickflipping = rollRemaining > 0.25;
-      const isNearGroundDescent = state.position.y <= 4.2 && state.velocity.y < -0.4;
+      const isNearGroundDescent = state.position.y <= 3.2 + lookAheadFactor && state.velocity.y < -0.4;
 
       const retroCushion = isNearGroundDescent
-        ? clamp((0.68 + (-state.velocity.y) * 0.08) * competence + n1 * 0.15, 0.1, 0.98)
+        ? clamp(((0.68 + (-state.velocity.y) * 0.08 * smoothGain) * competence * altGain + n1 * 0.15 + lrOscillation) * fuelCap, 0.1, 0.98)
         : 0.08 * competence;
 
-      const rollBurst = isKickflipping ? 0.48 * competence : 0;
-      const pitchLeveling = state.attitude.pitch < Math.PI * 1.92 ? 0.24 * competence : 0;
+      const rollBurst = isKickflipping ? 0.48 * competence * attGain : 0;
+      const pitchLeveling = state.attitude.pitch < Math.PI * 1.92 ? 0.24 * competence * attGain : 0;
 
       thrusters.frontLeftLift = clamp(retroCushion + rollBurst + pitchLeveling, 0, 1);
       thrusters.rearLeftLift = clamp(retroCushion + rollBurst - pitchLeveling * 0.5, 0, 1);
       thrusters.frontRightLift = clamp(retroCushion - rollBurst * 0.5 + pitchLeveling, 0, 1);
       thrusters.rearRightLift = clamp(retroCushion - rollBurst * 0.5 - pitchLeveling * 0.5, 0, 1);
 
-      thrusters.lateralLeft = isKickflipping
-        ? clamp(0.85 * competence + Math.abs(n2) * 0.2, 0.15, 1.0)
-        : clamp(0.32 * competence, 0, 0.6);
-      thrusters.lateralRight = isKickflipping
-        ? clamp(0.65 * competence + Math.abs(n3) * 0.2, 0.15, 0.9)
-        : clamp(0.32 * competence, 0, 0.6);
-      thrusters.rearBoost = state.position.y > 5.0 ? 0.28 * competence : 0;
+      thrusters.lateralLeft = isKickflipping ? clamp(0.85 * competence * attGain + Math.abs(n2) * 0.2, 0.15, 1.0) : clamp(0.32 * competence, 0, 0.6);
+      thrusters.lateralRight = isKickflipping ? clamp(0.65 * competence * attGain + Math.abs(n3) * 0.2, 0.15, 0.9) : clamp(0.32 * competence, 0, 0.6);
+      thrusters.rearBoost = state.position.y > 5.0 ? 0.28 * competence * fuelCap : 0;
       thrusters.activeWingAngle = isNearGroundDescent ? 0.95 : 0.55;
     }
   } else if (missionId === 'roadster-barrel-roll') {
-    // Stunt 03: Curved Ramp Launch -> Mid-Air Thruster Kickflip -> Slow Rocket Landing!
-    const targetRoll = Math.PI * 2;
-    const rollRemaining = targetRoll - state.attitude.roll;
+    const rollRemaining = Math.PI * 2 - state.attitude.roll;
 
     if (state.isGrounded || state.crashed) {
-      // On the flat road or riding up the Curved Steel Quarter-Pipe Launch Ramp:
-      // Electric Plaid AWD wheel motors accelerate the car — ZERO cold-gas thrusters or smoke on road/ramp!
-      thrusters.frontLeftLift = 0;
-      thrusters.frontRightLift = 0;
-      thrusters.rearLeftLift = 0;
-      thrusters.rearRightLift = 0;
-      thrusters.lateralLeft = 0;
-      thrusters.lateralRight = 0;
-      thrusters.rearBoost = 0;
       thrusters.activeWingAngle = state.position.x > 0 ? 0.95 : 0.25;
     } else {
-      // Mid-Air after launching off the ramp lip:
-      // Ignite cold-gas thrusters & realistic white smoke in mid-air for the 360-deg Kickflip & slow touchdown!
       const flipComplete = rollRemaining <= 0.28;
-      const isDescendingLow = state.position.y <= 3.2 && state.velocity.y < -0.3;
+      const isDescendingLow = state.position.y <= 2.4 + 0.85 * lookAheadFactor && state.velocity.y < -0.3;
 
       const cushionLift = isDescendingLow
-        ? clamp((0.64 + (-state.velocity.y) * 0.09) * competence + n1 * 0.15, 0.15, 0.96)
+        ? clamp(((0.64 + (-state.velocity.y) * 0.09 * smoothGain) * competence * altGain + n1 * 0.15 + lrOscillation) * fuelCap, 0.15, 0.96)
         : !flipComplete
-          ? clamp(0.26 * competence + n1 * 0.18, 0.08, 0.45)
+          ? clamp(0.26 * competence * altGain + n1 * 0.18, 0.08, 0.45)
           : 0.12 * competence;
 
-      const desiredOmegaX =
-        rollRemaining > 0.02
-          ? clamp(rollRemaining * 4.6 * competence + 2.1 * competence + n2 * 2.2, -2, 10.0)
-          : 0;
-
-      const rollTorqueCmd = clamp(
-        0.56 * competence * (desiredOmegaX - state.angularVelocity.x) + n2 * 0.38,
-        -0.78,
-        0.78
-      );
-      const pitchKickCmd = rollRemaining > Math.PI ? 0.18 * competence : -0.15 * competence;
+      const desiredOmegaX = rollRemaining > 0.02 ? clamp(rollRemaining * 4.6 * competence * attGain + 2.1 * competence + n2 * 2.2, -2, 10.0) : 0;
+      const rollTorqueCmd = clamp(0.56 * competence * smoothGain * (desiredOmegaX - state.angularVelocity.x) + n2 * 0.38 + lrOscillation, -0.78, 0.78);
+      const pitchKickCmd = (rollRemaining > Math.PI ? 0.18 : -0.15) * competence * attGain;
 
       thrusters.frontLeftLift = clamp(cushionLift + rollTorqueCmd + pitchKickCmd, 0, 1);
       thrusters.rearLeftLift = clamp(cushionLift + rollTorqueCmd - pitchKickCmd, 0, 1);
       thrusters.frontRightLift = clamp(cushionLift - rollTorqueCmd + pitchKickCmd, 0, 1);
       thrusters.rearRightLift = clamp(cushionLift - rollTorqueCmd - pitchKickCmd, 0, 1);
 
-      thrusters.lateralLeft = !flipComplete
-        ? clamp(0.92 * competence + Math.abs(n2) * 0.2, 0.25, 1.0)
-        : clamp(0.38 * competence, 0.1, 0.65);
-      thrusters.lateralRight = !flipComplete
-        ? clamp(0.68 * competence + Math.abs(n3) * 0.2, 0.2, 0.92)
-        : clamp(0.38 * competence, 0.1, 0.65);
-
-      thrusters.rearBoost = !flipComplete && state.position.x < 1.5 ? 0.32 * competence : 0;
+      thrusters.lateralLeft = !flipComplete ? clamp(0.92 * competence * attGain + Math.abs(n2) * 0.2, 0.25, 1.0) : clamp(0.38 * competence, 0.1, 0.65);
+      thrusters.lateralRight = !flipComplete ? clamp(0.68 * competence * attGain + Math.abs(n3) * 0.2, 0.2, 0.92) : clamp(0.38 * competence, 0.1, 0.65);
+      thrusters.rearBoost = !flipComplete && state.position.x < 1.5 ? 0.32 * competence * fuelCap : 0;
       thrusters.activeWingAngle = flipComplete ? 0.95 : 0.45;
     }
   } else if (missionId === 'starship-launch' || missionId === 'starship-booster-catch') {
@@ -230,80 +251,43 @@ export function evaluateRLPolicy(
     const isCatchStunt = missionId === 'starship-booster-catch';
 
     if (!isSeparated) {
-      // Phase 1: Full-Stack Ascent up to Hot-Stage Separation (y >= 13.5m)
-      const targetPitch =
-        state.position.y > 4.2 ? (isCatchStunt ? -0.24 : -0.06) : 0.0;
+      const targetPitch = state.position.y > 4.2 ? (isCatchStunt ? -0.24 : -0.06) : 0.0;
       const pitchErr = targetPitch - state.attitude.pitch;
 
-      thrusters.raptorThrottle = clamp(0.88 * competence + 0.25 + n1 * 0.22, 0.35, 1.0);
-      thrusters.gimbalPitch = clamp(
-        1.6 * competence * pitchErr - 0.7 * competence * state.angularVelocity.y + n2 * 0.45 + lrOscillation,
-        -1,
-        1
-      );
-      thrusters.gimbalYaw = clamp(
-        -1.3 * competence * state.attitude.roll - 0.55 * competence * state.angularVelocity.x + n3 * 0.45,
-        -1,
-        1
-      );
+      thrusters.raptorThrottle = clamp((0.88 * competence * altGain + 0.22 + n1 * 0.22) * fuelCap, 0.35, 1.0);
+      thrusters.gimbalPitch = clamp(1.6 * competence * attGain * pitchErr - 0.7 * competence * smoothGain * state.angularVelocity.y + n2 * 0.45 + lrOscillation, -1, 1);
+      thrusters.gimbalYaw = clamp(-1.3 * competence * attGain * state.attitude.roll - 0.55 * competence * smoothGain * state.angularVelocity.x + n3 * 0.45, -1, 1);
       thrusters.hotStageSeparated = false;
     } else {
-      // Phase 2: Hot-Stage Released! Upper Stage Starship climbs to orbit while
-      // Super Heavy Booster executes Boostback / Descent and thrusts a SLOW VERTICAL LANDING!
       thrusters.hotStageSeparated = true;
       const targetY = isCatchStunt ? 1.5 : 1.35;
       const heightAbovePad = Math.max(0, state.position.y - targetY);
 
-      // Desired horizontal velocity toward x = 0 (Launch Mount / Chopstick Tower)
-      const desiredVx = clamp(-state.position.x * 0.85, -3.6, 3.6);
+      const desiredVx = clamp(-state.position.x * 0.85 * lookAheadFactor, -3.6, 3.6);
       const vxError = desiredVx - state.velocity.x;
-      // Since ax = thrustAccel * sin(-pitch), positive pitch tilts thrust toward -X!
-      const targetPitch =
-        heightAbovePad > 2.2
-          ? clamp(-vxError * 0.16 * competence, -0.42, 0.42)
-          : 0.0;
+      const targetPitch = heightAbovePad > 2.2 ? clamp(-vxError * 0.16 * competence * attGain, -0.42, 0.42) : 0.0;
       const pitchErr = targetPitch - state.attitude.pitch;
 
-      // Progressive slow vertical descent speed profile (approaches ~0.4 m/s near touchdown)
       const desiredVy = -Math.max(0.35, Math.min(4.8, heightAbovePad * 0.52));
       const vyError = desiredVy - state.velocity.y;
       const hoverThrottle = (9.81 * params.gravityMultiplier) / 22.8;
       const needsBoostback = isCatchStunt && Math.abs(state.position.x) > 0.9 && heightAbovePad > 5.0;
 
       const rawLandingThrottle =
-        heightAbovePad > 8.5 && state.velocity.y > -2.2 && !needsBoostback
+        heightAbovePad > 6.5 + 2.5 * lookAheadFactor && state.velocity.y > -2.2 && !needsBoostback
           ? 0.08 * competence
-          : clamp(
-              (hoverThrottle + vyError * 0.18 + (needsBoostback ? 0.24 : 0)) * competence +
-                n1 * 0.22,
-              0.05,
-              1.0
-            );
+          : clamp(((hoverThrottle + vyError * 0.18 * altGain + (needsBoostback ? 0.24 : 0)) * competence + n1 * 0.22 + lrOscillation) * fuelCap, 0.05, 1.0);
 
       thrusters.raptorThrottle = state.isGrounded ? 0 : rawLandingThrottle;
-      thrusters.gimbalPitch = clamp(
-        2.1 * competence * pitchErr - 0.85 * competence * state.angularVelocity.y + n2 * 0.45,
-        -1,
-        1
-      );
-      thrusters.gimbalYaw = clamp(
-        -1.5 * competence * state.attitude.roll - 0.65 * competence * state.angularVelocity.x + n3 * 0.4,
-        -1,
-        1
-      );
+      thrusters.gimbalPitch = clamp(2.1 * competence * attGain * pitchErr - 0.85 * competence * smoothGain * state.angularVelocity.y + n2 * 0.45 + lrOscillation, -1, 1);
+      thrusters.gimbalYaw = clamp(-1.5 * competence * attGain * state.attitude.roll - 0.65 * competence * smoothGain * state.angularVelocity.x + n3 * 0.4, -1, 1);
     }
   } else {
-    // Mission 05: Starship Belly-Flop Skydiver + 3-Raptor Flip-and-Burn Slow Vertical Landing
-    const isFlipPhase = state.position.y < 12.2;
+    const isFlipPhase = state.position.y < 9.8 + 2.6 * lookAheadFactor;
     const heightAboveCatch = Math.max(0, state.position.y - 1.5);
-    const targetPitch = isFlipPhase ? 0.0 : 1.45;
-    const pitchErr = targetPitch - state.attitude.pitch;
+    const pitchErr = (isFlipPhase ? 0.0 : 1.45) - state.attitude.pitch;
 
-    const flapPitchCmd = clamp(
-      0.85 * competence * pitchErr - 0.32 * state.angularVelocity.y + n1 * 0.35,
-      -0.45,
-      0.45
-    );
+    const flapPitchCmd = clamp(0.85 * competence * attGain * pitchErr - 0.32 * smoothGain * state.angularVelocity.y + n1 * 0.35 + lrOscillation, -0.45, 0.45);
     thrusters.flapFrontLeft = clamp(0.5 + flapPitchCmd, 0.05, 0.95);
     thrusters.flapFrontRight = clamp(0.5 + flapPitchCmd, 0.05, 0.95);
     thrusters.flapAftLeft = clamp(0.5 - flapPitchCmd, 0.05, 0.95);
@@ -313,16 +297,8 @@ export function evaluateRLPolicy(
       const desiredVy = -Math.max(0.35, Math.min(4.5, heightAboveCatch * 0.52));
       const vyError = desiredVy - state.velocity.y;
       const hoverThrottle = (9.81 * params.gravityMultiplier) / 24.5;
-      thrusters.raptorThrottle = clamp(
-        (hoverThrottle + vyError * 0.19) * competence + n2 * 0.24,
-        0.08,
-        1.0
-      );
-      thrusters.gimbalPitch = clamp(
-        2.0 * competence * pitchErr - 0.78 * competence * state.angularVelocity.y + n3 * 0.45,
-        -1,
-        1
-      );
+      thrusters.raptorThrottle = clamp(((hoverThrottle + vyError * 0.19 * altGain) * competence + n2 * 0.24 + lrOscillation) * fuelCap, 0.08, 1.0);
+      thrusters.gimbalPitch = clamp(2.0 * competence * attGain * pitchErr - 0.78 * competence * smoothGain * state.angularVelocity.y + n3 * 0.45 + lrOscillation, -1, 1);
     } else {
       thrusters.raptorThrottle = incompetence > 0.6 && !state.isGrounded ? clamp(Math.abs(n1) * 0.35, 0, 0.4) : 0;
       thrusters.gimbalPitch = 0;
@@ -334,7 +310,7 @@ export function evaluateRLPolicy(
     { label: 'Vel Y (vy)', value: Number(clamp(state.velocity.y / 10, -1, 1).toFixed(2)) },
     { label: 'Roll (φ)', value: Number(clamp(state.attitude.roll / Math.PI, -1, 1).toFixed(2)) },
     { label: 'Pitch (θ)', value: Number(clamp(state.attitude.pitch / Math.PI, -1, 1).toFixed(2)) },
-    { label: 'Rate ωx', value: Number(clamp(state.angularVelocity.x / 4, -1, 1).toFixed(2)) },
+    { label: 'Lane/ω', value: Number(clamp((missionId === 'roadster-obstacle-race' ? state.position.z : state.angularVelocity.x) / 3, -1, 1).toFixed(2)) },
     { label: 'COPV PSI', value: Number(clamp(state.copvPressurePsi / 10000, 0, 1).toFixed(2)) },
   ];
 
@@ -362,8 +338,8 @@ export function evaluateRLPolicy(
           { label: 'FR Nozzle', value: Number(thrusters.frontRightLift.toFixed(2)) },
           { label: 'RL Nozzle', value: Number(thrusters.rearLeftLift.toFixed(2)) },
           { label: 'RR Nozzle', value: Number(thrusters.rearRightLift.toFixed(2)) },
-          { label: 'Wall RCS', value: Number(thrusters.lateralRight.toFixed(2)) },
-          { label: 'Rear COPV', value: Number(thrusters.rearBoost.toFixed(2)) },
+          { label: 'Side/Steer', value: Number(Math.max(thrusters.lateralLeft, thrusters.lateralRight).toFixed(2)) },
+          { label: 'Aero Wing', value: Number(thrusters.activeWingAngle.toFixed(2)) },
         ]
       : [
           { label: 'Raptor Fire', value: Number(thrusters.raptorThrottle.toFixed(2)) },

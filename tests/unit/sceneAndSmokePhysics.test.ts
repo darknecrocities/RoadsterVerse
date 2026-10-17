@@ -19,6 +19,11 @@ import {
   KNOWLEDGE_ARTICLES,
   TRIVIA_QUESTIONS,
 } from '../../src/data/knowledgeAndTrivia.ts';
+import {
+  buildArticulatedStarbasePadAndCrane,
+  buildObstacleCourseGroup,
+  updateStarbasePadAndCraneAnimation,
+} from '../../src/three/starbaseAndObstacleProps.ts';
 
 describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume E2E', () => {
   it('emits physics-based pure white smoke independently from all 7 Tesla Roadster cold-gas nozzles and deflects off the ground', () => {
@@ -163,8 +168,8 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     expect(starshipRig.boosterPlume.visible).toBe(true);
   });
 
-  it('runs all 6 missions across untrained, mid-training, and converged curriculum regimes without NaN states or runtime exceptions', () => {
-    expect(MISSION_LIST).toHaveLength(6);
+  it('runs all 7 missions across untrained, mid-training, and converged curriculum regimes without NaN states or runtime exceptions', () => {
+    expect(MISSION_LIST).toHaveLength(7);
     const epochRegimes = [5, 80, 240, 420];
     for (const mission of MISSION_LIST) {
       for (const epochs of epochRegimes) {
@@ -198,6 +203,66 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
         }
       }
     }
+  });
+
+  it('builds non-overlapping 3D Obstacle Course props and animates the Starbase Rocket Pad, Hammerhead Crane, Winch Cable, and QD Arm on launch-off', () => {
+    const obstacleCourse = buildObstacleCourseGroup();
+    expect(obstacleCourse.children.length).toBeGreaterThanOrEqual(7);
+
+    const starbaseHandles = buildArticulatedStarbasePadAndCrane();
+    // Verify Mechazilla tower group sits at x = -2.85m, completely clear of the 0.68m-radius rocket hull at x = 0.0m
+    expect(starbaseHandles.craneBoomPivot.parent?.position.x).toBeLessThanOrEqual(-2.5);
+    expect(starbaseHandles.qdArmPivot.parent?.position.x).toBeLessThanOrEqual(-2.5);
+
+    const dummyThrusters = {
+      frontLeftLift: 0,
+      frontRightLift: 0,
+      rearLeftLift: 0,
+      rearRightLift: 0,
+      lateralLeft: 0,
+      lateralRight: 0,
+      rearBoost: 0,
+      activeWingAngle: 0,
+      raptorThrottle: 1.0,
+      gimbalPitch: 0,
+      gimbalYaw: 0,
+      flapFrontLeft: 0,
+      flapFrontRight: 0,
+      flapAftLeft: 0,
+      flapAftRight: 0,
+      hotStageSeparated: false,
+    };
+
+    const preLaunchState = createInitialStarshipState('starship-launch');
+    updateStarbasePadAndCraneAnimation(
+      starbaseHandles,
+      'starship-launch',
+      preLaunchState,
+      dummyThrusters
+    );
+    const preLaunchCraneYaw = starbaseHandles.craneBoomPivot.rotation.y;
+    const preLaunchQdYaw = starbaseHandles.qdArmPivot.rotation.y;
+
+    // Simulate launch-off at y = 6.5m
+    const midLaunchState = {
+      ...preLaunchState,
+      position: { x: 0, y: 6.5, z: 0 },
+      velocity: { x: 0, y: 7.5, z: 1.0 },
+      isGrounded: false,
+    };
+    updateStarbasePadAndCraneAnimation(
+      starbaseHandles,
+      'starship-launch',
+      midLaunchState,
+      dummyThrusters
+    );
+
+    // Verify top Hammerhead Crane slews aside, hoist cable winches up, QD arm retracts, and chopsticks open wide
+    expect(starbaseHandles.craneBoomPivot.rotation.y).toBeGreaterThan(preLaunchCraneYaw + 0.5);
+    expect(starbaseHandles.qdArmPivot.rotation.y).toBeLessThan(preLaunchQdYaw - 0.5);
+    expect(starbaseHandles.craneHoistCable.scale.y).toBeLessThan(0.5);
+    expect(starbaseHandles.chopstickLeftMesh.rotation.y).toBeGreaterThan(0.2);
+    expect(starbaseHandles.chopstickRightMesh.rotation.y).toBeLessThan(-0.2);
   });
 
   it('validates all Knowledge Articles and Trivia Deck entries have complete engineering formulas and explanations', () => {

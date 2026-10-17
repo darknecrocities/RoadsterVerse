@@ -4,6 +4,7 @@ export const MissionIdSchema = z.enum([
   'roadster-hover',
   'roadster-wall-climb',
   'roadster-barrel-roll',
+  'roadster-obstacle-race',
   'starship-launch',
   'starship-belly-flop',
   'starship-booster-catch',

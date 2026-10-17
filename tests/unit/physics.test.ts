@@ -12,9 +12,13 @@ import {
 import { sampleCurvedKickflipRamp } from '../../src/physics/rampGeometry.ts';
 import { DEFAULT_HYPERPARAMETERS } from '../../src/rl/missions.ts';
 import { evaluateRLPolicy } from '../../src/rl/policyEngine.ts';
+import {
+  computeRoadsterAerodynamics,
+  computeStarshipAerodynamics,
+} from '../../src/physics/aerodynamicsAndRace.ts';
 import type { ThrusterActivation } from '../../src/types/simulation.ts';
 
-describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)', () => {
+describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle Race & Gravity)', () => {
   it('lifts the 2026 Tesla Roadster into a supersonic cold-gas hover when 4 corner nozzles fire', () => {
     let state = createInitialRoadsterState('roadster-hover', DEFAULT_HYPERPARAMETERS);
     const fullHoverThrusters: ThrusterActivation = {
@@ -241,6 +245,128 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
     expect(state.position.y).toBeCloseTo(1.5, 2);
     expect(Math.abs(state.position.x)).toBeLessThan(1.5); // Returned to Chopstick tower!
     expect(state.crashed).toBe(false);
+  });
+
+  it('weaves the Roadster through the S-curve chicanes and bunny-hop jumps over Obstacle #3 when trained, while crashing & exploding when untrained or short-sighted', () => {
+    // 1. Untrained AI (Epochs = 8): fails to weave/jump and crashes into an obstacle
+    const untrainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 8,
+      explorationNoise: 0.0,
+    };
+    let untrainedState = createInitialRoadsterState('roadster-obstacle-race', untrainedParams);
+    for (let step = 0; step < 260; step++) {
+      const { thrusters } = evaluateRLPolicy(untrainedState, 'roadster-obstacle-race', untrainedParams, 0);
+      untrainedState = stepRoadsterPhysics(
+        untrainedState,
+        thrusters,
+        'roadster-obstacle-race',
+        untrainedParams,
+        0.025
+      );
+      if (untrainedState.crashed) break;
+    }
+    expect(untrainedState.crashed).toBe(true);
+
+    // 2. Trained AI (Epochs = 380, discountFactor = 0.99): steers around Obstacles #1 & #2,
+    // jumps over full-width Obstacle #3 at x = +4.2m with cold-gas thrusters firing only mid-air,
+    // and lands safely past x > 6.5m!
+    const trainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 380,
+      explorationNoise: 0.01,
+      discountFactor: 0.99,
+    };
+    let trainedState = createInitialRoadsterState('roadster-obstacle-race', trainedParams);
+    let peakJumpAltitude = trainedState.position.y;
+    let minRightLaneZ = 0;
+    let maxLeftLaneZ = 0;
+
+    for (let step = 0; step < 300; step++) {
+      const { thrusters } = evaluateRLPolicy(trainedState, 'roadster-obstacle-race', trainedParams, 0);
+
+      // Verify zero thruster firing while tires are grounded on the asphalt
+      if (trainedState.isGrounded) {
+        expect(thrusters.frontLeftLift).toBe(0);
+        expect(thrusters.rearBoost).toBe(0);
+      }
+
+      trainedState = stepRoadsterPhysics(
+        trainedState,
+        thrusters,
+        'roadster-obstacle-race',
+        trainedParams,
+        0.025
+      );
+      if (trainedState.position.y > peakJumpAltitude) {
+        peakJumpAltitude = trainedState.position.y;
+      }
+      if (trainedState.position.z < minRightLaneZ) {
+        minRightLaneZ = trainedState.position.z;
+      }
+      if (trainedState.position.z > maxLeftLaneZ) {
+        maxLeftLaneZ = trainedState.position.z;
+      }
+    }
+
+    expect(minRightLaneZ).toBeLessThan(-0.7); // Dodged Obstacle #1 in the right lane
+    expect(maxLeftLaneZ).toBeGreaterThan(0.7); // Dodged Obstacle #2 in the left lane
+    expect(peakJumpAltitude).toBeGreaterThan(1.35); // Bunny-hop jumped over Obstacle #3 (height 1.05m)
+    expect(trainedState.position.x).toBeGreaterThan(6.5); // Crossed the finish line past all 3 obstacles
+    expect(trainedState.isGrounded).toBe(true);
+    expect(trainedState.crashed).toBe(false);
+  });
+
+  it('computes explicit fluid-body aerodynamics (dynamic pressure q = 0.5*rho*v^2, quadratic drag, active wing downforce, and altitude density decay)', () => {
+    const roadsterAeroLowWing = computeRoadsterAerodynamics(
+      { x: 12, y: 0, z: 0 },
+      { roll: 0, pitch: 0.05, yaw: 0 },
+      0.0
+    );
+    const roadsterAeroHighWing = computeRoadsterAerodynamics(
+      { x: 12, y: 0, z: 0 },
+      { roll: 0, pitch: 0.05, yaw: 0 },
+      1.0
+    );
+
+    expect(roadsterAeroHighWing.dynamicPressurePa).toBeGreaterThan(80);
+    expect(roadsterAeroHighWing.downforceN).toBeGreaterThan(roadsterAeroLowWing.downforceN);
+    expect(roadsterAeroHighWing.dragForce.x).toBeLessThan(0); // Opposes forward velocity
+
+    const starshipFlapThrusters: ThrusterActivation = {
+      frontLeftLift: 0,
+      frontRightLift: 0,
+      rearLeftLift: 0,
+      rearRightLift: 0,
+      lateralLeft: 0,
+      lateralRight: 0,
+      rearBoost: 0,
+      activeWingAngle: 0,
+      raptorThrottle: 0,
+      gimbalPitch: 0,
+      gimbalYaw: 0,
+      flapFrontLeft: 0.8,
+      flapFrontRight: 0.8,
+      flapAftLeft: 0.2,
+      flapAftRight: 0.2,
+      hotStageSeparated: false,
+    };
+
+    const starshipSeaLevel = computeStarshipAerodynamics(
+      1.5,
+      { x: 0, y: -6, z: 0 },
+      { roll: 0, pitch: 1.5, yaw: 0 },
+      starshipFlapThrusters
+    );
+    const starshipHighAlt = computeStarshipAerodynamics(
+      500.0,
+      { x: 0, y: -6, z: 0 },
+      { roll: 0, pitch: 1.5, yaw: 0 },
+      starshipFlapThrusters
+    );
+
+    expect(starshipSeaLevel.dynamicPressurePa).toBeGreaterThan(starshipHighAlt.dynamicPressurePa);
+    expect(starshipSeaLevel.dragForceY).toBeGreaterThan(0); // Drag opposes downward belly-flop velocity
   });
 
   it('enforces 100% pure Black and White monochrome colors across all UI stylesheets and React components', () => {

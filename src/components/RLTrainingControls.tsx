@@ -130,48 +130,18 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className={`train-btn-bw ${isAutoTraining ? 'active' : ''}`}
-                  onClick={onToggleAutoTrain}
-                >
+                <button type="button" className={`train-btn-bw ${isAutoTraining ? 'active' : ''}`} onClick={onToggleAutoTrain}>
                   {isAutoTraining ? <RotateCcw size={14} /> : <Play size={14} />}
                   <span>{isAutoTraining ? 'Stop Practice' : 'Auto-Practice'}</span>
                 </button>
               </div>
 
-              <input
-                type="range"
-                min={0}
-                max={500}
-                step={1}
-                value={params.epochs}
-                onChange={(e) => onChangeParams({ epochs: Number(e.target.value) })}
-                className="bw-slider"
-              />
+              <input type="range" min={0} max={500} step={1} value={params.epochs} onChange={(e) => onChangeParams({ epochs: Number(e.target.value) })} className="bw-slider" />
 
               <div className="preset-row-bw">
-                <button
-                  type="button"
-                  className="preset-btn-bw"
-                  onClick={() => onApplyPreset('untrained')}
-                >
-                  Baby (Try 8)
-                </button>
-                <button
-                  type="button"
-                  className="preset-btn-bw"
-                  onClick={() => onApplyPreset('mid')}
-                >
-                  Learner (Try 75)
-                </button>
-                <button
-                  type="button"
-                  className="preset-btn-bw"
-                  onClick={() => onApplyPreset('converged')}
-                >
-                  <Sparkles size={12} /> Stunt Pro (Try 360)
-                </button>
+                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('untrained')}>Baby (Try 8)</button>
+                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('mid')}>Learner (Try 75)</button>
+                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('converged')}><Sparkles size={12} /> Stunt Pro (Try 360)</button>
               </div>
             </div>
           )}
@@ -202,15 +172,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </span>
                   <strong>{params.learningRate.toFixed(4)}</strong>
                 </div>
-                <input
-                  type="range"
-                  min={0.0001}
-                  max={0.01}
-                  step={0.0001}
-                  value={params.learningRate}
-                  onChange={(e) => onChangeParams({ learningRate: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0.0001} max={0.01} step={0.0001} value={params.learningRate} onChange={(e) => onChangeParams({ learningRate: Number(e.target.value) })} className="bw-slider" />
               </div>
 
               <div className="control-item-bw">
@@ -225,15 +187,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </span>
                   <strong>{Math.round(params.explorationNoise * 100)}%</strong>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={params.explorationNoise}
-                  onChange={(e) => onChangeParams({ explorationNoise: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0} max={1} step={0.01} value={params.explorationNoise} onChange={(e) => onChangeParams({ explorationNoise: Number(e.target.value) })} className="bw-slider" />
               </div>
 
               <div className="control-item-bw">
@@ -242,21 +196,13 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                     Look-Ahead Memory
                     <HelpTooltip
                       title="Look-Ahead Memory (Discount Factor)"
-                      explain="Does the AI only care about the next 1 second, or does it plan ahead for the landing at the end of the jump?"
-                      tip="0.99 means the AI plans ahead for a safe landing!"
+                      explain="Does the AI only care about the next 1 second, or does it plan ahead for upcoming race barriers and the landing at the end of the jump?"
+                      tip="0.99 means the AI spots barriers early and plans ahead!"
                     />
                   </span>
                   <strong>{params.discountFactor.toFixed(2)}</strong>
                 </div>
-                <input
-                  type="range"
-                  min={0.8}
-                  max={0.999}
-                  step={0.005}
-                  value={params.discountFactor}
-                  onChange={(e) => onChangeParams({ discountFactor: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0.8} max={0.999} step={0.005} value={params.discountFactor} onChange={(e) => onChangeParams({ discountFactor: Number(e.target.value) })} className="bw-slider" />
               </div>
 
               <div className="control-item-bw">
@@ -271,15 +217,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </span>
                   <strong>{params.ghostSwarmCount}</strong>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={8}
-                  step={1}
-                  value={params.ghostSwarmCount}
-                  onChange={(e) => onChangeParams({ ghostSwarmCount: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0} max={8} step={1} value={params.ghostSwarmCount} onChange={(e) => onChangeParams({ ghostSwarmCount: Number(e.target.value) })} className="bw-slider" />
               </div>
             </div>
           )}
@@ -301,10 +239,10 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
               <div className="control-item-bw">
                 <div className="control-label-bw">
                   <span>
-                    Reach Target Height / Loop Stick
+                    Reach Target Height / Jump Power
                     <HelpTooltip
                       title="Reach Target Goal Points"
-                      explain="How many treat points the AI gets for floating at the right height or sticking tightly to the Hot-Wheels loop!"
+                      explain="How many treat points the AI gets for floating at the right height, jumping over the roadblock wall, or sticking tightly to the Hot-Wheels loop!"
                     />
                   </span>
                   <strong>{params.rewardAltitudeWeight.toFixed(1)}x</strong>
@@ -315,9 +253,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   max={4.0}
                   step={0.1}
                   value={params.rewardAltitudeWeight}
-                  onChange={(e) =>
-                    onChangeParams({ rewardAltitudeWeight: Number(e.target.value) })
-                  }
+                  onChange={(e) => onChangeParams({ rewardAltitudeWeight: Number(e.target.value) })}
                   className="bw-slider"
                 />
               </div>
@@ -325,10 +261,10 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
               <div className="control-item-bw">
                 <div className="control-label-bw">
                   <span>
-                    Stay Flat & Level Bonus
+                    Stay Flat &amp; Steer Straight
                     <HelpTooltip
                       title="Stay Flat & Level Bonus"
-                      explain="Rewards the AI for keeping the car level so it doesn't land upside-down!"
+                      explain="Rewards the AI for keeping the car level and steering sharply around race barriers!"
                     />
                   </span>
                   <strong>{params.rewardAttitudeWeight.toFixed(1)}x</strong>
@@ -339,9 +275,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   max={4.0}
                   step={0.1}
                   value={params.rewardAttitudeWeight}
-                  onChange={(e) =>
-                    onChangeParams({ rewardAttitudeWeight: Number(e.target.value) })
-                  }
+                  onChange={(e) => onChangeParams({ rewardAttitudeWeight: Number(e.target.value) })}
                   className="bw-slider"
                 />
               </div>
@@ -363,9 +297,29 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   max={3.0}
                   step={0.1}
                   value={params.rewardSmoothnessWeight}
-                  onChange={(e) =>
-                    onChangeParams({ rewardSmoothnessWeight: Number(e.target.value) })
-                  }
+                  onChange={(e) => onChangeParams({ rewardSmoothnessWeight: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Fuel &amp; Air Saving Rule
+                    <HelpTooltip
+                      title="Fuel & Air Saving Penalty"
+                      explain="Teaches the AI not to waste compressed air or rocket fuel! Higher values save tank pressure; lower values let the jets blast at maximum power!"
+                    />
+                  </span>
+                  <strong>{params.rewardFuelWeight.toFixed(1)}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={2.5}
+                  step={0.1}
+                  value={params.rewardFuelWeight}
+                  onChange={(e) => onChangeParams({ rewardFuelWeight: Number(e.target.value) })}
                   className="bw-slider"
                 />
               </div>
@@ -380,7 +334,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
             className={`accordion-header ${openSection === 'world' ? 'active' : ''}`}
             onClick={() => toggleSection('world')}
           >
-            <span>4. Planet Gravity & Air Tank</span>
+            <span>4. Planet Gravity &amp; Air Tank</span>
             {openSection === 'world' ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           </button>
 
@@ -397,11 +351,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </span>
                   <strong>
                     {params.gravityMultiplier.toFixed(2)} G{' '}
-                    {params.gravityMultiplier < 0.25
-                      ? '(Moon)'
-                      : params.gravityMultiplier < 0.5
-                        ? '(Mars)'
-                        : '(Earth)'}
+                    {params.gravityMultiplier < 0.25 ? '(Moon)' : params.gravityMultiplier < 0.5 ? '(Mars)' : '(Earth)'}
                   </strong>
                 </div>
                 <input
@@ -435,6 +385,31 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   onChange={(e) => onChangeParams({ initialCopvPsi: Number(e.target.value) })}
                   className="bw-slider"
                 />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Simulation Speed
+                    <HelpTooltip
+                      title="Simulation Time Warp"
+                      explain="Speeds up the physics clock from 1x real-time up to 5x fast-forward!"
+                    />
+                  </span>
+                  <strong>{params.simulationSpeed}x</strong>
+                </div>
+                <div className="preset-row-bw">
+                  {[1, 2, 5].map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      className={`preset-btn-bw ${params.simulationSpeed === spd ? 'active' : ''}`}
+                      onClick={() => onChangeParams({ simulationSpeed: spd })}
+                    >
+                      {spd}x Speed
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

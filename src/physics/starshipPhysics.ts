@@ -4,6 +4,7 @@ import type {
   RLHyperparameters,
   ThrusterActivation,
 } from '../types/simulation.ts';
+import { computeStarshipAerodynamics } from './aerodynamicsAndRace.ts';
 
 const EARTH_GRAVITY = 9.81;
 
@@ -27,7 +28,7 @@ export function createInitialStarshipState(missionId: MissionId): RigidBodyState
     };
   }
 
-  // Mission 04 (starship-launch) & Mission 06 (starship-booster-catch):
+  // Mission 05 (starship-launch) & Mission 07 (starship-booster-catch):
   // Full 2-Stage Starship + Super Heavy Booster on the Orbital Launch Mount (y = 1.35m)
   return {
     position: { x: 0, y: 1.35, z: 0 },
@@ -75,6 +76,13 @@ export function stepStarshipPhysics(
   }
 
   const gravity = EARTH_GRAVITY * params.gravityMultiplier;
+  const aero = computeStarshipAerodynamics(
+    state.position.y,
+    state.velocity,
+    state.attitude,
+    thrusters
+  );
+  const fuelBurnScale = Math.max(0.45, Math.min(1.65, 1.32 - params.rewardFuelWeight * 0.32));
 
   if (missionId === 'starship-launch' || missionId === 'starship-booster-catch') {
     const isSeparated = state.velocity.z < 0;
@@ -84,7 +92,8 @@ export function stepStarshipPhysics(
       const maxAscentAccel = 19.2;
       const thrustAccel = thrusters.raptorThrottle * maxAscentAccel;
 
-      const pitchTorque = thrusters.gimbalPitch * 3.2 - next.angularVelocity.y * 2.2;
+      const pitchTorque =
+        thrusters.gimbalPitch * 3.2 - next.angularVelocity.y * 2.2 + aero.flapPitchTorque * 0.12;
       const rollTorque = thrusters.gimbalYaw * 2.2 - next.angularVelocity.x * 2.4;
 
       next.angularVelocity.y += pitchTorque * dt;
@@ -101,8 +110,10 @@ export function stepStarshipPhysics(
       const sinPitch = Math.sin(-next.attitude.pitch);
       const cosPitch = Math.cos(next.attitude.pitch);
 
-      const ax = thrustAccel * sinPitch + windImpulseX * 0.2 - 0.08 * next.velocity.x;
-      const ay = thrustAccel * cosPitch - gravity - 0.04 * next.velocity.y;
+      const ax =
+        thrustAccel * sinPitch + windImpulseX * 0.2 - 0.06 * next.velocity.x + aero.dragForceX * 0.25;
+      const ay =
+        thrustAccel * cosPitch - gravity - 0.03 * next.velocity.y + aero.dragForceY * 0.25;
 
       next.velocity.x += ax * dt;
       next.velocity.y += ay * dt;
@@ -122,7 +133,7 @@ export function stepStarshipPhysics(
       next.gForce = Number((Math.max(1.0, thrustAccel / EARTH_GRAVITY)).toFixed(2));
       next.propellantRemainingPct = Math.max(
         12,
-        Number((next.propellantRemainingPct - thrusters.raptorThrottle * 4.2 * dt).toFixed(2))
+        Number((next.propellantRemainingPct - thrusters.raptorThrottle * 4.2 * fuelBurnScale * dt).toFixed(2))
       );
       next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 70);
       next.missionProgressPct = Math.min(50, Math.round(((next.position.y - 1.35) / 12.15) * 50));
@@ -135,7 +146,8 @@ export function stepStarshipPhysics(
     const maxLandingAccel = 22.8;
     const thrustAccel = thrusters.raptorThrottle * maxLandingAccel;
 
-    const pitchTorque = thrusters.gimbalPitch * 4.5 - next.angularVelocity.y * 2.8;
+    const pitchTorque =
+      thrusters.gimbalPitch * 4.5 - next.angularVelocity.y * 2.8 + aero.flapPitchTorque * 0.18;
     const rollTorque = thrusters.gimbalYaw * 2.8 - next.angularVelocity.x * 2.8;
     next.angularVelocity.y += pitchTorque * dt;
     next.angularVelocity.x += rollTorque * dt;
@@ -151,9 +163,12 @@ export function stepStarshipPhysics(
     const sinPitch = Math.sin(-next.attitude.pitch);
     const cosPitch = Math.cos(next.attitude.pitch);
     const gridFinDragY =
-      next.velocity.y < 0 ? 0.065 * Math.abs(next.velocity.y) * -next.velocity.y : 0;
+      next.velocity.y < 0
+        ? 0.055 * Math.abs(next.velocity.y) * -next.velocity.y + aero.dragForceY * 0.35
+        : aero.dragForceY * 0.2;
 
-    const ax = thrustAccel * sinPitch - 0.38 * next.velocity.x + windImpulseX * 0.18;
+    const ax =
+      thrustAccel * sinPitch - 0.35 * next.velocity.x + aero.dragForceX * 0.3 + windImpulseX * 0.18;
     const ay = thrustAccel * cosPitch - gravity + gridFinDragY;
 
     next.velocity.x += ax * dt;
@@ -186,7 +201,7 @@ export function stepStarshipPhysics(
     next.gForce = Number((Math.max(0.8, thrustAccel / EARTH_GRAVITY)).toFixed(2));
     next.propellantRemainingPct = Math.max(
       6,
-      Number((next.propellantRemainingPct - thrusters.raptorThrottle * 3.8 * dt).toFixed(2))
+      Number((next.propellantRemainingPct - thrusters.raptorThrottle * 3.8 * fuelBurnScale * dt).toFixed(2))
     );
     next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 68);
     const descentFrac = Math.max(
@@ -197,19 +212,14 @@ export function stepStarshipPhysics(
     return next;
   }
 
-  // Mission 05: Starship Belly-Flop Skydiver + 3-Raptor Flip-and-Burn Slow Vertical Landing
+  // Mission 06: Starship Belly-Flop Skydiver + 3-Raptor Flip-and-Burn Slow Vertical Landing
   const isFlipPhase = next.position.y < 12.2;
-  const aeroFlapDifferential =
-    thrusters.flapFrontLeft +
-    thrusters.flapFrontRight -
-    (thrusters.flapAftLeft + thrusters.flapAftRight);
-
   const bellyAreaFactor = Math.abs(Math.sin(next.attitude.pitch));
-  const aeroDragY = 0.22 * bellyAreaFactor * Math.abs(next.velocity.y) * next.velocity.y;
+  const aeroDragY =
+    0.18 * bellyAreaFactor * Math.abs(next.velocity.y) * next.velocity.y - aero.dragForceY * 0.45;
 
   const tvcPitchTorque = isFlipPhase ? thrusters.gimbalPitch * 5.4 : 0;
-  const aeroPitchTorque = aeroFlapDifferential * 2.5;
-  const pitchAccel = tvcPitchTorque + aeroPitchTorque - next.angularVelocity.y * 2.8;
+  const pitchAccel = tvcPitchTorque + aero.flapPitchTorque - next.angularVelocity.y * 2.8;
 
   next.angularVelocity.y += pitchAccel * dt;
   next.attitude.pitch = Math.max(
@@ -217,18 +227,15 @@ export function stepStarshipPhysics(
     Math.min(1.65, next.attitude.pitch + next.angularVelocity.y * dt)
   );
 
-  const flapRollDiff =
-    thrusters.flapFrontLeft +
-    thrusters.flapAftLeft -
-    (thrusters.flapFrontRight + thrusters.flapAftRight);
-  next.angularVelocity.x = (next.angularVelocity.x + flapRollDiff * 1.8 * dt) * 0.9;
+  next.angularVelocity.x = (next.angularVelocity.x + aero.flapRollTorque * dt) * 0.9;
   next.attitude.roll += next.angularVelocity.x * dt;
 
   const maxLandingDecel = 24.5;
   const thrustMag = thrusters.raptorThrottle * maxLandingDecel;
   const ax =
     -thrustMag * Math.sin(next.attitude.pitch) -
-    0.48 * next.velocity.x +
+    0.42 * next.velocity.x +
+    aero.dragForceX * 0.35 +
     windImpulseX * 0.2;
   const ay = thrustMag * Math.cos(next.attitude.pitch) - gravity - aeroDragY;
 
@@ -257,7 +264,7 @@ export function stepStarshipPhysics(
   );
   next.propellantRemainingPct = Math.max(
     5,
-    Math.round(next.propellantRemainingPct - thrusters.raptorThrottle * 4.2 * dt)
+    Math.round(next.propellantRemainingPct - thrusters.raptorThrottle * 4.2 * fuelBurnScale * dt)
   );
   next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 65);
   next.missionProgressPct = Math.min(
