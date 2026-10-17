@@ -107,7 +107,7 @@ export function stepStarshipPhysics(
     next.gForce = Number((Math.max(1.0, thrustAccel / EARTH_GRAVITY)).toFixed(2));
     next.propellantRemainingPct = Math.max(
       8,
-      Math.round(next.propellantRemainingPct - thrusters.raptorThrottle * 3.8 * dt)
+      Number((next.propellantRemainingPct - thrusters.raptorThrottle * 4.5 * dt).toFixed(2))
     );
     next.copvPressurePsi = Math.round(3000 + next.propellantRemainingPct * 70);
     next.missionProgressPct = Math.min(100, Math.round((next.position.y / 26.0) * 100));
