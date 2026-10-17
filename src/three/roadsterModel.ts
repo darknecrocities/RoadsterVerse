@@ -114,28 +114,25 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     opacity: isGhost ? 0.15 : 0.84,
   });
 
-  // 1. Sculpted Center Supercar Monocoque Profile (smooth Bezier curves, open Targa cockpit)
+  // 1. Sculpted Center Supercar Coupe Monocoque Profile (smooth Bezier fastback roof)
   const centerShape = new THREE.Shape();
   centerShape.moveTo(-2.12, 0.22);
   centerShape.lineTo(2.14, 0.12); // Low aerodynamic front chin
   centerShape.bezierCurveTo(2.22, 0.26, 2.02, 0.44, 1.55, 0.52); // Curved nose cone
   centerShape.bezierCurveTo(1.15, 0.58, 0.85, 0.6, 0.58, 0.62); // Front hood deck
-  centerShape.lineTo(0.28, 0.62); // Base of windshield
-  centerShape.lineTo(0.15, 0.44); // Recessed open-top Targa cockpit floor
-  centerShape.lineTo(-0.58, 0.44); // Rear bulkhead behind seats
-  centerShape.lineTo(-0.68, 0.78); // Twin rear tonneau speedster humps
-  centerShape.bezierCurveTo(-1.15, 0.82, -1.68, 0.76, -2.1, 0.64); // Fastback tail deck
+  centerShape.bezierCurveTo(0.32, 0.84, 0.02, 1.04, -0.34, 1.05); // Sweeping coupe windshield & roof crown
+  centerShape.bezierCurveTo(-0.88, 1.03, -1.52, 0.84, -2.08, 0.64); // Fastback glasshouse & tail deck
   centerShape.lineTo(-2.16, 0.34); // Rear fascia
   centerShape.closePath();
 
-  const centerDepth = 1.16;
+  const centerDepth = 1.12;
   const centerGeo = new THREE.ExtrudeGeometry(centerShape, {
     depth: centerDepth,
     bevelEnabled: true,
     bevelThickness: 0.12,
     bevelSize: 0.08,
     bevelSegments: 5,
-    curveSegments: 24,
+    curveSegments: 28,
   });
   centerGeo.translate(0, 0, -centerDepth / 2);
   root.add(new THREE.Mesh(centerGeo, bodyMat));
@@ -167,7 +164,7 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
   rightFender.position.z = -0.88;
   root.add(leftFender, rightFender);
 
-  // 3. Deep Side Air Intake Scoops & Front Corner Vents (matching Image 2!)
+  // 3. Deep Side Air Intake Scoops, Side COPV Thruster Vents & Front Corner Vents
   for (const zSign of [-1, 1]) {
     // Deep triangular side intake cove ahead of rear wheel
     const sideIntake = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.28, 0.12), darkIntakeMat);
@@ -175,7 +172,13 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     sideIntake.rotation.z = -0.14;
     root.add(sideIntake);
 
-    // Front bumper corner air curtain intake (Image 2)
+    // Side Rocker Cold-Gas Thruster Port Bezel
+    const sideJetPort = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.08, 16), carbonMat);
+    sideJetPort.rotation.x = Math.PI / 2;
+    sideJetPort.position.set(0.0, 0.24, zSign * 0.95);
+    root.add(sideJetPort);
+
+    // Front bumper corner air curtain intake
     const frontIntake = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.2, 0.26), darkIntakeMat);
     frontIntake.position.set(1.96, 0.25, zSign * 0.72);
     frontIntake.rotation.y = zSign * 0.28;
@@ -187,37 +190,51 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     root.add(rockerSkirt);
   }
 
-  // 4. Raked Curved Windshield, Black A-Pillars, Bucket Seats, Roll Hoops & Steering Yoke
-  const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.04, 1.36), glassMat);
-  windshield.position.set(0.52, 0.78, 0);
+  // 4. Full 2026 Roadster Coupe Roof, Panoramic Glass Canopy, Side Glass & Flying Buttresses
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 1.32), glassMat);
+  windshield.position.set(0.48, 0.82, 0);
   windshield.rotation.z = -0.46;
-  root.add(windshield);
+
+  // Curved Panoramic Coupe Roof Glass Panel
+  const roofCanopy = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.045, 1.24), glassMat);
+  roofCanopy.position.set(-0.26, 1.05, 0);
+  roofCanopy.rotation.z = 0.04;
+
+  // Rear Fastback Hatch Glass Window
+  const rearHatchGlass = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.04, 1.18), glassMat);
+  rearHatchGlass.position.set(-1.12, 0.91, 0);
+  rearHatchGlass.rotation.z = 0.28;
+  root.add(windshield, roofCanopy, rearHatchGlass);
 
   for (const zSign of [-1, 1]) {
-    // Gloss black A-pillar frame
-    const aPillar = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.055, 0.06), carbonMat);
-    aPillar.position.set(0.52, 0.79, zSign * 0.68);
+    // Gloss carbon A-pillar, Coupe Roof Arch Rail & Rear C-Pillar Flying Buttress
+    const aPillar = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.06, 0.065), carbonMat);
+    aPillar.position.set(0.48, 0.83, zSign * 0.64);
     aPillar.rotation.z = -0.46;
-    root.add(aPillar);
 
-    // Racing bucket seat + headrest inside open Targa cabin
-    const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.48, 0.38), carbonMat);
-    seatBack.position.set(-0.42, 0.62, zSign * 0.34);
+    const roofArchRail = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.065, 0.075), bodyMat);
+    roofArchRail.position.set(-0.26, 1.05, zSign * 0.61);
+    roofArchRail.rotation.z = 0.04;
+
+    const cPillarButtress = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.075, 0.09), bodyMat);
+    cPillarButtress.position.set(-1.14, 0.9, zSign * 0.6);
+    cPillarButtress.rotation.z = 0.28;
+
+    // Tinted Flush Coupe Side Door Window
+    const sideWindow = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.28, 0.03), glassMat);
+    sideWindow.position.set(-0.12, 0.84, zSign * 0.63);
+    sideWindow.rotation.z = -0.06;
+
+    // Interior Bucket Seat visible through panoramic glass roof
+    const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.44, 0.36), carbonMat);
+    seatBack.position.set(-0.42, 0.6, zSign * 0.32);
     seatBack.rotation.z = 0.22;
-    const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 0.24), bodyMat);
-    headrest.position.set(-0.48, 0.88, zSign * 0.34);
-    const rollHoop = new THREE.Mesh(
-      new THREE.TorusGeometry(0.15, 0.028, 10, 20, Math.PI),
-      carbonMat
-    );
-    rollHoop.position.set(-0.58, 0.82, zSign * 0.34);
-    rollHoop.rotation.y = Math.PI / 2;
-    root.add(seatBack, headrest, rollHoop);
+    root.add(aPillar, roofArchRail, cPillarButtress, sideWindow, seatBack);
   }
 
-  // Steering Yoke
-  const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.26), bodyMat);
-  yoke.position.set(0.18, 0.68, 0.34);
+  // Steering Yoke inside cockpit
+  const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.26), carbonMat);
+  yoke.position.set(0.18, 0.66, 0.32);
   yoke.rotation.z = -0.35;
   root.add(yoke);
 
@@ -332,26 +349,31 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
   };
   buildWheels('six-spoke');
 
-  // 8. 7 Supersonic Cold-Gas Nozzles
+  // 8. 7 Supersonic Cold-Gas Nozzles (4 Underbody Wheel-Well + 2 Left/Right Side Rocker + 1 Rear COPV)
   const fl = createColdGasPlumeMesh(2.4, 0.24);
-  fl.position.set(1.25, 0.12, 0.75);
+  fl.position.set(1.25, 0.14, 0.86);
+  fl.rotation.x = -0.22;
   const fr = createColdGasPlumeMesh(2.4, 0.24);
-  fr.position.set(1.25, 0.12, -0.75);
+  fr.position.set(1.25, 0.14, -0.86);
+  fr.rotation.x = 0.22;
   const rl = createColdGasPlumeMesh(2.5, 0.26);
-  rl.position.set(-1.25, 0.12, 0.78);
+  rl.position.set(-1.25, 0.14, 0.88);
+  rl.rotation.x = -0.22;
   const rr = createColdGasPlumeMesh(2.5, 0.26);
-  rr.position.set(-1.25, 0.12, -0.78);
+  rr.position.set(-1.25, 0.14, -0.88);
+  rr.rotation.x = 0.22;
 
-  const latLeft = createColdGasPlumeMesh(2.0, 0.18);
-  latLeft.position.set(1.85, 0.28, 0.45);
-  latLeft.rotation.z = -1.15;
+  // Left & Right Side Rocker Cold-Gas Thrusters (shoot outward from the sides of the vehicle — ZERO roof nozzle!)
+  const latLeft = createColdGasPlumeMesh(2.1, 0.2);
+  latLeft.position.set(0.0, 0.24, 0.98);
+  latLeft.rotation.x = -1.28;
 
-  const latRight = createColdGasPlumeMesh(2.2, 0.2);
-  latRight.position.set(0.0, 0.68, 0.0);
-  latRight.rotation.z = Math.PI;
+  const latRight = createColdGasPlumeMesh(2.1, 0.2);
+  latRight.position.set(0.0, 0.24, -0.98);
+  latRight.rotation.x = 1.28;
 
   const rearBoost = createColdGasPlumeMesh(3.2, 0.28);
-  rearBoost.position.set(-2.15, 0.28, 0);
+  rearBoost.position.set(-2.15, 0.26, 0);
   rearBoost.rotation.z = -Math.PI / 2;
 
   root.add(fl, fr, rl, rr, latLeft, latRight, rearBoost);
@@ -399,44 +421,44 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
       return [
         {
           id: 'fl',
-          localOffset: new THREE.Vector3(1.25, 0.12, 0.75),
-          localDirection: new THREE.Vector3(0, -1, 0),
+          localOffset: new THREE.Vector3(1.25, 0.14, 0.88),
+          localDirection: new THREE.Vector3(0, -0.96, 0.28),
           intensity: t.frontLeftLift,
         },
         {
           id: 'fr',
-          localOffset: new THREE.Vector3(1.25, 0.12, -0.75),
-          localDirection: new THREE.Vector3(0, -1, 0),
+          localOffset: new THREE.Vector3(1.25, 0.14, -0.88),
+          localDirection: new THREE.Vector3(0, -0.96, -0.28),
           intensity: t.frontRightLift,
         },
         {
           id: 'rl',
-          localOffset: new THREE.Vector3(-1.25, 0.12, 0.78),
-          localDirection: new THREE.Vector3(0, -1, 0),
+          localOffset: new THREE.Vector3(-1.25, 0.14, 0.9),
+          localDirection: new THREE.Vector3(0, -0.96, 0.28),
           intensity: t.rearLeftLift,
         },
         {
           id: 'rr',
-          localOffset: new THREE.Vector3(-1.25, 0.12, -0.78),
-          localDirection: new THREE.Vector3(0, -1, 0),
+          localOffset: new THREE.Vector3(-1.25, 0.14, -0.9),
+          localDirection: new THREE.Vector3(0, -0.96, -0.28),
           intensity: t.rearRightLift,
         },
         {
           id: 'latLeft',
-          localOffset: new THREE.Vector3(1.9, 0.28, 0.0),
-          localDirection: new THREE.Vector3(0.85, -0.5, 0),
+          localOffset: new THREE.Vector3(0.0, 0.24, 0.98),
+          localDirection: new THREE.Vector3(0, -0.26, 0.96),
           intensity: t.lateralLeft,
         },
         {
           id: 'latRight',
-          localOffset: new THREE.Vector3(0.0, 0.72, 0.0),
-          localDirection: new THREE.Vector3(0, 1, 0),
+          localOffset: new THREE.Vector3(0.0, 0.24, -0.98),
+          localDirection: new THREE.Vector3(0, -0.26, -0.96),
           intensity: t.lateralRight,
         },
         {
           id: 'rearBoost',
-          localOffset: new THREE.Vector3(-2.15, 0.28, 0),
-          localDirection: new THREE.Vector3(-1, -0.1, 0),
+          localOffset: new THREE.Vector3(-2.15, 0.26, 0),
+          localDirection: new THREE.Vector3(-1, -0.08, 0),
           intensity: t.rearBoost,
         },
       ];

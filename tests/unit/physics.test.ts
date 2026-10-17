@@ -76,7 +76,9 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
     }
     expect(peeledOffLoop).toBe(true);
 
-    // 2. Trained AI (Try #360): sticks upside-down around the 142-deg overhanging C-loop and launches off the top lip!
+    // 2. Trained AI (Try #360): sticks upside-down around the 142-deg overhanging C-loop,
+    // launches off the top lip with ZERO mid-air levitation (< 16m), executes a mid-air 360° kickflip,
+    // and lands slowly back near its original starting position (y = 0.48m)!
     const trainedParams = {
       ...DEFAULT_HYPERPARAMETERS,
       epochs: 360,
@@ -85,8 +87,9 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
     let trainedState = createInitialRoadsterState('roadster-wall-climb', trainedParams);
     let peakLoopAltitude = 0;
     let peakOverhangAngle = 0;
+    let peakMidAirRoll = 0;
 
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < 240; i++) {
       const { thrusters } = evaluateRLPolicy(trainedState, 'roadster-wall-climb', trainedParams, 0);
       trainedState = stepRoadsterPhysics(
         trainedState,
@@ -101,10 +104,18 @@ describe('6-DoF Roadster & Starship Physics Engine (v3.0 Exact Ramp & Gravity)',
       if (trainedState.attitude.pitch > peakOverhangAngle) {
         peakOverhangAngle = trainedState.attitude.pitch;
       }
+      if (trainedState.attitude.roll > peakMidAirRoll) {
+        peakMidAirRoll = trainedState.attitude.roll;
+      }
     }
 
     expect(peakLoopAltitude).toBeGreaterThan(11.5);
+    expect(peakLoopAltitude).toBeLessThan(16.0); // Strictly ZERO mid-air levitation!
     expect(peakOverhangAngle).toBeGreaterThan(2.2); // >126 deg upside-down overhang!
+    expect(peakMidAirRoll).toBeCloseTo(Math.PI * 2, 1); // Completed 360° mid-air kickflip!
+    expect(trainedState.isGrounded).toBe(true);
+    expect(trainedState.position.y).toBeCloseTo(0.48, 2);
+    expect(trainedState.position.x).toBeLessThan(-4.0); // Landed back near the original starting position!
     expect(trainedState.crashed).toBe(false);
   });
 

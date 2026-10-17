@@ -53,6 +53,20 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     // All 7 cold-gas nozzles on the 2026 Tesla Roadster must be active and emit along their nozzle vector
     expect(nozzleEmitters).toHaveLength(7);
 
+    // Verify ZERO roof thruster: every nozzle is mounted at or below y=0.30m and fires downward/sideways (localDirection.y <= 0)
+    for (const emitter of nozzleEmitters) {
+      expect(emitter.localOffset.y).toBeLessThanOrEqual(0.3);
+      expect(emitter.localDirection.y).toBeLessThanOrEqual(0);
+    }
+
+    // Verify left & right side rocker thrusters emit outward from the sides of the vehicle (|z| > 0.9)
+    const latLeft = nozzleEmitters.find((e) => e.id === 'latLeft');
+    const latRight = nozzleEmitters.find((e) => e.id === 'latRight');
+    expect(latLeft?.localOffset.z).toBeGreaterThan(0.9);
+    expect(latLeft?.localDirection.z).toBeGreaterThan(0.9);
+    expect(latRight?.localOffset.z).toBeLessThan(-0.9);
+    expect(latRight?.localDirection.z).toBeLessThan(-0.9);
+
     for (let step = 0; step < 30; step++) {
       smokeSystem.update(0.025, 'roadster', state, fullThrusters, nozzleEmitters);
     }
@@ -61,10 +75,10 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     expect(stats.activeWhiteSmokeCount).toBeGreaterThan(25);
     expect(stats.activeFirePlumeCount).toBe(0);
 
-    // Verify wheel spec switching between 5-Spoke Track and Carbon Aero-Disc
+    // Verify wheel spec switching between 10-Spoke Track and Carbon Aero-Disc
     roadsterRig.setWheelSpec('six-spoke');
     roadsterRig.setWheelSpec('aero-disc');
-    expect(roadsterRig.root.children.length).toBeGreaterThan(5);
+    expect(roadsterRig.root.children.length).toBeGreaterThan(8);
   });
 
   it('emits physics-based combustion fire thruster particles from Starship Raptor nozzles with thermal cooling', () => {

@@ -127,29 +127,49 @@ export function stepRoadsterPhysics(
   const rearBoostN = thrusters.rearBoost * MAX_REAR_BOOST_N * blowdownScale;
 
   if (missionId === 'roadster-wall-climb') {
-    // Stunt 02: Hot-Wheels Giant Overhanging Half-Loop & Sky Flip (Image 1)
-    // Track arc-length s in velocity.z while riding the loop surface; velocity.z < 0 means detached/airborne!
-    const isDetachedOrPastLip = state.velocity.z < 0;
+    // Stunt 02: Hot-Wheels Giant Overhanging Half-Loop -> Mid-Air Kickflip -> Slow Landing at Original Position
+    // velocity.z >= 0: arc-length s on loop; -1: clean airborne dismount; -2: peeled off loop; -3: landed rollout at origin
+    const phaseFlag = state.velocity.z;
 
-    if (!isDetachedOrPastLip) {
+    if (phaseFlag === -3) {
+      // Phase 3: Smooth post-landing rollout back to rest at the original starting position (x = -8.5m)
+      next.position.y = GROUND_Y;
+      next.velocity.y = 0;
+      const targetOriginX = HALF_LOOP_RUNWAY_START_X;
+      const dxToOrigin = targetOriginX - next.position.x;
+      next.velocity.x = next.velocity.x * Math.max(0, 1 - 3.2 * dt) + dxToOrigin * 1.8 * dt;
+      if (Math.abs(dxToOrigin) < 0.15 && Math.abs(next.velocity.x) < 0.25) {
+        next.velocity.x = 0;
+        next.position.x = targetOriginX;
+      } else {
+        next.position.x = Math.max(HALF_LOOP_RUNWAY_START_X - 0.5, Math.min(8.0, next.position.x + next.velocity.x * dt));
+      }
+      next.velocity.z = -3;
+      next.attitude.pitch = 0;
+      next.attitude.roll = Math.PI * 2;
+      next.angularVelocity.x = 0;
+      next.angularVelocity.y = 0;
+      next.isGrounded = true;
+      next.isOnWall = false;
+      next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity;
+    } else if (phaseFlag >= 0) {
       const currentArcS = Math.max(0, state.velocity.z === 0 && state.elapsedTimeSec <= dt ? 0 : state.velocity.z);
       const sample = sampleHotWheelsHalfLoop(currentArcS);
 
       // Tangential speed along the loop track
       const currentSpeed = Math.hypot(state.velocity.x, state.velocity.y);
-      const electricAWDDriveN = 8800;
+      const electricAWDDriveN = 9200;
       const gravityTangentialN = ROADSTER_MASS_KG * gravity * Math.sin(sample.tangentAngle);
-      const aeroDragN = 65 * currentSpeed;
+      const aeroDragN = 62 * currentSpeed;
 
       const tangentialAccel =
-        (electricAWDDriveN + rearBoostN * 0.92 - gravityTangentialN - aeroDragN) / ROADSTER_MASS_KG;
-      const nextSpeed = Math.max(0, Math.min(15.5, currentSpeed + tangentialAccel * dt));
+        (electricAWDDriveN + rearBoostN * 0.95 - gravityTangentialN - aeroDragN) / ROADSTER_MASS_KG;
+      const nextSpeed = Math.max(0, Math.min(15.8, currentSpeed + tangentialAccel * dt));
       const nextArcS = currentArcS + nextSpeed * dt;
       const nextSample = sampleHotWheelsHalfLoop(nextArcS);
 
       // Normal force pressing tires into the loop track:
       // N = m*g*cos(theta) + m*v^2*curvature + F_thruster_pinning
-      // Note: When theta > 90 deg (upside-down on overhang!), cos(theta) < 0 so gravity pulls the car OFF the loop!
       const gravityNormalN = ROADSTER_MASS_KG * gravity * Math.cos(nextSample.tangentAngle);
       const centripetalNormalN = ROADSTER_MASS_KG * nextSpeed * nextSpeed * nextSample.curvature;
       const thrusterPinningN =
@@ -159,18 +179,22 @@ export function stepRoadsterPhysics(
       next.wallContactNormalForceN = Math.max(0, netNormalForceN);
 
       if (nextSample.isPastLip) {
-        // Reached the overhanging top lip (142 deg, Image 1)! Launch into mid-air sky-flip dismount!
+        // Reached the overhanging top lip (142 deg, x ~ 4.56m, y ~ 13.38m)!
+        // Launch into a pure gravity ballistic arc back toward the original starting position (x = -8.5m)
+        // while executing a mid-air 360° Kickflip — ZERO mid-air levitation!
         next.position.x = nextSample.carCenterX;
         next.position.y = nextSample.carCenterY;
-        next.velocity.x = nextSample.tangentX * Math.max(6.2, nextSpeed * 0.65);
-        next.velocity.y = nextSample.tangentY * Math.max(4.0, nextSpeed * 0.45);
-        next.velocity.z = -1; // Flag: airborne dismount phase
+        next.velocity.x = -5.85; // Directed back toward the starting runway (x = -8.5m)
+        next.velocity.y = 1.65; // Modest upward pop off the lip; gravity immediately curves it downward
+        next.velocity.z = -1; // Flag: clean airborne dismount phase
         next.attitude.pitch = nextSample.tangentAngle;
         next.attitude.roll = 0;
+        next.angularVelocity.x = 2.8;
+        next.angularVelocity.y = 1.6;
         next.isOnWall = false;
         next.isGrounded = false;
       } else if (nextSample.tangentAngle > 1.05 && netNormalForceN < 1200) {
-        // Untrained AI failed to generate enough thruster/centripetal normal force on the vertical/overhanging loop!
+        // Untrained AI failed to generate enough thruster/centripetal normal force on the overhang!
         // Car peels off the loop and falls under real gravity!
         next.position.x = nextSample.carCenterX - nextSample.normalX * 0.12;
         next.position.y = nextSample.carCenterY - nextSample.normalY * 0.12;
@@ -194,24 +218,57 @@ export function stepRoadsterPhysics(
       }
     } else {
       // Airborne after launching off the overhanging loop lip (-1) or falling off the loop (-2)
-      const isCleanDismount = state.velocity.z === -1;
-      const verticalCushionN = isCleanDismount ? totalUnderbodyLiftN * 0.78 : totalUnderbodyLiftN * 0.25;
-      const ay = (verticalCushionN - ROADSTER_MASS_KG * gravity) / ROADSTER_MASS_KG;
-      const ax = (-85 * next.velocity.x + windImpulseX * 0.3) / ROADSTER_MASS_KG;
+      const isCleanDismount = phaseFlag === -1;
+
+      // CRITICAL: Zero upward lift while high in the air (y > 4.2m) so the car NEVER levitates!
+      // Below y <= 4.2m during descent, progressive rocket retro-cushion slows vertical speed for a soft landing.
+      let retroVerticalForceN = 0;
+      if (isCleanDismount && state.position.y <= 4.2 && state.velocity.y < 0) {
+        const altFactor = Math.max(0, Math.min(1, (4.2 - state.position.y) / 3.4));
+        const targetSlowVy = -1.15 - (1 - altFactor) * 1.6;
+        const vyError = targetSlowVy - state.velocity.y;
+        const thrustRatio = Math.min(1, totalUnderbodyLiftN / ( ROADSTER_MASS_KG * gravity * 0.95));
+        retroVerticalForceN =
+          ROADSTER_MASS_KG * gravity * thrustRatio +
+          Math.max(0, vyError * ROADSTER_MASS_KG * 6.8 * thrustRatio);
+      }
+
+      const ay = (retroVerticalForceN - ROADSTER_MASS_KG * gravity) / ROADSTER_MASS_KG;
+      const ax = (-22 * next.velocity.x + windImpulseX * 0.25) / ROADSTER_MASS_KG;
 
       next.velocity.x += ax * dt;
       next.velocity.y += ay * dt;
-      next.position.x = Math.max(HALF_LOOP_RUNWAY_START_X, Math.min(10.5, next.position.x + next.velocity.x * dt));
+      next.position.x = Math.max(
+        HALF_LOOP_RUNWAY_START_X - 0.5,
+        Math.min(10.5, next.position.x + next.velocity.x * dt)
+      );
       next.position.y += next.velocity.y * dt;
-      next.velocity.z = state.velocity.z;
+      next.velocity.z = phaseFlag;
 
       if (isCleanDismount) {
-        // Complete the backflip from 142 deg (2.48 rad) to 360 deg (2*PI rad = upright!) using pitch nozzles
-        const pitchTorque = ((fl + fr) - (rl + rr)) * 1.45 + 3200;
+        // Mid-air 360° Kickflip (roll 0 -> 2*PI) driven by side thrusters + differential corner nozzles
+        // while leveling pitch from 142 deg (2.48 rad) to 360 deg (2*PI rad = upright!)
+        const sideKickTorque = (lateralLeftN * 0.85 + lateralRightN * 0.45) * 0.65;
+        const cornerRollTorque = Math.abs((fl + rl) - (fr + rr)) * 1.15;
+        const Ixx = 820;
+        const angularAccelRoll = (sideKickTorque + cornerRollTorque) / Ixx;
+        next.angularVelocity.x = Math.min(
+          6.5,
+          Math.max(2.9, next.angularVelocity.x + angularAccelRoll * dt)
+        );
+        next.attitude.roll = Math.min(
+          Math.PI * 2,
+          next.attitude.roll + next.angularVelocity.x * dt
+        );
+
+        const pitchTorque = ((fl + fr) - (rl + rr)) * 1.35 + 2900;
         const Iyy = 1950;
         next.angularVelocity.y =
           (next.angularVelocity.y + (pitchTorque / Iyy) * dt) * Math.max(0.78, 1 - 1.1 * dt);
-        next.attitude.pitch = Math.min(Math.PI * 2, next.attitude.pitch + Math.max(2.6, next.angularVelocity.y) * dt);
+        next.attitude.pitch = Math.min(
+          Math.PI * 2,
+          next.attitude.pitch + Math.max(2.1, next.angularVelocity.y) * dt
+        );
       } else {
         // Tumbling fall under gravity when peeled off the loop
         next.attitude.pitch -= 1.8 * dt;
@@ -219,17 +276,17 @@ export function stepRoadsterPhysics(
       }
 
       if (next.position.y <= GROUND_Y) {
-        const pitchErrorFromUpright = Math.min(
-          Math.abs(next.attitude.pitch),
-          Math.abs(Math.PI * 2 - next.attitude.pitch)
-        );
-        if (!isCleanDismount || Math.abs(next.velocity.y) > 7.2 || pitchErrorFromUpright > 0.75) {
+        const pitchError = Math.min(Math.abs(next.attitude.pitch), Math.abs(Math.PI * 2 - next.attitude.pitch));
+        const rollError = Math.abs(Math.PI * 2 - next.attitude.roll);
+        if (!isCleanDismount || Math.abs(next.velocity.y) > 6.5 || pitchError > 0.75 || rollError > 0.75) {
           next.crashed = true;
         } else {
           next.attitude.pitch = 0;
-          next.attitude.roll = 0;
+          next.attitude.roll = Math.PI * 2;
+          next.angularVelocity.x = 0;
           next.angularVelocity.y = 0;
-          next.velocity.x *= 0.6;
+          next.velocity.x *= 0.45;
+          next.velocity.z = -3;
         }
         next.position.y = GROUND_Y;
         next.velocity.y = 0;
@@ -238,12 +295,11 @@ export function stepRoadsterPhysics(
       }
     }
   } else if (missionId === 'roadster-barrel-roll') {
-    // Stunt 03: Curved Quarter-Pipe Launch Ramp & 360° Air Kickflip (Image 2)
+    // Stunt 03: Curved Quarter-Pipe Launch Ramp -> Mid-Air Thruster Kickflip -> Slow Retro-Cushion Landing
     const rampSample = sampleCurvedKickflipRamp(next.position.x);
 
     if (next.position.x < KICKFLIP_RAMP_START_X && next.position.y <= GROUND_Y + 0.08) {
-      // Phase 1: Sprint along the flat runway toward the Curved Steel Quarter-Pipe
-      const ax = (rearBoostN + 7600 - 140 * next.velocity.x) / ROADSTER_MASS_KG;
+      const ax = (rearBoostN + 7800 - 135 * next.velocity.x) / ROADSTER_MASS_KG;
       next.velocity.x = Math.min(10.8, next.velocity.x + ax * dt);
       next.position.x += next.velocity.x * dt;
       next.position.y = GROUND_Y;
@@ -256,28 +312,30 @@ export function stepRoadsterPhysics(
       next.position.y <= rampSample.carCenterY + 0.35 &&
       next.attitude.roll < 0.35
     ) {
-      // Phase 2A: Riding UP the exact Curved Steel Quarter-Pipe surface (zero ramp clipping!)
+      // Phase 2A: Riding UP the Curved Steel Quarter-Pipe surface and launching off the top lip
       const speedX = Math.max(5.8, next.velocity.x);
       next.position.x += speedX * dt;
-      const updatedRamp = sampleCurvedKickflipRamp(next.position.x);
-      next.position.y = updatedRamp.carCenterY;
+      const clampedRampX = Math.min(KICKFLIP_RAMP_END_X, next.position.x);
+      const updatedRamp = sampleCurvedKickflipRamp(clampedRampX);
+      const exitedLip = next.position.x >= KICKFLIP_RAMP_END_X;
+      next.position.y = updatedRamp.carCenterY + (exitedLip ? 0.14 : 0);
       next.attitude.pitch = updatedRamp.tangentAngle;
-      next.velocity.x = speedX;
+      next.velocity.x = exitedLip ? 5.6 : speedX;
       next.velocity.y =
         Math.sin(updatedRamp.tangentAngle) * speedX +
-        3.6 +
-        (totalUnderbodyLiftN / ROADSTER_MASS_KG) * 0.11;
-      next.isGrounded = true;
-      next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity * 1.45;
+        3.8 +
+        (totalUnderbodyLiftN / ROADSTER_MASS_KG) * 0.08;
+      next.isGrounded = !exitedLip;
+      next.wallContactNormalForceN = exitedLip ? 0 : ROADSTER_MASS_KG * gravity * 1.45;
     } else if (
-      next.position.x > KICKFLIP_RAMP_END_X + 2.2 &&
+      next.position.x > KICKFLIP_RAMP_END_X + 2.0 &&
       next.position.y <= GROUND_Y + 0.05 &&
       next.attitude.roll >= Math.PI * 1.65
     ) {
       // Phase 3B: Smooth rollout on the open landing deck after completing the 360° Kickflip
       next.position.y = GROUND_Y;
       next.velocity.y = 0;
-      next.velocity.x = Math.max(0, next.velocity.x * (1 - 1.8 * dt));
+      next.velocity.x = Math.max(0, next.velocity.x * (1 - 2.1 * dt));
       next.position.x = Math.min(9.0, next.position.x + next.velocity.x * dt);
       next.attitude.roll = Math.PI * 2;
       next.attitude.pitch *= 0.8;
@@ -286,12 +344,26 @@ export function stepRoadsterPhysics(
       next.isGrounded = true;
       next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity;
     } else {
-      // Phase 2B: Airborne 360° Kickflip under real gravity + cold-gas cushion
-      const verticalLiftN = totalUnderbodyLiftN * 0.68 - ROADSTER_MASS_KG * gravity;
-      const ay = verticalLiftN / ROADSTER_MASS_KG;
-      const ax = (rearBoostN * 0.18 - 95 * next.velocity.x + windImpulseX * 0.25) / ROADSTER_MASS_KG;
+      // Phase 2B: Airborne 360° Thruster Kickflip under real gravity + Slow Retro-Cushion Touchdown
+      // High in the air: gravity pulls the car along a true parabola (zero artificial levitation).
+      // Near the ground (y <= 3.1m and descending): underbody nozzles fire a retro-cushion to land slowly!
+      let verticalRetroLiftN = 0;
+      if (state.position.y <= 3.1 && state.velocity.y < -0.2) {
+        const altBlend = Math.max(0, Math.min(1, (3.1 - state.position.y) / 2.5));
+        const desiredTouchdownVy = -1.05 - (1 - altBlend) * 1.4;
+        const vyDiff = desiredTouchdownVy - state.velocity.y;
+        const powerScale = Math.min(1, totalUnderbodyLiftN / (ROADSTER_MASS_KG * gravity * 0.88));
+        verticalRetroLiftN =
+          ROADSTER_MASS_KG * gravity * powerScale +
+          Math.max(0, vyDiff * ROADSTER_MASS_KG * 6.5 * powerScale);
+      } else {
+        verticalRetroLiftN = Math.min(totalUnderbodyLiftN * 0.22, ROADSTER_MASS_KG * gravity * 0.32);
+      }
 
-      next.velocity.x = Math.max(2.8, Math.min(7.5, next.velocity.x + ax * dt));
+      const ay = (verticalRetroLiftN - ROADSTER_MASS_KG * gravity) / ROADSTER_MASS_KG;
+      const ax = (rearBoostN * 0.16 - 90 * next.velocity.x + windImpulseX * 0.25) / ROADSTER_MASS_KG;
+
+      next.velocity.x = Math.max(2.6, Math.min(7.2, next.velocity.x + ax * dt));
       next.velocity.y += ay * dt;
       next.position.x = Math.min(9.0, next.position.x + next.velocity.x * dt);
       next.position.y += next.velocity.y * dt;
@@ -302,7 +374,9 @@ export function stepRoadsterPhysics(
         next.position.y = underRamp.carCenterY;
       }
 
-      const rollTorque = ((fl + rl) - (fr + rr)) * 1.25;
+      // Both differential underbody nozzles AND side rocker nozzles contribute to the 360° Kickflip torque!
+      const sideJetTorque = (lateralLeftN - lateralRightN * 0.4) * 0.38;
+      const rollTorque = ((fl + rl) - (fr + rr)) * 1.25 + sideJetTorque;
       const pitchTorque = ((fl + fr) - (rl + rr)) * 0.95;
       const Ixx = 820;
       const Iyy = 2100;

@@ -127,7 +127,7 @@ export function evaluateRLPolicy(
     thrusters.lateralRight = clamp(-latCmd, 0, 1);
     thrusters.activeWingAngle = clamp(0.4 + Math.abs(state.velocity.x) * 0.1, 0.2, 0.9);
   } else if (missionId === 'roadster-wall-climb') {
-    // Stunt 02: Hot-Wheels Giant Half-Loop & Sky Flip (Image 1)
+    // Stunt 02: Hot-Wheels Giant Half-Loop -> Mid-Air Kickflip (No Levitation!) -> Slow Retro Landing at Origin
     const isAirborneDismount = state.velocity.z < 0;
     const onLoopArc = !isAirborneDismount && (state.position.x > 0.5 || state.position.y > 0.9);
     const learnedLoopPinning = clamp(competence * 1.25 - 0.22 - Math.abs(n1) * 0.45, 0.0, 1.0);
@@ -136,8 +136,8 @@ export function evaluateRLPolicy(
       thrusters.rearBoost = onLoopArc
         ? clamp(0.88 * learnedLoopPinning + 0.12 + n2 * 0.25, 0.05, 1.0)
         : clamp(0.85 * competence + 0.22, 0.25, 1.0);
-      thrusters.lateralRight = onLoopArc ? clamp(learnedLoopPinning + lrOscillation * 0.25, 0, 1) : 0.1;
-      thrusters.lateralLeft = onLoopArc && incompetence > 0.45 ? clamp(Math.abs(n2) * 0.6, 0, 1) : 0;
+      thrusters.lateralRight = onLoopArc ? clamp(learnedLoopPinning + lrOscillation * 0.25, 0, 1) : 0.18;
+      thrusters.lateralLeft = onLoopArc ? clamp(0.45 * learnedLoopPinning, 0, 1) : 0.12;
 
       const loopAssistJet = onLoopArc ? clamp(0.75 * learnedLoopPinning, 0.05, 0.95) : 0.12;
       thrusters.frontLeftLift = loopAssistJet;
@@ -146,45 +146,69 @@ export function evaluateRLPolicy(
       thrusters.rearRightLift = loopAssistJet * 1.05;
       thrusters.activeWingAngle = onLoopArc ? 0.95 : 0.45;
     } else {
-      // Launched upside-down off the overhanging C-loop lip! Flip upright and cushion touchdown!
-      const cushion = clamp(0.74 * competence + n1 * 0.2, 0.15, 0.95);
-      thrusters.frontLeftLift = clamp(cushion + 0.2 * competence, 0, 1);
-      thrusters.frontRightLift = clamp(cushion + 0.2 * competence, 0, 1);
-      thrusters.rearLeftLift = clamp(cushion * 0.85, 0, 1);
-      thrusters.rearRightLift = clamp(cushion * 0.85, 0, 1);
-      thrusters.lateralRight = 0.25 * competence;
-      thrusters.activeWingAngle = 0.9;
+      // Airborne after launching off the top lip:
+      // 1) NEVER levitate at high altitude — let gravity curve the car down while firing side jets for a 360° Kickflip!
+      // 2) Only ignite bottom retro-cushion thrusters when descending near the ground (y <= 4.2m) for a slow landing!
+      const rollRemaining = Math.PI * 2 - state.attitude.roll;
+      const isKickflipping = rollRemaining > 0.25;
+      const isNearGroundDescent = state.position.y <= 4.2 && state.velocity.y < -0.4;
+
+      const retroCushion = isNearGroundDescent
+        ? clamp((0.68 + (-state.velocity.y) * 0.08) * competence + n1 * 0.15, 0.1, 0.98)
+        : 0.08 * competence;
+
+      const rollBurst = isKickflipping ? 0.48 * competence : 0;
+      const pitchLeveling = state.attitude.pitch < Math.PI * 1.92 ? 0.24 * competence : 0;
+
+      thrusters.frontLeftLift = clamp(retroCushion + rollBurst + pitchLeveling, 0, 1);
+      thrusters.rearLeftLift = clamp(retroCushion + rollBurst - pitchLeveling * 0.5, 0, 1);
+      thrusters.frontRightLift = clamp(retroCushion - rollBurst * 0.5 + pitchLeveling, 0, 1);
+      thrusters.rearRightLift = clamp(retroCushion - rollBurst * 0.5 - pitchLeveling * 0.5, 0, 1);
+
+      // Fire side rocker thrusters during the mid-air kickflip so white smoke bursts from the sides of the car!
+      thrusters.lateralLeft = isKickflipping
+        ? clamp(0.85 * competence + Math.abs(n2) * 0.2, 0.15, 1.0)
+        : clamp(0.32 * competence, 0, 0.6);
+      thrusters.lateralRight = isKickflipping
+        ? clamp(0.65 * competence + Math.abs(n3) * 0.2, 0.15, 0.9)
+        : clamp(0.32 * competence, 0, 0.6);
+      thrusters.rearBoost = state.position.y > 5.0 ? 0.28 * competence : 0;
+      thrusters.activeWingAngle = isNearGroundDescent ? 0.95 : 0.55;
     }
   } else if (missionId === 'roadster-barrel-roll') {
-    // Stunt 03: Curved Quarter-Pipe Ramp Launch -> 360° Kickflip -> Smooth Landing!
+    // Stunt 03: Curved Ramp Launch -> Mid-Air Thruster Kickflip (with Side White Smoke) -> Slow Rocket Landing!
     const targetRoll = Math.PI * 2;
     const rollRemaining = targetRoll - state.attitude.roll;
 
     if (state.position.x < -1.4 && state.position.y < 2.25 && state.attitude.roll < 0.25) {
-      // Sprint & Curved Quarter-Pipe Pop phase
-      thrusters.rearBoost = clamp(0.92 * competence + 0.2, 0.3, 1.0);
-      const popLift = state.position.x > -5.6 ? clamp(0.88 * competence, 0.2, 1.0) : 0.12;
+      // Phase 1: Sprint up the Curved Steel Quarter-Pipe & Pop into the Air
+      thrusters.rearBoost = clamp(0.94 * competence + 0.2, 0.35, 1.0);
+      const popLift = state.position.x > -5.4 ? clamp(0.82 * competence, 0.2, 0.95) : 0.14;
       thrusters.frontLeftLift = popLift;
-      thrusters.frontRightLift = popLift * 0.55;
+      thrusters.frontRightLift = popLift * 0.65;
       thrusters.rearLeftLift = popLift;
-      thrusters.rearRightLift = popLift * 0.55;
+      thrusters.rearRightLift = popLift * 0.65;
+      thrusters.lateralLeft = state.position.x > -3.5 ? 0.55 * competence : 0.15;
+      thrusters.lateralRight = state.position.x > -3.5 ? 0.35 * competence : 0.15;
       thrusters.activeWingAngle = 0.25;
     } else if (!state.isGrounded) {
-      // Mid-air 360° Kickflip & Cushioned Landing Burn
-      const flipComplete = rollRemaining <= 0.35;
-      const cushionLift = !flipComplete
-        ? clamp(0.42 * competence + n1 * 0.22, 0.12, 0.78)
-        : state.velocity.y < -2.2
-          ? clamp(0.48 * competence * (-state.velocity.y - 1.6) + 0.22, 0.1, 0.85)
-          : 0.08;
+      // Phase 2 & 3: Mid-Air 360° Thruster Kickflip + Slow Retro-Cushion Touchdown
+      const flipComplete = rollRemaining <= 0.28;
+      const isDescendingLow = state.position.y <= 3.2 && state.velocity.y < -0.3;
+
+      const cushionLift = isDescendingLow
+        ? clamp((0.64 + (-state.velocity.y) * 0.09) * competence + n1 * 0.15, 0.15, 0.96)
+        : !flipComplete
+          ? clamp(0.26 * competence + n1 * 0.18, 0.08, 0.45)
+          : 0.12 * competence;
 
       const desiredOmegaX =
         rollRemaining > 0.02
-          ? clamp(rollRemaining * 4.4 * competence + 1.85 * competence + n2 * 2.4, -2, 9.5)
+          ? clamp(rollRemaining * 4.6 * competence + 2.1 * competence + n2 * 2.2, -2, 10.0)
           : 0;
 
       const rollTorqueCmd = clamp(
-        0.54 * competence * (desiredOmegaX - state.angularVelocity.x) + n2 * 0.42,
+        0.56 * competence * (desiredOmegaX - state.angularVelocity.x) + n2 * 0.38,
         -0.78,
         0.78
       );
@@ -194,10 +218,17 @@ export function evaluateRLPolicy(
       thrusters.rearLeftLift = clamp(cushionLift + rollTorqueCmd - pitchKickCmd, 0, 1);
       thrusters.frontRightLift = clamp(cushionLift - rollTorqueCmd + pitchKickCmd, 0, 1);
       thrusters.rearRightLift = clamp(cushionLift - rollTorqueCmd - pitchKickCmd, 0, 1);
-      thrusters.lateralLeft = clamp(n3 * 0.25, 0, 1);
-      thrusters.lateralRight = clamp(-n3 * 0.25, 0, 1);
-      thrusters.rearBoost = rollRemaining > 1.2 ? 0.35 * competence : 0;
-      thrusters.activeWingAngle = flipComplete ? 0.92 : 0.45;
+
+      // Fire side rocker thrusters vigorously during the kickflip so white smoke plumes billow from both sides!
+      thrusters.lateralLeft = !flipComplete
+        ? clamp(0.92 * competence + Math.abs(n2) * 0.2, 0.25, 1.0)
+        : clamp(0.38 * competence, 0.1, 0.65);
+      thrusters.lateralRight = !flipComplete
+        ? clamp(0.68 * competence + Math.abs(n3) * 0.2, 0.2, 0.92)
+        : clamp(0.38 * competence, 0.1, 0.65);
+
+      thrusters.rearBoost = !flipComplete && state.position.x < 1.5 ? 0.32 * competence : 0;
+      thrusters.activeWingAngle = flipComplete ? 0.95 : 0.45;
     } else {
       // Smooth post-landing rollout on the Stunt Road deck
       thrusters.activeWingAngle = 0.95;
