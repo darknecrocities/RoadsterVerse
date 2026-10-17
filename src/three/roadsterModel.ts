@@ -468,17 +468,24 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
       plumeLight.intensity = isGhost || !isAirborne ? 0 : (avgLift * 4.5 + t.rearBoost * 2.5) * flicker;
     },
     getActiveNozzleEmitters(t: ThrusterActivation, isAirborne = true): NozzleEmitterDescriptor[] {
-      if (!isAirborne) return [];
-      return [
-        { id: 'fl', localOffset: new THREE.Vector3(1.25, -0.25, 0.88), localDirection: new THREE.Vector3(0, -0.96, 0.28), intensity: t.frontLeftLift },
-        { id: 'fr', localOffset: new THREE.Vector3(1.25, -0.25, -0.88), localDirection: new THREE.Vector3(0, -0.96, -0.28), intensity: t.frontRightLift },
-        { id: 'rl', localOffset: new THREE.Vector3(-1.25, -0.25, 0.9), localDirection: new THREE.Vector3(0, -0.96, 0.28), intensity: t.rearLeftLift },
-        { id: 'rr', localOffset: new THREE.Vector3(-1.25, -0.25, -0.9), localDirection: new THREE.Vector3(0, -0.96, -0.28), intensity: t.rearRightLift },
-        { id: 'latLeft', localOffset: new THREE.Vector3(0.0, -0.15, 0.98), localDirection: new THREE.Vector3(0, -0.26, 0.96), intensity: t.lateralLeft },
-        { id: 'latRight', localOffset: new THREE.Vector3(0.0, -0.15, -0.98), localDirection: new THREE.Vector3(0, -0.26, -0.96), intensity: t.lateralRight },
-        { id: 'rearBoostLeft', localOffset: new THREE.Vector3(-2.22, -0.03, 0.38), localDirection: new THREE.Vector3(-1, -0.04, 0), intensity: t.rearBoost },
-        { id: 'rearBoostRight', localOffset: new THREE.Vector3(-2.22, -0.03, -0.38), localDirection: new THREE.Vector3(-1, -0.04, 0), intensity: t.rearBoost },
-      ];
+      const emitters: NozzleEmitterDescriptor[] = [];
+      if (isAirborne) {
+        emitters.push(
+          { id: 'fl', localOffset: new THREE.Vector3(1.25, -0.25, 0.88), localDirection: new THREE.Vector3(0, -0.96, 0.28), intensity: t.frontLeftLift },
+          { id: 'fr', localOffset: new THREE.Vector3(1.25, -0.25, -0.88), localDirection: new THREE.Vector3(0, -0.96, -0.28), intensity: t.frontRightLift },
+          { id: 'rl', localOffset: new THREE.Vector3(-1.25, -0.25, 0.9), localDirection: new THREE.Vector3(0, -0.96, 0.28), intensity: t.rearLeftLift },
+          { id: 'rr', localOffset: new THREE.Vector3(-1.25, -0.25, -0.9), localDirection: new THREE.Vector3(0, -0.96, -0.28), intensity: t.rearRightLift },
+          { id: 'latLeft', localOffset: new THREE.Vector3(0, -0.15, 0.98), localDirection: new THREE.Vector3(0, -0.26, 0.96), intensity: t.lateralLeft },
+          { id: 'latRight', localOffset: new THREE.Vector3(0, -0.15, -0.98), localDirection: new THREE.Vector3(0, -0.26, -0.96), intensity: t.lateralRight }
+        );
+      }
+      if (t.rearBoost > 0.05) {
+        emitters.push(
+          { id: 'rearBoostLeft', localOffset: new THREE.Vector3(-2.22, -0.03, 0.38), localDirection: new THREE.Vector3(-1, -0.04, 0), intensity: t.rearBoost },
+          { id: 'rearBoostRight', localOffset: new THREE.Vector3(-2.22, -0.03, -0.38), localDirection: new THREE.Vector3(-1, -0.04, 0), intensity: t.rearBoost }
+        );
+      }
+      return emitters;
     },
   };
 }

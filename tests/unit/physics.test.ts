@@ -286,10 +286,14 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     for (let step = 0; step < 580; step++) {
       const { thrusters } = evaluateRLPolicy(trainedState, 'roadster-obstacle-race', trainedParams, 0);
 
-      // Verify zero thruster firing while tires are grounded on the asphalt
+      // Verify zero underbody lift thruster firing while tires are grounded on asphalt, while rear rocket boost propels the car until finish line
       if (trainedState.isGrounded) {
         expect(thrusters.frontLeftLift).toBe(0);
-        expect(thrusters.rearBoost).toBe(0);
+        if (trainedState.position.x < 995.0) {
+          expect(thrusters.rearBoost).toBeGreaterThan(0.3);
+        } else {
+          expect(thrusters.rearBoost).toBe(0);
+        }
       }
 
       trainedState = stepRoadsterPhysics(
