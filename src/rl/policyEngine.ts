@@ -147,19 +147,30 @@ export function evaluateRLPolicy(
     thrusters.lateralRight = clamp(-latCmd, 0, 1);
     thrusters.activeWingAngle = clamp(0.4 + Math.abs(state.velocity.x) * 0.1, 0.2, 0.9);
   } else if (missionId === 'roadster-obstacle-race') {
-    // Stunt 04: High-Speed Obstacle Gauntlet & Cold-Gas Thruster Bunny-Hop Jump!
-    const lookAheadDistM = 1.6 + 5.4 * lookAheadFactor * competence;
+    // Stunt 04: 10km Highway Obstacle Gauntlet & 6-Lane Laser Wall Thruster Jump!
+    const lookAheadDistM = 25.0 + 60.0 * lookAheadFactor * competence;
 
     let targetZ = 0.0;
-    if (state.position.x < -5.5) {
-      targetZ = -6.2 - state.position.x <= lookAheadDistM ? -1.35 * competence : 0.38;
-    } else if (state.position.x < 0.0) {
-      targetZ = -0.6 - state.position.x <= lookAheadDistM ? 1.35 * competence : -1.25;
+    if (state.position.x < 225.0) {
+      // Hazard 01 at x = 220m blocks Left Lanes (z > 0.5) -> Steer into Lane 3/4 (z ~ -4.2m)
+      targetZ = 220.0 - state.position.x <= lookAheadDistM ? -4.2 * competence : 2.5;
+    } else if (state.position.x < 455.0) {
+      // Hazard 02 at x = 450m is a Cyber-Drone in Lane 3 (z ~ -3.2m) -> Overtake via Lane 2 (z ~ +3.8m)
+      targetZ = 450.0 - state.position.x <= lookAheadDistM ? 3.8 * competence : -4.2;
+    } else if (state.position.x < 685.0) {
+      // Hazard 03 at x = 680m blocks Right Lanes (z < -0.5) -> Steer into Lane 1/2 (z ~ +4.2m)
+      targetZ = 680.0 - state.position.x <= lookAheadDistM ? 4.2 * competence : 3.8;
+    } else {
+      // Clear straightaway aligning for Hazard 04 Full-Width Laser Wall jump
+      targetZ = 0.0;
     }
 
     const zError = targetZ - state.position.z;
     const steerCmd = clamp(
-      2.15 * competence * attGain * zError - 0.32 * competence * smoothGain * state.velocity.z + n2 * 0.45 + lrOscillation,
+      0.45 * competence * attGain * zError -
+        0.12 * competence * smoothGain * state.velocity.z +
+        n2 * (0.65 * incompetence + 0.02) +
+        lrOscillation,
       -1,
       1
     );
@@ -168,27 +179,39 @@ export function evaluateRLPolicy(
 
     // Cold-gas lift & rear boost thrusters fire STRICTLY when airborne in mid-air!
     if (isAirborne) {
-      const isBoostingOverWall = state.position.x <= 4.85 && state.position.y < 2.15;
-      const isLandingCushion = state.position.x > 4.85 && state.position.y < 1.55 && state.velocity.y < -0.5;
+      const isBoostingOverWall = state.position.x <= 892.0 && state.position.y < 3.2;
+      const isLandingCushion =
+        state.position.x > 892.0 && state.position.y < 3.0 && state.velocity.y < -0.8;
       const baseJumpLift = isBoostingOverWall
-        ? clamp((0.55 * altGain * competence + n1 * 0.15 + lrOscillation) * fuelCap, 0.2, 0.68)
+        ? clamp((0.78 * altGain * competence + n1 * 0.1 + lrOscillation) * fuelCap, 0.45, 0.95)
         : isLandingCushion
-          ? clamp((0.36 + (-state.velocity.y) * 0.04) * competence * altGain * fuelCap, 0.12, 0.48)
+          ? clamp((0.72 + (-state.velocity.y) * 0.06) * competence * altGain * fuelCap, 0.35, 0.92)
           : 0.08 * competence;
 
-      const rollTrim = -0.55 * competence * attGain * state.attitude.roll - 0.22 * competence * smoothGain * state.angularVelocity.x + n2 * 0.25;
-      const pitchTrim = -0.58 * competence * attGain * state.attitude.pitch - 0.24 * competence * smoothGain * state.angularVelocity.y + n3 * 0.25;
+      const rollTrim =
+        -0.55 * competence * attGain * state.attitude.roll -
+        0.22 * competence * smoothGain * state.angularVelocity.x +
+        n2 * 0.15;
+      const pitchTrim =
+        -0.58 * competence * attGain * state.attitude.pitch -
+        0.24 * competence * smoothGain * state.angularVelocity.y +
+        n3 * 0.15;
 
       thrusters.frontLeftLift = clamp(baseJumpLift + rollTrim + pitchTrim, 0, 1);
       thrusters.frontRightLift = clamp(baseJumpLift - rollTrim + pitchTrim, 0, 1);
       thrusters.rearLeftLift = clamp(baseJumpLift + rollTrim - pitchTrim, 0, 1);
       thrusters.rearRightLift = clamp(baseJumpLift - rollTrim - pitchTrim, 0, 1);
-      thrusters.rearBoost = isBoostingOverWall ? clamp(0.65 * competence * fuelCap, 0, 1) : 0;
+      thrusters.rearBoost = isBoostingOverWall ? clamp(0.72 * competence * fuelCap, 0, 1) : 0;
     }
 
     thrusters.lateralRight = clamp(steerCmd, 0, 1);
     thrusters.lateralLeft = clamp(-steerCmd, 0, 1);
-    thrusters.activeWingAngle = state.position.x < 1.5 ? clamp(0.88 * competence + 0.12 * altGain, 0.25, 1.0) : 0.45;
+    const isPreJumpZone = state.position.x >= 840.0 && state.position.x <= 870.0;
+    thrusters.activeWingAngle = isPreJumpZone
+      ? 1.0
+      : isAirborne
+        ? 0.35
+        : clamp(0.75 * competence, 0.3, 0.85);
   } else if (missionId === 'roadster-wall-climb') {
     const isAirborneDismount = state.velocity.z < 0 && !state.isGrounded && !state.crashed;
     const onLoopArc = state.velocity.z >= 0 && (state.position.x > 0.5 || state.position.y > 0.9);

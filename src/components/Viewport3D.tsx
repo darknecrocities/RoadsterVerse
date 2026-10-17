@@ -167,12 +167,20 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         }
         soundEngineRef.current.update(activeMission.vehicle, thrusters);
 
+        const maxMissionTime =
+          activeMission.id === 'roadster-obstacle-race' ? 18.0 : 13.5;
+        const reachedFinish =
+          activeMission.id === 'roadster-obstacle-race' &&
+          primaryStateRef.current.position.x >= 1000.0;
+
         if (
           primaryStateRef.current.crashed ||
-          primaryStateRef.current.elapsedTimeSec > 13.5
+          primaryStateRef.current.elapsedTimeSec > maxMissionTime ||
+          reachedFinish
         ) {
           crashCooldownRef.current += rawDt;
-          if (crashCooldownRef.current > 1.75) {
+          const waitTime = reachedFinish ? 2.8 : 1.75;
+          if (crashCooldownRef.current > waitTime) {
             crashCooldownRef.current = 0;
             onAutoResetAfterCrash();
           }
@@ -256,19 +264,52 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
         {!statusMinimized && (
           <div className="stunt-metrics-strip">
-            <div className="metric-mini">
-              <span>HEIGHT</span>
-              <strong>
-                <AnimatedNumber value={hudState.position.y} decimals={1} suffix=" m" />
-              </strong>
-            </div>
-            <div className="metric-mini">
-              <span>TILT / FLIP</span>
-              <strong>
-                {Math.round((hudState.attitude.pitch * 180) / Math.PI)}° /{' '}
-                {Math.round((hudState.attitude.roll * 180) / Math.PI)}°
-              </strong>
-            </div>
+            {mission.id === 'roadster-obstacle-race' ? (
+              <>
+                <div className="metric-mini">
+                  <span>10KM RUNWAY</span>
+                  <strong>
+                    <AnimatedNumber
+                      value={(Math.min(1000, Math.max(0, hudState.position.x)) / 1000) * 10.0}
+                      decimals={2}
+                      suffix=" km"
+                    />
+                  </strong>
+                </div>
+                <div className="metric-mini">
+                  <span>SPEED</span>
+                  <strong>
+                    <AnimatedNumber
+                      value={
+                        Math.sqrt(
+                          hudState.velocity.x ** 2 +
+                            hudState.velocity.y ** 2 +
+                            hudState.velocity.z ** 2
+                        ) * 3.6
+                      }
+                      decimals={0}
+                      suffix=" km/h"
+                    />
+                  </strong>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="metric-mini">
+                  <span>HEIGHT</span>
+                  <strong>
+                    <AnimatedNumber value={hudState.position.y} decimals={1} suffix=" m" />
+                  </strong>
+                </div>
+                <div className="metric-mini">
+                  <span>TILT / FLIP</span>
+                  <strong>
+                    {Math.round((hudState.attitude.pitch * 180) / Math.PI)}° /{' '}
+                    {Math.round((hudState.attitude.roll * 180) / Math.PI)}°
+                  </strong>
+                </div>
+              </>
+            )}
             <div className="metric-mini">
               <span>{mission.vehicle === 'roadster' ? 'AIR TANK' : 'FUEL'}</span>
               <strong>
@@ -286,9 +327,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                   ? 'PAUSED'
                   : hudState.crashed
                     ? 'EXPLODED!'
-                    : hudState.isOnWall || hudState.isGrounded
-                      ? 'ON RAMP / ROAD'
-                      : 'MID-AIR JETS'}
+                    : hudState.position.x >= 995.0 && mission.id === 'roadster-obstacle-race'
+                      ? '10KM CLEARED!'
+                      : hudState.isOnWall || hudState.isGrounded
+                        ? 'ON RAMP / ROAD'
+                        : 'MID-AIR JETS'}
               </strong>
             </div>
           </div>

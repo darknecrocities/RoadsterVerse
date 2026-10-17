@@ -38,44 +38,60 @@ export interface ObstacleBox {
   minZ: number;
   maxZ: number;
   heightY: number;
-  type: 'lane-barrier' | 'full-jump-wall';
+  type: 'lane-barrier' | 'full-jump-wall' | 'drone-vehicle';
 }
 
+export const GAUNTLET_START_X = 0.0;
+export const GAUNTLET_FINISH_X = 1000.0;
+export const GAUNTLET_ROAD_HALF_WIDTH_Z = 12.0;
+
 /**
- * Three physical 3D obstacles placed along the Roadster Stunt 04 Gauntlet Track (x = -11.5m to +10.2m):
- * - Obstacle 1 (x = -5.5m): Blocks Left/Center Lane (z in [0.05m, 2.15m]) -> AI must steer into Right Lane (z ~ -1.15m)
- * - Obstacle 2 (x = -0.8m): Blocks Right/Center Lane (z in [-2.15m, -0.05m]) -> AI must S-curve into Left Lane (z ~ +1.10m)
- * - Obstacle 3 (x = +4.2m): Full-Width Laser & Concrete Roadblock (z in [-2.25m, +2.25m], height = 1.05m) -> AI must Bunny-Hop Jump!
+ * Widely spaced physical obstacles and cyber-drone vehicles along the 10km proving ground super-highway (24m wide):
+ * - Hazard 1 (x = 220m, 2.2 km): Left-Lane Jersey Chicane (z in [0.5m, 11.5m]) -> Steer to Lane 3/4 (z ~ -4.2m)
+ * - Hazard 2 (x = 450m, 4.5 km): Autonomous Cyber-Drone Vehicle in Lane 3 (z in [-5.8m, -0.6m]) -> Overtake via Lane 2 (z ~ +3.8m)
+ * - Hazard 3 (x = 680m, 6.8 km): Right-Lane Concrete Barrier (z in [-11.5m, -0.5m]) -> Steer to Lane 1/2 (z ~ +4.2m)
+ * - Hazard 4 (x = 880m, 8.8 km): Full-Width Laser Wall (z in [-11.8m, 11.8m], height = 1.2m) -> Cold-Gas Thruster Bunny-Hop Jump!
+ * - Finish Line (x = 1000m, 10.0 km): Telemetry Milestone Overpass Gantry
  */
 export const ROADSTER_RACE_OBSTACLES: readonly ObstacleBox[] = [
   {
     id: 'chicane-left-barrier',
-    label: 'Obstacle 01 // Left-Lane Concrete Chicane',
-    x: -6.2,
-    halfWidthX: 0.32,
-    minZ: 0.08,
-    maxZ: 2.15,
-    heightY: 0.95,
+    label: 'Hazard 01 // 2.2 km Left-Lane Heavy Chicane',
+    x: 220.0,
+    halfWidthX: 1.6,
+    minZ: 0.5,
+    maxZ: 11.5,
+    heightY: 1.15,
     type: 'lane-barrier',
   },
   {
+    id: 'autonomous-drone-vehicle-1',
+    label: 'Hazard 02 // 4.5 km Autonomous Cyber-Drone Vehicle',
+    x: 450.0,
+    halfWidthX: 2.4,
+    minZ: -5.8,
+    maxZ: -0.6,
+    heightY: 1.25,
+    type: 'drone-vehicle',
+  },
+  {
     id: 'chicane-right-barrier',
-    label: 'Obstacle 02 // Right-Lane S-Curve Barrier',
-    x: -0.6,
-    halfWidthX: 0.32,
-    minZ: -2.15,
-    maxZ: -0.08,
-    heightY: 0.95,
+    label: 'Hazard 03 // 6.8 km Right-Lane Concrete Barrier',
+    x: 680.0,
+    halfWidthX: 1.6,
+    minZ: -11.5,
+    maxZ: -0.5,
+    heightY: 1.15,
     type: 'lane-barrier',
   },
   {
     id: 'full-width-laser-wall',
-    label: 'Obstacle 03 // Full-Width Laser Roadblock (Jump Required)',
-    x: 4.4,
-    halfWidthX: 0.36,
-    minZ: -2.25,
-    maxZ: 2.25,
-    heightY: 1.05,
+    label: 'Hazard 04 // 8.8 km Full-Width Laser Roadblock (Jump Required)',
+    x: 880.0,
+    halfWidthX: 1.8,
+    minZ: -11.8,
+    maxZ: 11.8,
+    heightY: 1.2,
     type: 'full-jump-wall',
   },
 ];
@@ -237,19 +253,19 @@ export function stepRoadsterObstacleRacePhysics(
     thrusters.activeWingAngle
   );
 
-  // Finish-line deceleration zone once past x >= 8.2m
-  const finishedCourse = state.position.x >= 8.2;
+  // Finish-line deceleration zone past x >= 995m (10.0 km)
+  const finishedCourse = state.position.x >= 995.0;
   const gammaHorizon = Math.max(0.15, Math.min(1.1, (params.discountFactor - 0.78) / 0.21));
   const learnedDrive = Math.max(
     0.1,
     Math.min(1.0, (params.epochs / 140) * (1 - params.explorationNoise * 0.4) * gammaHorizon)
   );
 
-  // Active suspension launch strip right before Obstacle #3 (x in [1.35m, 2.05m]) pops the car airborne when trained
+  // Active suspension launch strip right before Hazard #4 (x in [862m, 874m]) pops the car airborne when trained
   const onBunnyHopLaunchStrip =
     state.isGrounded &&
-    state.position.x >= 1.35 &&
-    state.position.x <= 2.05 &&
+    state.position.x >= 862.0 &&
+    state.position.x <= 874.0 &&
     learnedDrive > 0.48;
 
   const isCurrentlyGrounded =
@@ -273,48 +289,47 @@ export function stepRoadsterObstacleRacePhysics(
       (TIRE_MU_SLICK * normalForceN) / (ROADSTER_MASS_KG_RACE * 9.81)
     );
 
-    const targetCruiseVx = finishedCourse ? 0 : 6.6 + 1.6 * learnedDrive;
+    const targetCruiseVx = finishedCourse ? 0 : 70.0 + 12.0 * learnedDrive;
     const vxErr = targetCruiseVx - state.velocity.x;
     const wheelDriveForceX = finishedCourse
-      ? -state.velocity.x * 4800
-      : vxErr * 4200 * maxTireGripFactor;
+      ? -state.velocity.x * 6800
+      : vxErr * 8500 * maxTireGripFactor;
 
     const ax =
       (wheelDriveForceX + aero.dragForce.x + windImpulseX * 0.15) /
       ROADSTER_MASS_KG_RACE;
-    next.velocity.x = Math.max(0, Math.min(9.2, state.velocity.x + ax * dt));
-    next.position.x = Math.min(9.8, state.position.x + next.velocity.x * dt);
+    next.velocity.x = Math.max(0, Math.min(88.0, state.velocity.x + ax * dt));
+    next.position.x = Math.min(1005.0, state.position.x + next.velocity.x * dt);
 
     // Lateral Z-lane steering (thrusters.lateralLeft steers toward -Z right lane; lateralRight steers toward +Z left lane)
     const steerInput = thrusters.lateralRight - thrusters.lateralLeft;
     const lateralSteerAccelZ =
-      steerInput * 28.5 * maxTireGripFactor -
-      4.2 * state.velocity.z +
+      steerInput * 65.0 * maxTireGripFactor -
+      4.8 * state.velocity.z +
       aero.dragForce.z / ROADSTER_MASS_KG_RACE;
 
     next.velocity.z = Math.max(
-      -6.2,
-      Math.min(6.2, state.velocity.z + lateralSteerAccelZ * dt)
+      -18.0,
+      Math.min(18.0, state.velocity.z + lateralSteerAccelZ * dt)
     );
     next.position.z = Math.max(
-      -2.05,
-      Math.min(2.05, state.position.z + next.velocity.z * dt)
+      -11.2,
+      Math.min(11.2, state.position.z + next.velocity.z * dt)
     );
 
     // Subtle body roll & yaw into the turn, stabilized by attitude & smoothness weights
-    next.attitude.yaw = Math.max(-0.32, Math.min(0.32, next.velocity.z * 0.065));
-    next.attitude.roll = Math.max(-0.14, Math.min(0.14, -next.velocity.z * 0.025));
+    next.attitude.yaw = Math.max(-0.25, Math.min(0.25, next.velocity.z * 0.025));
+    next.attitude.roll = Math.max(-0.12, Math.min(0.12, -next.velocity.z * 0.012));
     next.attitude.pitch = 0;
     next.angularVelocity.x = 0;
     next.angularVelocity.y = 0;
     next.angularVelocity.z = 0;
   } else {
-    // Mid-Air Bunny-Hop Jump Phase over Obstacle #3 (Full-Width Laser & Concrete Wall at x = 4.4m)!
+    // Mid-Air Bunny-Hop Jump Phase over Hazard #4 (Full-Width Laser Wall at x = 880m)!
     next.isGrounded = false;
     next.wallContactNormalForceN = 0;
 
-    // Initial upward pop from the active-suspension launch strip, followed by mid-air cold-gas thruster lift!
-    const jumpBoostImpulseY = onBunnyHopLaunchStrip ? 5.65 * learnedDrive : 0;
+    const jumpBoostImpulseY = onBunnyHopLaunchStrip ? 8.2 * learnedDrive : 0;
 
     const netVerticalForceN =
       totalUnderbodyLiftN * Math.cos(state.attitude.roll) * Math.cos(state.attitude.pitch) -
@@ -323,22 +338,21 @@ export function stepRoadsterObstacleRacePhysics(
 
     const ay = netVerticalForceN / ROADSTER_MASS_KG_RACE;
     const ax =
-      (rearBoostN * 0.28 + aero.dragForce.x + windImpulseX * 0.2) /
+      (rearBoostN * 0.45 + aero.dragForce.x + windImpulseX * 0.2) /
       ROADSTER_MASS_KG_RACE;
     const az =
-      ((lateralRightN - lateralLeftN) * 0.22 + aero.dragForce.z) /
+      ((lateralRightN - lateralLeftN) * 0.28 + aero.dragForce.z) /
       ROADSTER_MASS_KG_RACE;
 
-    next.velocity.x = Math.max(3.5, Math.min(9.2, state.velocity.x + ax * dt));
+    next.velocity.x = Math.max(45.0, Math.min(88.0, state.velocity.x + ax * dt));
     next.velocity.y = state.velocity.y + jumpBoostImpulseY + ay * dt;
-    next.velocity.z = state.velocity.z * (1 - 1.5 * dt) + az * dt;
+    next.velocity.z = state.velocity.z * (1 - 1.2 * dt) + az * dt;
 
-    next.position.x = Math.min(9.8, state.position.x + next.velocity.x * dt);
+    next.position.x = Math.min(1005.0, state.position.x + next.velocity.x * dt);
     next.position.y =
-      (onBunnyHopLaunchStrip ? groundY + 0.05 : state.position.y) + next.velocity.y * dt;
-    next.position.z = Math.max(-2.05, Math.min(2.05, state.position.z + next.velocity.z * dt));
+      (onBunnyHopLaunchStrip ? groundY + 0.06 : state.position.y) + next.velocity.y * dt;
+    next.position.z = Math.max(-11.2, Math.min(11.2, state.position.z + next.velocity.z * dt));
 
-    // Mid-air pitch & roll control via 4 corner nozzles + aerodynamic pitching moment
     const activeAttitudeDamping = learnedDrive * 4.5;
     const rollTorque =
       (fl + rl - (fr + rr)) * 0.85 - state.attitude.roll * 1800 * activeAttitudeDamping;
@@ -361,11 +375,11 @@ export function stepRoadsterObstacleRacePhysics(
     );
     next.attitude.yaw *= Math.max(0, 1 - 3.0 * dt);
 
-    // Check touchdown after jumping over Obstacle #3
+    // Check touchdown after jumping over Hazard #4
     if (next.position.y <= groundY) {
       const impactVy = Math.abs(next.velocity.y);
       const tiltErr = Math.max(Math.abs(next.attitude.roll), Math.abs(next.attitude.pitch));
-      if (impactVy > 7.2 || tiltErr > 0.58) {
+      if (impactVy > 9.5 || tiltErr > 0.58) {
         next.crashed = true;
       } else {
         next.attitude.roll = 0;
@@ -382,16 +396,15 @@ export function stepRoadsterObstacleRacePhysics(
     }
   }
 
-  // Check 3D collision against all 3 track obstacles!
+  // Check 3D collision against all track obstacles and vehicles
   const collision = checkRoadsterObstacleCollision(next.position);
   if (collision.collided) {
     next.crashed = true;
   }
 
-  const raceSpan = 9.2 - -11.2;
   next.missionProgressPct = Math.min(
     100,
-    Math.max(0, Math.round(((next.position.x - -11.2) / raceSpan) * 100))
+    Math.max(0, Math.round((next.position.x / 1000.0) * 100))
   );
 
   return next;

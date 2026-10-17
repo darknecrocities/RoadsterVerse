@@ -42,6 +42,7 @@ export class ProvingGroundSceneController {
   private readonly obstacleCourseGroup: THREE.Group;
   private readonly starbaseRig: StarbasePadAndCraneRig;
   private readonly targetMarker: THREE.Mesh;
+  private stuntStrip?: THREE.Mesh;
   private cameraMode: CameraMode = 'orbit';
   private orbitAngle = 0.28;
   private smoothedCamPos = new THREE.Vector3(0, 4.8, 15.0);
@@ -121,6 +122,7 @@ export class ProvingGroundSceneController {
     });
     const stuntStrip = new THREE.Mesh(new THREE.BoxGeometry(28, 0.04, 5.2), stuntStripMat);
     stuntStrip.position.set(-0.5, 0.02, 0);
+    this.stuntStrip = stuntStrip;
     this.roadsterArenaGroup.add(stuntStrip);
 
     const rampMat = new THREE.MeshStandardMaterial({ color: 0x262626, map: carbonTex, roughness: 0.38, metalness: 0.42 });
@@ -256,6 +258,7 @@ export class ProvingGroundSceneController {
     this.roadsterArenaGroup.visible = isRoadster;
 
     // Strict exclusive stunt prop visibility — ZERO overlapping ramps or obstacles!
+    if (this.stuntStrip) this.stuntStrip.visible = missionId !== 'roadster-obstacle-race';
     this.stuntKickerGroup.visible = missionId === 'roadster-barrel-roll';
     this.wallRampGroup.visible = missionId === 'roadster-wall-climb';
     this.wallRampGroup.position.x = 0;
@@ -332,7 +335,27 @@ export class ProvingGroundSceneController {
     const desiredCam = new THREE.Vector3();
     const desiredLook = new THREE.Vector3(px, Math.max(1.4, py + 0.3), pz);
 
-    if (this.cameraMode === 'orbit') {
+    if (missionId === 'roadster-obstacle-race') {
+      if (this.cameraMode === 'chase') {
+        desiredCam.set(px - 14.0, Math.max(2.6, py + 3.2), pz * 0.4 + 5.5);
+        desiredLook.set(px + 8.0, py + 0.6, pz);
+      } else if (this.cameraMode === 'thruster-cam') {
+        desiredCam.set(px - 3.2, Math.max(0.6, py + 0.5), pz + 3.5);
+        desiredLook.set(px + 4.5, py + 0.2, pz);
+      } else if (this.cameraMode === 'tower-cam') {
+        desiredCam.set(px - 22.0, 14.0, pz + 18.0);
+        desiredLook.set(px + 24.0, py, pz);
+      } else {
+        // Dynamic Orbit tracking along the 10km run
+        this.orbitAngle += dt * 0.08;
+        desiredCam.set(
+          px - 16.0 + Math.sin(this.orbitAngle) * 5.0,
+          Math.max(3.2, py + 3.5),
+          pz + Math.cos(this.orbitAngle) * 14.0
+        );
+        desiredLook.set(px + 6.0, py + 0.6, pz);
+      }
+    } else if (this.cameraMode === 'orbit') {
       this.orbitAngle += dt * 0.1;
       const dist = missionId === 'roadster-wall-climb' ? 18.5 : isRoadster ? 13.0 : 17.0;
       desiredCam.set(
