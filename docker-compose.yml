@@ -1,0 +1,25 @@
+services:
+  thrust-weight-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: thrust-weight-rl-sandbox
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3001
+      - DB_PATH=/app/data/thrust_weight.db
+    volumes:
+      - thrust_weight_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/api/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  thrust_weight_data:

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+dist-server/
+build/
+coverage/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+jwt_secret.txt
+
+# Local SQLite database files
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Logs & OS files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
