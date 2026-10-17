@@ -106,21 +106,12 @@ export class ProvingGroundSceneController {
     this.scene.add(ambient, keyLight, rimLightLeft, rimLightRight);
   }
 
-  /**
-   * Builds:
-   * 1) High-contrast Stunt Road Track
-   * 2) Curved Steel Quarter-Pipe Launch Ramp with Truss Struts (Image 2, using sampleCurvedKickflipRamp)
-   * 3) Hot-Wheels Giant C-Shaped Overhanging Half-Loop Ramp with Steel Truss Backing (Image 1 & Image 3, using sampleHotWheelsHalfLoop)
-   */
+  /** Builds the Stunt Road Track, Curved Steel Quarter-Pipe Ramp, and Giant C-Shaped Half-Loop */
   private buildRoadsterStuntRoadAndHalfLoop(): void {
     const roadTex = createStuntRoadTexture();
     const carbonTex = createCarbonWeaveTexture();
 
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x070707,
-      roughness: 0.42,
-      metalness: 0.22,
-    });
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x070707, roughness: 0.42, metalness: 0.22 });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), floorMat);
     floor.rotation.x = -Math.PI / 2;
     this.roadsterArenaGroup.add(floor);
@@ -139,17 +130,8 @@ export class ProvingGroundSceneController {
     stuntStrip.position.set(-0.5, 0.02, 0);
     this.roadsterArenaGroup.add(stuntStrip);
 
-    const rampMat = new THREE.MeshStandardMaterial({
-      color: 0x262626,
-      map: carbonTex,
-      roughness: 0.38,
-      metalness: 0.42,
-    });
-    const trussMat = new THREE.MeshStandardMaterial({
-      color: 0x737373,
-      metalness: 0.72,
-      roughness: 0.3,
-    });
+    const rampMat = new THREE.MeshStandardMaterial({ color: 0x262626, map: carbonTex, roughness: 0.38, metalness: 0.42 });
+    const trussMat = new THREE.MeshStandardMaterial({ color: 0x737373, metalness: 0.72, roughness: 0.3 });
     const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
     // A. Curved Steel Quarter-Pipe Launch Ramp with Truss Frame (Image 2)
@@ -175,10 +157,7 @@ export class ProvingGroundSceneController {
 
       if (i % 3 === 2 && sample.surfaceY > 0.25) {
         for (const zCol of [-1.95, 1.95]) {
-          const strut = new THREE.Mesh(
-            new THREE.BoxGeometry(0.1, sample.surfaceY, 0.1),
-            trussMat
-          );
+          const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, sample.surfaceY, 0.1), trussMat);
           strut.position.set(xm, sample.surfaceY / 2, zCol);
           this.stuntKickerGroup.add(strut);
         }
@@ -187,11 +166,7 @@ export class ProvingGroundSceneController {
     this.roadsterArenaGroup.add(this.stuntKickerGroup);
 
     // B. Hot-Wheels Giant Overhanging C-Shaped Half-Loop Ramp + Steel Truss Backing (Image 1 & Image 3)
-    const concreteMat = new THREE.MeshStandardMaterial({
-      color: 0xd4d4d4,
-      roughness: 0.45,
-      metalness: 0.18,
-    });
+    const concreteMat = new THREE.MeshStandardMaterial({ color: 0xd4d4d4, roughness: 0.45, metalness: 0.18 });
 
     const loopSegments = 38;
     const loopArcSpan = HALF_LOOP_TOTAL_LENGTH - HALF_LOOP_RUNWAY_LENGTH;
@@ -324,30 +299,28 @@ export class ProvingGroundSceneController {
       }
     }
 
-    const craneMainBeam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.55, 1.45), brightSteelMat);
+    // Top Hammerhead Cantilever Crane Truss + Mid-Tower Quick-Disconnect (QD) Arm (Image 4)
+    const craneMainBeam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.65, 1.45), brightSteelMat);
     craneMainBeam.position.set(1.4, 22.25, 0);
     const craneLedStrip = new THREE.Mesh(new THREE.BoxGeometry(4.65, 0.08, 1.5), whiteLedMat);
-    craneLedStrip.position.set(1.4, 22.56, 0);
-    towerGroup.add(craneMainBeam, craneLedStrip);
+    craneLedStrip.position.set(1.4, 22.62, 0);
+    const qdArm = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.24, 0.55), steelMat);
+    qdArm.position.set(1.1, 6.2, -0.65);
+    towerGroup.add(craneMainBeam, craneLedStrip, qdArm);
 
     const mastApex = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), steelMat);
     mastApex.position.set(-0.2, 23.4, 0);
     const tieCable = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.8, 8), whiteLedMat);
     tieCable.position.set(1.4, 23.3, 0);
     tieCable.rotation.z = 0.98;
-    towerGroup.add(mastApex, tieCable);
-
-    this.craneHoistCable = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03, 0.03, 6.0, 8),
-      brightSteelMat
-    );
+    this.craneHoistCable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 6.0, 8), brightSteelMat);
     this.craneHoistCable.position.set(2.35, 19.2, 0);
-    towerGroup.add(this.craneHoistCable);
+    towerGroup.add(mastApex, tieCable, this.craneHoistCable);
 
     this.chopstickLeftMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
-    this.chopstickLeftMesh.position.set(1.5, 11.5, 0.92);
+    this.chopstickLeftMesh.position.set(1.5, 5.6, 0.88);
     this.chopstickRightMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
-    this.chopstickRightMesh.position.set(1.5, 11.5, -0.92);
+    this.chopstickRightMesh.position.set(1.5, 5.6, -0.88);
     towerGroup.add(this.chopstickLeftMesh, this.chopstickRightMesh);
 
     this.starbasePaddockGroup.add(towerGroup);
@@ -390,7 +363,6 @@ export class ProvingGroundSceneController {
     this.roadsterArenaGroup.visible = isRoadster;
     this.stuntKickerGroup.visible = missionId === 'roadster-barrel-roll';
     this.wallRampGroup.visible = missionId !== 'roadster-barrel-roll';
-    // In hover mode (Image 3), offset the C-Loop to the right so the hover pad is wide open
     this.wallRampGroup.position.x = missionId === 'roadster-hover' ? 5.2 : 0;
     this.starbasePaddockGroup.visible = !isRoadster;
 
@@ -415,6 +387,9 @@ export class ProvingGroundSceneController {
       );
       this.roadsterRig.updateThrusters(primaryThrusters, primaryState.elapsedTimeSec);
     } else {
+      const isTwoStageMission =
+        missionId === 'starship-launch' || missionId === 'starship-booster-catch';
+      const stageSepTime = Math.max(0, -primaryState.velocity.z);
       this.starshipRig.root.position.set(
         primaryState.position.x,
         primaryState.position.y,
@@ -427,19 +402,26 @@ export class ProvingGroundSceneController {
       );
       this.starshipRig.updateStarship(
         primaryThrusters,
-        missionId === 'starship-launch',
-        primaryState.elapsedTimeSec
+        isTwoStageMission,
+        primaryState.elapsedTimeSec,
+        primaryState.position.y,
+        primaryState.attitude.pitch,
+        stageSepTime
       );
 
-      const armSpread =
-        missionId === 'starship-launch'
-          ? primaryState.position.y > 2.5
+      const isSeparated = primaryThrusters.hotStageSeparated;
+      const armSpread = isTwoStageMission
+        ? !isSeparated
+          ? primaryState.position.y > 2.2
             ? 0.42
-            : 0.0
-          : Math.max(0, Math.min(0.38, (primaryState.position.y - 3.6) * 0.065));
+            : 0.08
+          : missionId === 'starship-booster-catch'
+            ? Math.max(0.0, Math.min(0.38, (primaryState.position.y - 2.4) * 0.055))
+            : 0.35
+        : Math.max(0, Math.min(0.38, (primaryState.position.y - 3.0) * 0.055));
       this.chopstickLeftMesh.rotation.y = armSpread;
       this.chopstickRightMesh.rotation.y = -armSpread;
-      this.craneHoistCable.visible = primaryState.position.y < 4.0;
+      this.craneHoistCable.visible = !isSeparated && primaryState.position.y < 3.5;
     }
 
     for (let i = 0; i < this.ghostRoadsters.length; i++) {
