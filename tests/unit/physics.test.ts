@@ -369,11 +369,41 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     expect(starshipSeaLevel.dragForceY).toBeGreaterThan(0); // Drag opposes downward belly-flop velocity
   });
 
+  it('causes Starship in low-epoch untrained mode to tilt from TVC gimbal noise, fall back under gravity, and crash', () => {
+    const untrainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 8,
+      explorationNoise: 0.65,
+    };
+    let state = createInitialStarshipState('starship-launch');
+    let hasLiftingOff = false;
+    let peakPitch = 0;
+
+    for (let i = 0; i < 240; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-launch', untrainedParams, 0);
+      state = stepStarshipPhysics(state, thrusters, 'starship-launch', untrainedParams, 0.025);
+      if (state.position.y > 1.38) {
+        hasLiftingOff = true;
+      }
+      if (Math.abs(state.attitude.pitch) > peakPitch) {
+        peakPitch = Math.abs(state.attitude.pitch);
+      }
+      if (state.crashed) {
+        break;
+      }
+    }
+
+    expect(hasLiftingOff).toBe(true);
+    expect(peakPitch).toBeGreaterThan(0.12); // Tilted significantly due to noisy gimbal!
+    expect(state.crashed).toBe(true); // Falls back down and crashes!
+  });
+
   it('enforces 100% pure Black and White monochrome colors across all UI stylesheets and React components', () => {
     const filesToAudit = [
       'src/styles.css',
       'src/App.tsx',
       'src/components/WelcomeScreen.tsx',
+      'src/components/StuntPreviewBackdrop.tsx',
       'src/components/HelpTooltip.tsx',
       'src/components/Viewport3D.tsx',
       'src/components/RLTrainingControls.tsx',

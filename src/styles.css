@@ -122,7 +122,16 @@ body,
 .sx-nav-links {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 65vw;
+}
+
+.sx-nav-links::-webkit-scrollbar {
+  display: none;
 }
 
 .sx-nav-link {
@@ -137,6 +146,7 @@ body,
   color: rgba(255, 255, 255, 0.72);
   text-transform: uppercase;
   cursor: pointer;
+  flex-shrink: 0;
   transition: color 0.18s ease, border-color 0.18s ease;
 }
 
@@ -144,6 +154,114 @@ body,
 .sx-nav-link.active {
   color: #ffffff;
   border-bottom-color: #ffffff;
+}
+
+/* In-App Decluttered Mission Switcher Pill */
+.sx-inapp-mission-selector {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sx-inapp-mission-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  padding: 5px 12px;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.sx-inapp-mission-pill:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.sx-mission-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  background: #ffffff;
+  color: #000000;
+}
+
+.sx-mission-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #e5e5e5;
+  text-transform: uppercase;
+}
+
+.sx-dropdown-icon {
+  color: rgba(255, 255, 255, 0.7);
+  transition: transform 0.2s ease;
+}
+
+.sx-dropdown-icon.open {
+  transform: rotate(180deg);
+}
+
+.sx-inapp-mission-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 270px;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  gap: 2px;
+  z-index: 50;
+}
+
+.sx-inapp-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: #d4d4d4;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sx-inapp-menu-item .badge {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: #a3a3a3;
+  letter-spacing: 0.08em;
+}
+
+.sx-inapp-menu-item .title {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sx-inapp-menu-item:hover,
+.sx-inapp-menu-item.active {
+  background: #ffffff;
+  color: #000000;
+}
+
+.sx-inapp-menu-item:hover .badge,
+.sx-inapp-menu-item.active .badge {
+  color: #000000;
 }
 
 .sx-nav-right {
@@ -296,6 +414,54 @@ body,
 .sx-hero-subtitle strong {
   color: #ffffff;
   font-weight: 700;
+}
+
+.sx-preview-policy-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+}
+
+.sx-toggle-label {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+}
+
+.sx-policy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.sx-policy-pill:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.sx-policy-pill.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 900;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.2);
 }
 
 .sx-cta-row {
