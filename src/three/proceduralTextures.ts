@@ -228,3 +228,40 @@ export function createPaddockDeckTexture(): THREE.CanvasTexture {
   }
   return new THREE.CanvasTexture(canvas);
 }
+
+/**
+ * Generates a realistic multi-lobe FBM-style soft volumetric vapor cloud texture
+ * for billowing mid-air cold-gas smoke and crash explosion plumes.
+ */
+export function createVolumetricSmokeCloudTexture(): THREE.CanvasTexture {
+  const canvas = createCanvas(256, 256);
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, 256, 256);
+    const lobes = [
+      { cx: 128, cy: 128, r: 96, alpha: 0.55 },
+      { cx: 102, cy: 112, r: 72, alpha: 0.42 },
+      { cx: 156, cy: 116, r: 68, alpha: 0.42 },
+      { cx: 116, cy: 154, r: 74, alpha: 0.4 },
+      { cx: 148, cy: 148, r: 70, alpha: 0.38 },
+      { cx: 92, cy: 138, r: 58, alpha: 0.32 },
+      { cx: 164, cy: 136, r: 56, alpha: 0.32 },
+      { cx: 128, cy: 96, r: 62, alpha: 0.35 },
+    ];
+    for (const lobe of lobes) {
+      const grad = ctx.createRadialGradient(lobe.cx, lobe.cy, 2, lobe.cx, lobe.cy, lobe.r);
+      grad.addColorStop(0.0, `rgba(255, 255, 255, ${lobe.alpha})`);
+      grad.addColorStop(0.45, `rgba(242, 242, 242, ${lobe.alpha * 0.68})`);
+      grad.addColorStop(0.78, `rgba(212, 212, 212, ${lobe.alpha * 0.25})`);
+      grad.addColorStop(1.0, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(lobe.cx, lobe.cy, lobe.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+

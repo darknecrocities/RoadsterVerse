@@ -192,7 +192,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           primaryStateRef.current.elapsedTimeSec > 13.5
         ) {
           crashCooldownRef.current += rawDt;
-          if (crashCooldownRef.current > 1.35) {
+          if (crashCooldownRef.current > 1.75) {
             crashCooldownRef.current = 0;
             onAutoResetAfterCrash();
           }
@@ -306,10 +306,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                 {isPaused
                   ? 'PAUSED'
                   : hudState.crashed
-                    ? 'CRASHED!'
-                    : hudState.isOnWall
-                      ? 'ON LOOP!'
-                      : 'FLYING'}
+                    ? 'EXPLODED!'
+                    : hudState.isOnWall || hudState.isGrounded
+                      ? 'ON RAMP / ROAD'
+                      : 'MID-AIR JETS'}
               </strong>
             </div>
           </div>

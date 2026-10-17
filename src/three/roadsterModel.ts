@@ -29,8 +29,8 @@ export interface RoadsterRig {
   };
   plumeLight: THREE.PointLight;
   setWheelSpec: (spec: WheelSpec) => void;
-  updateThrusters: (t: ThrusterActivation, timeSec: number) => void;
-  getActiveNozzleEmitters: (t: ThrusterActivation) => NozzleEmitterDescriptor[];
+  updateThrusters: (t: ThrusterActivation, timeSec: number, isAirborne?: boolean) => void;
+  getActiveNozzleEmitters: (t: ThrusterActivation, isAirborne?: boolean) => NozzleEmitterDescriptor[];
 }
 
 function createColdGasPlumeMesh(length = 2.4, radius = 0.22): THREE.Mesh {
@@ -430,21 +430,23 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     nozzles: { fl, fr, rl, rr, latLeft, latRight, rearBoost },
     plumeLight,
     setWheelSpec: buildWheels,
-    updateThrusters(t: ThrusterActivation, timeSec: number) {
+    updateThrusters(t: ThrusterActivation, timeSec: number, isAirborne = true) {
       const flicker = 0.92 + 0.14 * Math.sin(timeSec * 65);
-      updatePlume(fl, t.frontLeftLift, flicker);
-      updatePlume(fr, t.frontRightLift, flicker);
-      updatePlume(rl, t.rearLeftLift, flicker);
-      updatePlume(rr, t.rearRightLift, flicker);
-      updatePlume(latLeft, t.lateralLeft, flicker);
-      updatePlume(latRight, t.lateralRight, flicker);
-      updatePlume(rearBoost, t.rearBoost, flicker);
+      const gate = isAirborne ? 1 : 0;
+      updatePlume(fl, t.frontLeftLift * gate, flicker);
+      updatePlume(fr, t.frontRightLift * gate, flicker);
+      updatePlume(rl, t.rearLeftLift * gate, flicker);
+      updatePlume(rr, t.rearRightLift * gate, flicker);
+      updatePlume(latLeft, t.lateralLeft * gate, flicker);
+      updatePlume(latRight, t.lateralRight * gate, flicker);
+      updatePlume(rearBoost, t.rearBoost * gate, flicker);
 
       activeWing.rotation.z = 0.1 + t.activeWingAngle * 0.35;
       const avgLift = (t.frontLeftLift + t.frontRightLift + t.rearLeftLift + t.rearRightLift) / 4;
-      plumeLight.intensity = isGhost ? 0 : (avgLift * 4.5 + t.rearBoost * 2.5) * flicker;
+      plumeLight.intensity = isGhost || !isAirborne ? 0 : (avgLift * 4.5 + t.rearBoost * 2.5) * flicker;
     },
-    getActiveNozzleEmitters(t: ThrusterActivation): NozzleEmitterDescriptor[] {
+    getActiveNozzleEmitters(t: ThrusterActivation, isAirborne = true): NozzleEmitterDescriptor[] {
+      if (!isAirborne) return [];
       return [
         {
           id: 'fl',

@@ -45,12 +45,14 @@ RoadsterVerse bridges interactive 3D rigid-body physics and reinforcement learni
   - Features a full fastback glass roof canopy, cab-forward silhouette, full-width front LED lightblade, rear diffuser, deployable active rear aero wing, carbon-ceramic brake calipers, and selectable 6-spoke star wheels or carbon aero-disc covers.
   - Configured with `CAR_RIDE_HEIGHT = 0.39 m` and an internal `-0.39 m` center-of-mass offset so the front (`0.38 m` radius) and rear (`0.41 m` radius) tires sit physically flush on the Stunt Road and curved ramps with zero floating gap while rotating around the vehicle's true center of mass during mid-air 360-degree kickflips.
   - Equipped with 7 supersonic cold-gas nitrogen nozzles: 4 underbody wheel-well lift nozzles, 2 left/right side rocker lateral nozzles, and 1 rear license-plate COPV main thruster. There are zero roof-mounted smoke emitters.
+  - **Mid-Air-Only Thruster and Smoke Activation**: While driving on the flat Stunt Road or climbing the Quarter-Pipe Launch Ramp and 180-degree Half-Loop, the Roadster accelerates exclusively via its Tri-Motor Plaid Electric AWD wheel motors with zero cold-gas thruster plumes or smoke. Cold-gas thrusters and volumetric smoke trigger only when the vehicle leaves the road or ramp into mid-air.
 - **2-Stage Full-Stack SpaceX Starship & Super Heavy Booster (`src/three/starshipModel.ts`)**:
   - Modeled as two independent stage groups (`boosterGroup` and `shipGroup`) that separate dynamically during flight.
   - Uses disjoint 180-degree half-cylinders (`[0, pi]` for the windward black TPS heat-shield tiles and `[pi, 2*pi]` for the leeward mirror-brushed stainless steel hull) to prevent WebGL depth-buffer z-fighting.
   - All Super Heavy Booster meshes reside at non-negative local `y` coordinates (`0.0 m` to `+4.75 m`) above the Orbital Launch Mount (`y = 1.35 m`), preventing underground clipping at liftoff or landing.
-- **Volumetric Plume and Smoke Solver (`src/three/plumeAndSmokeFX.ts`)**:
-  - Emits physics-based pure white nitrogen smoke from active Roadster cold-gas nozzles and high-velocity thermal combustion plumes from Starship Raptor engines, complete with ground-plane deflection, radial wall-jet spreading, turbulent curl, and drag deceleration.
+- **Volumetric Smoke, Raptor Plume, and 3D Crash Explosion Solver (`src/three/plumeAndSmokeFX.ts`)**:
+  - Uses camera-facing multi-lobe FBM vapor cloud sprites (`createVolumetricSmokeCloudTexture`) to render realistic billowing white nitrogen smoke in mid-air and thermal combustion plumes from Starship Raptor engines.
+  - **3D Crash Explosion and Debris System**: Whenever the vehicle crashes or lands upside-down or sideways, the simulator detonates an expanding ground shockwave ring, a high-intensity flash light, 72+ high-velocity fireball-to-soot explosion clouds, and 16 physical flying debris shards (including 4 detached spinning wheels that bounce across the asphalt under real gravity).
 
 ### 2.3 Global Pause, Resume, and Ghost Policy Rollouts
 - **Pause and Resume**: Users can pause and resume the 60Hz physics integrator at any millisecond using the top frameless navbar button, the bottom 3D control dock, or the `Spacebar` shortcut while orbiting the 3D camera freely.

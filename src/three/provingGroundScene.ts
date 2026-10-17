@@ -374,18 +374,26 @@ export class ProvingGroundSceneController {
     this.targetMarker.position.set(targetPos.x, targetPos.y, targetPos.z);
     this.targetMarker.rotation.z = missionId === 'roadster-wall-climb' ? Math.PI / 2 : 0;
 
+    const isRoadsterMidAir =
+      !primaryState.isGrounded && !primaryState.isOnWall && !primaryState.crashed;
+
     if (isRoadster) {
       this.roadsterRig.root.position.set(
         primaryState.position.x,
-        primaryState.position.y,
+        primaryState.position.y + (primaryState.crashed ? 0.12 : 0),
         primaryState.position.z
       );
       this.roadsterRig.root.rotation.set(
-        primaryState.attitude.roll,
-        primaryState.attitude.yaw,
-        primaryState.attitude.pitch
+        primaryState.crashed ? Math.PI * 0.88 : primaryState.attitude.roll,
+        primaryState.crashed ? 0.42 : primaryState.attitude.yaw,
+        primaryState.crashed ? -0.28 : primaryState.attitude.pitch
       );
-      this.roadsterRig.updateThrusters(primaryThrusters, primaryState.elapsedTimeSec);
+      this.roadsterRig.wheelsGroup.visible = !primaryState.crashed;
+      this.roadsterRig.updateThrusters(
+        primaryThrusters,
+        primaryState.elapsedTimeSec,
+        isRoadsterMidAir
+      );
     } else {
       const isTwoStageMission =
         missionId === 'starship-launch' || missionId === 'starship-booster-catch';
@@ -447,7 +455,7 @@ export class ProvingGroundSceneController {
     }
 
     const nozzleEmitters = isRoadster
-      ? this.roadsterRig.getActiveNozzleEmitters(primaryThrusters)
+      ? this.roadsterRig.getActiveNozzleEmitters(primaryThrusters, isRoadsterMidAir)
       : [];
     this.smokeSystem.update(dt, vehicle, primaryState, primaryThrusters, nozzleEmitters);
 

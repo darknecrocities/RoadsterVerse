@@ -88,6 +88,20 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
       const tireBottomY = wheelsGroup!.position.y + wheel.position.y - tireRadius;
       expect(tireBottomY).toBeCloseTo(-0.39, 3);
     }
+
+    // Verify that on the road or ramp (isAirborne = false), ZERO nozzle emitters and ZERO thrusters fire
+    expect(roadsterRig.getActiveNozzleEmitters(fullThrusters, false)).toHaveLength(0);
+    const rampStartState = createInitialRoadsterState('roadster-barrel-roll', DEFAULT_HYPERPARAMETERS);
+    const rampEval = evaluateRLPolicy(rampStartState, 'roadster-barrel-roll', DEFAULT_HYPERPARAMETERS, 0);
+    expect(rampEval.thrusters.frontLeftLift).toBe(0);
+    expect(rampEval.thrusters.rearBoost).toBe(0);
+    expect(rampEval.thrusters.lateralLeft).toBe(0);
+
+    // Verify that when the Roadster crashes (landing upside-down or sideways), it detonates a 3D explosion burst
+    const crashedState = { ...state, crashed: true, isGrounded: true };
+    smokeSystem.update(0.025, 'roadster', crashedState, fullThrusters, []);
+    const crashStats = smokeSystem.getActiveParticleStats();
+    expect(crashStats.activeFirePlumeCount).toBeGreaterThan(50);
   });
 
   it('emits physics-based combustion fire thruster particles from Starship Raptor nozzles with thermal cooling and keeps the Super Heavy Booster above ground', () => {
