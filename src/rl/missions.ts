@@ -19,82 +19,82 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'roadster-hover': {
     id: 'roadster-hover',
     vehicle: 'roadster',
-    title: 'Stunt 01 // Supersonic Cold-Gas Hover',
-    subtitle: '4-Corner Undercarriage COPV Thrusters + Physics White Smoke Station-Keeping',
-    badge: 'TESLA ROADSTER // SPACEX PKG',
+    title: 'Stunt 01 // Flying Car Hover',
+    subtitle: 'Float in mid-air on 4 super-strong air jets without tipping over!',
+    badge: 'TESLA ROADSTER // AIR JETS',
     targetDescription:
-      'Liftoff to 3.8m altitude and hold a razor-flat hover over physics-simulated billowing white cold-gas smoke while rejecting lateral wind gusts.',
+      'Blast cold compressed air out of the bottom of the car so it floats 4 meters up in the air like a flying saucer—even when big wind gusts try to push it!',
     targetPosition: { x: 0, y: 3.8, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 260,
     mlTechniqueSummary:
-      'Proximal Policy Optimization (PPO) maps 12-state IMU telemetry (altitude error, vertical velocity, roll/pitch angles, angular rates) to 4 independent supersonic cold-gas proportional valves and 2 lateral RCS thrusters at 100 Hz.',
+      'Think of riding a bike with no hands: at first you wobble and fall, but after hundreds of practice tries, your brain knows exactly how much to lean. The AI does the same thing with 4 air jets under the wheels!',
     physicsFormulaLatex:
-      'm\\ddot{y} = \\sum_{i=1}^{4} F_{\\text{thruster},i}(P_{\\text{COPV}})\\cos\\theta\\cos\\phi - mg',
+      'RULE: Upward Air Push must equal Gravity pulling the car down!',
   },
   'roadster-wall-climb': {
     id: 'roadster-wall-climb',
     vehicle: 'roadster',
-    title: 'Stunt 02 // 90° Vertical Wall-Climb & Adhesion',
-    subtitle: 'Lateral Cold-Gas Thruster Normal-Force Pinning on Curved Concrete Mega-Ramp',
-    badge: 'WALL ADHESION STUNT',
+    title: 'Stunt 02 // Hot-Wheels Giant Half-Loop',
+    subtitle: 'Stick upside-down on a giant C-shaped loop ramp and flip off the top!',
+    badge: 'HOT-WHEELS LOOP STUNT',
     targetDescription:
-      'Drive up the curved concrete mega-ramp and fire the side/belly cold-gas thrusters outward to pin the tires onto the 90° vertical wall without sliding down.',
-    targetPosition: { x: 11.4, y: 8.5, z: 0 },
-    targetAttitude: { roll: 0, pitch: 1.52, yaw: 0 },
+      'Zoom up the giant C-shaped loop ramp, fire the air jets to glue the tires upside-down so gravity cannot pull the car down, then launch off the top lip and flip onto all 4 wheels!',
+    targetPosition: { x: 3.5, y: 12.2, z: 0 },
+    targetAttitude: { roll: 0, pitch: 2.48, yaw: 0 },
     recommendedEpochs: 340,
     mlTechniqueSummary:
-      'Constrained RL (SAC + Control Barrier Functions) learns that as ramp inclination approaches 90°, gravity no longer presses tires into the surface—the policy must fire lateral & dorsal cold-gas thrusters to synthesize artificial normal force N so tire friction mu*N > mg.',
+      'When a toy car goes slowly up a loop, gravity pulls it down and it falls! The AI learns to drive super fast AND blast air jets upward to press the tires into the loop track until it flies off the top.',
     physicsFormulaLatex:
-      'F_{\\text{friction}} = \\mu_{\\text{tire}} \\left( F_{\\text{thruster},\\perp} + \\frac{mv^2}{R_{\\text{ramp}}} \\right) \\ge mg \\sin\\theta',
+      'RULE: Speed + Air Jet Push must beat Gravity when upside-down!',
   },
   'roadster-barrel-roll': {
     id: 'roadster-barrel-roll',
     vehicle: 'roadster',
-    title: 'Stunt 03 // Stunt Road Launch & 360° Kickflip',
-    subtitle: 'Tesla Demo Stunt Track Sprint, Kicker Ramp Air Launch, 360° Kickflip & Smooth Landing',
-    badge: 'KICKFLIP STUNT POLICY',
+    title: 'Stunt 03 // Ramp Jump & 360° Kickflip',
+    subtitle: 'Launch off the curved steel ramp, spin a full 360° flip in mid-air, and land softly!',
+    badge: '360° KICKFLIP JUMP',
     targetDescription:
-      'Accelerate down the Tesla Demo Stunt Road, launch off the kicker ramp into mid-air, fire asymmetric cold-gas thrusters to execute a 360° Kickflip (coupled roll + pitch kick), and cushion the landing smoothly on all four wheels.',
-    targetPosition: { x: 5.2, y: 0.45, z: 0 },
+      'Race up the curved steel launch ramp, pop high into the sky, fire the left air jets harder than the right jets to spin a full 360° skateboard kickflip, and fire all 4 jets at the bottom for a pillow-soft landing!',
+    targetPosition: { x: 4.5, y: 0.48, z: 0 },
     targetAttitude: { roll: Math.PI * 2, pitch: 0, yaw: 0 },
     recommendedEpochs: 360,
     mlTechniqueSummary:
-      'Multi-Phase Curriculum RL trains three sequential sub-policies: (1) COPV rear boost sprint to ramp takeoff velocity, (2) asymmetric roll + pitch impulse for the 360° kickflip, and (3) D-gain angular arrest + vertical retro-cushion for a butter-smooth four-wheel landing.',
+      'Just like doing a skateboard kickflip: Step 1 is jumping high off the ramp, Step 2 is spinning fast in the air, and Step 3 is stopping the spin right before your wheels touch the ground!',
     physicsFormulaLatex:
-      'I_{xx}\\dot{\\omega}_x = \\frac{W}{2}(F_L - F_R), \\quad \\theta_{\\text{kick}}(t) = \\theta_0 \\sin\\left(\\frac{\\phi(t)}{2}\\right), \\quad v_y(t_{\\text{land}}) \\to 0',
+      'RULE: Push one side to spin 360°, then push the other side to stop level!',
   },
   'starship-launch': {
     id: 'starship-launch',
     vehicle: 'starship',
-    title: 'Mission 04 // Paddock Crane Launch & Hot-Staging',
-    subtitle: '33-Raptor Fire Thruster Liftoff from Orbital Launch Paddock & Crane Tower',
-    badge: 'SPACEX STARSHIP // IFT',
+    title: 'Mission 04 // Giant Rocket Launch',
+    subtitle: 'Blast off from the Launch Paddock Crane Tower with 33 fire engines!',
+    badge: 'SPACEX STARSHIP // LAUNCH',
     targetDescription:
-      'Release from the Orbital Launch Paddock & Crane Beam, ignite 33 Raptor fire thrusters, stabilize the 121m stack through pitch-over, and trigger hot-stage separation.',
+      'Light up 33 giant fire engines at the bottom of the rocket, clear the tall Crane Tower without bumping into it, and drop the bottom booster high in the sky!',
     targetPosition: { x: 4.5, y: 26.0, z: 0 },
     targetAttitude: { roll: 0, pitch: -0.18, yaw: 0 },
     recommendedEpochs: 300,
     mlTechniqueSummary:
-      'Neural Residual Control + Thrust Vector Control (TVC) allocates gimbal angles across the 13 center/middle Raptor fire engines while clearing the Launch Paddock Crane Tower and suppressing structural bending modes.',
+      'Have you ever tried balancing a tall broomstick upright on your palm? You have to move your hand underneath it constantly. The AI wiggles the rocket engines at the bottom to keep the giant skyscraper rocket balanced!',
     physicsFormulaLatex:
-      '\\tau_{\\text{TVC}} = -L_{\\text{com}} \\cdot T_{\\text{33-Raptor}} \\sin(\\delta_{\\text{gimbal}}) - q_{\\infty} S d (C_{N\\alpha} \\alpha)',
+      'RULE: Wiggle the fire engines underneath the rocket to keep it pointing up!',
   },
   'starship-belly-flop': {
     id: 'starship-belly-flop',
     vehicle: 'starship',
-    title: 'Mission 05 // Belly-Flop Flip & Paddock Crane Catch',
-    subtitle: '4-Flap Skydiver Control + 3-Raptor Fire Flip-and-Burn into Paddock Chopstick Beams',
-    badge: 'PROPULSIVE CATCH RL',
+    title: 'Mission 05 // Skydiver Flip & Crane Catch',
+    subtitle: 'Fall flat like a skydiver, flip upright with fire engines, and get caught by giant chopsticks!',
+    badge: 'CHOPSTICK TOWER CATCH',
     targetDescription:
-      'Descend horizontally on the textured hexagonal TPS heat shield using 4 articulated stainless-steel flaps, ignite 3 Raptor fire thrusters to execute the rapid flip maneuver, and guide into the Paddock Crane Catch Beams.',
+      'Fall through the sky belly-first using 4 wing flaps like a skydiver, light the fire engines at the last second to swing upright, and let the giant Paddock Crane Chopstick arms catch the rocket!',
     targetPosition: { x: 0, y: 1.5, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 420,
     mlTechniqueSummary:
-      'Powered Explicit Guidance (G-FOLD Convex Optimization) fused with Deep RL Policy Adaptation coordinates the transition from non-linear hypersonic flap aerodynamics (alpha ~ 90 deg) to 3-engine fire retro-propulsion into the Paddock Crane arms.',
+      'First the rocket falls flat on its belly so the air slows it down for free. Right before the ground, the AI lights the fire engines and swings the tail down so it stops right inside the giant catching arms!',
     physicsFormulaLatex:
-      '\\min_{T(t), \\delta(t)} \\int_{t_0}^{t_f} \\|T(t)\\| dt \\quad \\text{s.t.} \\quad \\mathbf{r}(t_f)=\\mathbf{0}, \\; \\mathbf{v}(t_f)=\\mathbf{0}, \\; \\theta(t_f)=0',
+      'RULE: Belly-flop to slow down, then flip upright and brake gently to zero speed!',
   },
 };
 
