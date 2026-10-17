@@ -29,7 +29,6 @@ export function computePolicyCompetence(
   const mission = MISSIONS[missionId];
   const currentEpoch = epochOverride ?? params.epochs;
 
-  // Optimal learning rate sweet spot is around 0.0003 - 0.002. Too high causes policy oscillation.
   const lrPenalty =
     params.learningRate > 0.01
       ? Math.max(0.25, 1 - (params.learningRate - 0.01) * 14)
@@ -37,10 +36,8 @@ export function computePolicyCompetence(
         ? 0.65
         : 1.0;
 
-  // Discount factor gamma < 0.90 makes the agent short-sighted
   const gammaFactor = clamp((params.discountFactor - 0.75) / 0.24, 0.35, 1.04);
 
-  // Balanced reward shaping boosts convergence
   const rewardBalance = clamp(
     (params.rewardAltitudeWeight * 0.35 +
       params.rewardAttitudeWeight * 0.4 +
@@ -52,8 +49,6 @@ export function computePolicyCompetence(
 
   const normalizedEpochs = currentEpoch / (mission.recommendedEpochs * 0.55);
   const rawGrowth = 1 - Math.exp(-normalizedEpochs * lrPenalty * gammaFactor * rewardBalance);
-
-  // High exploration noise degrades exploitation accuracy
   const noiseDamping = 1 - params.explorationNoise * 0.68;
 
   return clamp(rawGrowth * noiseDamping, 0.03, 0.995);
@@ -74,13 +69,11 @@ export function evaluateRLPolicy(
   const incompetence = 1 - competence;
   const t = state.elapsedTimeSec;
 
-  // Effective exploration wobble (combines untrained policy chaos + user epsilon slider)
   const noiseScale = clamp(incompetence * 0.85 + params.explorationNoise * 0.55, 0.0, 1.0);
   const n1 = pseudoNoise(t * 9.1 + agentSeedOffset * 17.3) * noiseScale;
   const n2 = pseudoNoise(t * 13.7 + agentSeedOffset * 31.1) * noiseScale;
   const n3 = pseudoNoise(t * 7.3 + agentSeedOffset * 47.9) * noiseScale;
 
-  // High learning rate induces chattering / overshoot oscillation
   const lrOscillation =
     params.learningRate > 0.008
       ? Math.sin(t * 18.0 + agentSeedOffset) * (params.learningRate * 12)
@@ -134,7 +127,6 @@ export function evaluateRLPolicy(
     thrusters.lateralRight = clamp(-latCmd, 0, 1);
     thrusters.activeWingAngle = clamp(0.4 + Math.abs(state.velocity.x) * 0.1, 0.2, 0.9);
   } else if (missionId === 'roadster-wall-climb') {
-    // Stunt 02: Must fire lateralRight + underbody nozzles to pin Roadster onto the 90-deg wall!
     const nearWall = state.position.x > 2.0;
     const learnedWallPinning = clamp(competence * 1.15 - Math.abs(n1) * 0.55, 0.05, 1.0);
 
@@ -142,7 +134,6 @@ export function evaluateRLPolicy(
       ? clamp(0.75 * competence + 0.15 * altError + n2 * 0.3, 0.1, 1.0)
       : clamp(0.85 * competence + 0.2, 0.3, 1.0);
 
-    // Crucial ML discovery: firing the outward side cold-gas thruster creates normal force on the vertical wall!
     thrusters.lateralRight = nearWall ? clamp(learnedWallPinning + lrOscillation * 0.3, 0, 1) : 0.15;
     thrusters.lateralLeft = nearWall && incompetence > 0.45 ? clamp(Math.abs(n2) * 0.6, 0, 1) : 0;
 
@@ -153,33 +144,53 @@ export function evaluateRLPolicy(
     thrusters.rearRightLift = wallAssistLift * 1.08;
     thrusters.activeWingAngle = nearWall ? 0.95 : 0.5;
   } else if (missionId === 'roadster-barrel-roll') {
-    // Stunt 03: Hop to 5.5m, induce 360-deg roll, then arrest angular velocity for flat touchdown
+    // Stunt 03: Stunt Road Sprint -> Kicker Ramp Launch -> 360° Kickflip -> Smooth Landing!
     const targetRoll = Math.PI * 2;
     const rollRemaining = targetRoll - state.attitude.roll;
-    const baseLift = clamp(
-      0.56 * params.gravityMultiplier + 0.22 * (4.2 - state.position.y) * competence - 0.16 * state.velocity.y,
-      0.15,
-      1.0
-    );
 
-    let desiredOmegaX = 0;
-    if (state.position.y > 2.0 && rollRemaining > 0.45) {
-      desiredOmegaX = 4.6 * competence + n1 * 2.2;
+    if (state.position.x < -1.2 && state.position.y < 1.55 && state.attitude.roll < 0.25) {
+      // Sprint & Kicker Ramp Pop phase
+      thrusters.rearBoost = clamp(0.92 * competence + 0.2, 0.3, 1.0);
+      const popLift = state.position.x > -3.8 ? clamp(0.88 * competence, 0.2, 1.0) : 0.12;
+      thrusters.frontLeftLift = popLift;
+      thrusters.frontRightLift = popLift * 0.55;
+      thrusters.rearLeftLift = popLift;
+      thrusters.rearRightLift = popLift * 0.55;
+      thrusters.activeWingAngle = 0.25;
+    } else if (!state.isGrounded) {
+      // Mid-air 360° Kickflip & Cushioned Landing Burn
+      const flipComplete = rollRemaining <= 0.35;
+      const cushionLift = !flipComplete
+        ? clamp(0.42 * competence + n1 * 0.22, 0.12, 0.78)
+        : state.velocity.y < -2.2
+          ? clamp(0.48 * competence * (-state.velocity.y - 1.6) + 0.22, 0.1, 0.85)
+          : 0.08;
+
+      const desiredOmegaX =
+        rollRemaining > 0.02
+          ? clamp(rollRemaining * 4.4 * competence + 1.85 * competence + n2 * 2.4, -2, 9.5)
+          : 0;
+
+      const rollTorqueCmd = clamp(
+        0.54 * competence * (desiredOmegaX - state.angularVelocity.x) + n2 * 0.42,
+        -0.78,
+        0.78
+      );
+      const pitchKickCmd = rollRemaining > Math.PI ? 0.18 * competence : -0.15 * competence;
+
+      thrusters.frontLeftLift = clamp(cushionLift + rollTorqueCmd + pitchKickCmd, 0, 1);
+      thrusters.rearLeftLift = clamp(cushionLift + rollTorqueCmd - pitchKickCmd, 0, 1);
+      thrusters.frontRightLift = clamp(cushionLift - rollTorqueCmd + pitchKickCmd, 0, 1);
+      thrusters.rearRightLift = clamp(cushionLift - rollTorqueCmd - pitchKickCmd, 0, 1);
+      thrusters.lateralLeft = clamp(n3 * 0.25, 0, 1);
+      thrusters.lateralRight = clamp(-n3 * 0.25, 0, 1);
+      thrusters.rearBoost = rollRemaining > 1.2 ? 0.35 * competence : 0;
+      thrusters.activeWingAngle = flipComplete ? 0.92 : 0.45;
+    } else {
+      // Smooth post-landing rollout on the Stunt Road deck
+      thrusters.activeWingAngle = 0.95;
     }
-    const rollTorqueCmd = clamp(
-      0.38 * competence * (desiredOmegaX - state.angularVelocity.x) + n2 * 0.45,
-      -0.65,
-      0.65
-    );
-
-    thrusters.frontLeftLift = clamp(baseLift + rollTorqueCmd, 0, 1);
-    thrusters.rearLeftLift = clamp(baseLift + rollTorqueCmd, 0, 1);
-    thrusters.frontRightLift = clamp(baseLift - rollTorqueCmd, 0, 1);
-    thrusters.rearRightLift = clamp(baseLift - rollTorqueCmd, 0, 1);
-    thrusters.lateralLeft = clamp(n3 * 0.3, 0, 1);
-    thrusters.lateralRight = clamp(-n3 * 0.3, 0, 1);
   } else if (missionId === 'starship-launch') {
-    // Mission 04: 33-Raptor Ascent, Pitch-Over Gravity Turn & Hot-Stage Separation
     const targetPitch = state.position.y > 6.0 ? -0.18 : 0.0;
     const pitchErr = targetPitch - state.attitude.pitch;
 
@@ -196,12 +207,10 @@ export function evaluateRLPolicy(
     );
     thrusters.hotStageSeparated = state.position.y >= 17.5;
   } else {
-    // Mission 05: Starship Belly-Flop Skydiver + Flip-and-Burn Catch
     const isFlipPhase = state.position.y < 12.5;
     const targetPitch = isFlipPhase ? 0.0 : 1.45;
     const pitchErr = targetPitch - state.attitude.pitch;
 
-    // Aero flaps control attitude during horizontal freefall
     const flapPitchCmd = clamp(0.8 * competence * pitchErr - 0.3 * state.angularVelocity.y + n1 * 0.4, -0.45, 0.45);
     thrusters.flapFrontLeft = clamp(0.5 + flapPitchCmd, 0.05, 0.95);
     thrusters.flapFrontRight = clamp(0.5 + flapPitchCmd, 0.05, 0.95);
@@ -222,7 +231,6 @@ export function evaluateRLPolicy(
     }
   }
 
-  // Compute live neural network hidden layer activations & instant shaped reward
   const inputs = [
     { label: 'ΔAlt (y)', value: Number(clamp(altError / 10, -1, 1).toFixed(2)) },
     { label: 'Vel Y (vy)', value: Number(clamp(state.velocity.y / 10, -1, 1).toFixed(2)) },
@@ -260,7 +268,7 @@ export function evaluateRLPolicy(
           { label: 'Rear COPV', value: Number(thrusters.rearBoost.toFixed(2)) },
         ]
       : [
-          { label: 'Raptor Thr', value: Number(thrusters.raptorThrottle.toFixed(2)) },
+          { label: 'Raptor Fire', value: Number(thrusters.raptorThrottle.toFixed(2)) },
           { label: 'TVC Pitch', value: Number(((thrusters.gimbalPitch + 1) / 2).toFixed(2)) },
           { label: 'Fwd Flaps', value: Number(thrusters.flapFrontLeft.toFixed(2)) },
           { label: 'Aft Flaps', value: Number(thrusters.flapAftLeft.toFixed(2)) },
@@ -293,10 +301,6 @@ export function evaluateRLPolicy(
   };
 }
 
-/**
- * Generates the learning curve across epochs [1 .. params.epochs] so the user can see
- * how their hyperparameter choices affect training convergence.
- */
 export function generateEpochLearningCurve(
   missionId: MissionId,
   params: RLHyperparameters

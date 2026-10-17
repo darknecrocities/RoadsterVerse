@@ -19,11 +19,11 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'roadster-hover': {
     id: 'roadster-hover',
     vehicle: 'roadster',
-    title: 'Stunt 01 // Supersonic Cold-Gas Night Hover',
-    subtitle: '4-Corner Undercarriage COPV Thrusters + Lateral RCS Station-Keeping',
+    title: 'Stunt 01 // Supersonic Cold-Gas Hover',
+    subtitle: '4-Corner Undercarriage COPV Thrusters + Physics White Smoke Station-Keeping',
     badge: 'TESLA ROADSTER // SPACEX PKG',
     targetDescription:
-      'Liftoff to 3.8m altitude and hold a razor-flat hover over billowing ground-effect smoke while rejecting lateral wind gusts.',
+      'Liftoff to 3.8m altitude and hold a razor-flat hover over physics-simulated billowing white cold-gas smoke while rejecting lateral wind gusts.',
     targetPosition: { x: 0, y: 3.8, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 260,
@@ -51,48 +51,48 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'roadster-barrel-roll': {
     id: 'roadster-barrel-roll',
     vehicle: 'roadster',
-    title: 'Stunt 03 // Ballistic Hop & 360° Mid-Air Barrel Roll',
-    subtitle: 'Asymmetric Cold-Gas Roll Impulse + Angular Momentum Arrest Before Touchdown',
-    badge: 'ACROBATIC RL POLICY',
+    title: 'Stunt 03 // Stunt Road Launch & 360° Kickflip',
+    subtitle: 'Tesla Demo Stunt Track Sprint, Kicker Ramp Air Launch, 360° Kickflip & Smooth Landing',
+    badge: 'KICKFLIP STUNT POLICY',
     targetDescription:
-      'Launch 6.5m into the air, fire asymmetric left/right cold-gas nozzles to execute a full 360° barrel roll, and arrest roll rate to land flat on all four wheels.',
-    targetPosition: { x: 0, y: 2.2, z: 0 },
+      'Accelerate down the Tesla Demo Stunt Road, launch off the kicker ramp into mid-air, fire asymmetric cold-gas thrusters to execute a 360° Kickflip (coupled roll + pitch kick), and cushion the landing smoothly on all four wheels.',
+    targetPosition: { x: 5.2, y: 0.45, z: 0 },
     targetAttitude: { roll: Math.PI * 2, pitch: 0, yaw: 0 },
-    recommendedEpochs: 380,
+    recommendedEpochs: 360,
     mlTechniqueSummary:
-      'Multi-Phase Curriculum RL trains two sub-policies: Phase 1 maximizes angular impulse around the longitudinal x-axis; Phase 2 triggers bang-bang counter-torque via opposite cold-gas nozzles to zero out roll velocity prior to ground contact.',
+      'Multi-Phase Curriculum RL trains three sequential sub-policies: (1) COPV rear boost sprint to ramp takeoff velocity, (2) asymmetric roll + pitch impulse for the 360° kickflip, and (3) D-gain angular arrest + vertical retro-cushion for a butter-smooth four-wheel landing.',
     physicsFormulaLatex:
-      'I_{xx}\\dot{\\omega}_x = \\frac{W_{\\text{track}}}{2}\\left(F_{\\text{FL}} + F_{\\text{RL}} - F_{\\text{FR}} - F_{\\text{RR}}\\right) - b_{\\text{damp}}\\omega_x',
+      'I_{xx}\\dot{\\omega}_x = \\frac{W}{2}(F_L - F_R), \\quad \\theta_{\\text{kick}}(t) = \\theta_0 \\sin\\left(\\frac{\\phi(t)}{2}\\right), \\quad v_y(t_{\\text{land}}) \\to 0',
   },
   'starship-launch': {
     id: 'starship-launch',
     vehicle: 'starship',
-    title: 'Mission 04 // Starship Full-Stack Ascent & Hot-Staging',
-    subtitle: '33-Raptor Super Heavy Liftoff, Gravity Turn & Vented Interstage Separation',
+    title: 'Mission 04 // Paddock Crane Launch & Hot-Staging',
+    subtitle: '33-Raptor Fire Thruster Liftoff from Orbital Launch Paddock & Crane Tower',
     badge: 'SPACEX STARSHIP // IFT',
     targetDescription:
-      'Ignite 33 Raptor engines over Starbase coastal wetlands, stabilize the 121m stack through Max-Q pitch-over, and trigger hot-stage separation.',
+      'Release from the Orbital Launch Paddock & Crane Beam, ignite 33 Raptor fire thrusters, stabilize the 121m stack through pitch-over, and trigger hot-stage separation.',
     targetPosition: { x: 4.5, y: 26.0, z: 0 },
     targetAttitude: { roll: 0, pitch: -0.18, yaw: 0 },
     recommendedEpochs: 300,
     mlTechniqueSummary:
-      'Neural Residual Control + Thrust Vector Control (TVC) allocates gimbal angles across the 13 center/middle Raptor engines while suppressing structural bending modes and aerodynamic center-of-pressure instability.',
+      'Neural Residual Control + Thrust Vector Control (TVC) allocates gimbal angles across the 13 center/middle Raptor fire engines while clearing the Launch Paddock Crane Tower and suppressing structural bending modes.',
     physicsFormulaLatex:
       '\\tau_{\\text{TVC}} = -L_{\\text{com}} \\cdot T_{\\text{33-Raptor}} \\sin(\\delta_{\\text{gimbal}}) - q_{\\infty} S d (C_{N\\alpha} \\alpha)',
   },
   'starship-belly-flop': {
     id: 'starship-belly-flop',
     vehicle: 'starship',
-    title: 'Mission 05 // Starship Belly-Flop Flip & Catch Burn',
-    subtitle: '4-Flap Skydiver Aero Control + 3-Raptor High-G Flip-and-Burn Touchdown',
-    badge: 'PROPULSIVE LANDING RL',
+    title: 'Mission 05 // Belly-Flop Flip & Paddock Crane Catch',
+    subtitle: '4-Flap Skydiver Control + 3-Raptor Fire Flip-and-Burn into Paddock Chopstick Beams',
+    badge: 'PROPULSIVE CATCH RL',
     targetDescription:
-      'Descend horizontally on the hexagonal TPS heat shield using 4 articulated stainless-steel flaps, then ignite 3 Raptors to execute the rapid flip maneuver to a soft vertical landing.',
+      'Descend horizontally on the textured hexagonal TPS heat shield using 4 articulated stainless-steel flaps, ignite 3 Raptor fire thrusters to execute the rapid flip maneuver, and guide into the Paddock Crane Catch Beams.',
     targetPosition: { x: 0, y: 1.5, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 420,
     mlTechniqueSummary:
-      'Powered Explicit Guidance (G-FOLD Convex Optimization) fused with Deep RL Policy Adaptation coordinates the transition from non-linear hypersonic flap aerodynamics (alpha ~ 90 deg) to 3-engine TVC retro-propulsion.',
+      'Powered Explicit Guidance (G-FOLD Convex Optimization) fused with Deep RL Policy Adaptation coordinates the transition from non-linear hypersonic flap aerodynamics (alpha ~ 90 deg) to 3-engine fire retro-propulsion into the Paddock Crane arms.',
     physicsFormulaLatex:
       '\\min_{T(t), \\delta(t)} \\int_{t_0}^{t_f} \\|T(t)\\| dt \\quad \\text{s.t.} \\quad \\mathbf{r}(t_f)=\\mathbf{0}, \\; \\mathbf{v}(t_f)=\\mathbf{0}, \\; \\theta(t_f)=0',
   },

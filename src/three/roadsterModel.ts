@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 import type { ThrusterActivation, WheelSpec } from '../types/simulation.ts';
+import {
+  createCanvas,
+  createCarbonWeaveTexture,
+  createRoadsterSatinPanelTexture,
+  createTireTreadTexture,
+} from './proceduralTextures.ts';
+
+export interface NozzleEmitterDescriptor {
+  id: string;
+  localOffset: THREE.Vector3;
+  localDirection: THREE.Vector3;
+  intensity: number;
+}
 
 export interface RoadsterRig {
   root: THREE.Group;
@@ -15,29 +28,27 @@ export interface RoadsterRig {
     rearBoost: THREE.Mesh;
   };
   plumeLight: THREE.PointLight;
-  tailLightGlow: THREE.PointLight;
   setWheelSpec: (spec: WheelSpec) => void;
   updateThrusters: (t: ThrusterActivation, timeSec: number) => void;
+  getActiveNozzleEmitters: (t: ThrusterActivation) => NozzleEmitterDescriptor[];
 }
 
 function createColdGasPlumeMesh(length = 2.4, radius = 0.22): THREE.Mesh {
   const geo = new THREE.ConeGeometry(radius, length, 20, 1, true);
-  // Shift cone so its apex is at the nozzle origin and it extends downward (-Y)
   geo.translate(0, -length / 2, 0);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 256;
+  const canvas = createCanvas(64, 256);
   const ctx = canvas.getContext('2d');
   if (ctx) {
+    // Pure monochrome white/silver Mach shock-diamond cold-gas jet
     const grad = ctx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0.0, 'rgba(255, 255, 255, 0.98)');
-    grad.addColorStop(0.18, 'rgba(165, 243, 252, 0.92)');
-    grad.addColorStop(0.35, 'rgba(56, 189, 248, 0.45)');
-    grad.addColorStop(0.5, 'rgba(224, 242, 254, 0.88)'); // Mach shock diamond 1
-    grad.addColorStop(0.68, 'rgba(56, 189, 248, 0.35)');
-    grad.addColorStop(0.82, 'rgba(186, 230, 253, 0.65)'); // Mach shock diamond 2
-    grad.addColorStop(1.0, 'rgba(14, 165, 233, 0.0)');
+    grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.2, 'rgba(245, 245, 245, 0.92)');
+    grad.addColorStop(0.38, 'rgba(180, 180, 180, 0.42)');
+    grad.addColorStop(0.52, 'rgba(255, 255, 255, 0.88)'); // Shock diamond 1
+    grad.addColorStop(0.7, 'rgba(160, 160, 160, 0.35)');
+    grad.addColorStop(0.84, 'rgba(240, 240, 240, 0.68)'); // Shock diamond 2
+    grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 64, 256);
   }
@@ -45,7 +56,7 @@ function createColdGasPlumeMesh(length = 2.4, radius = 0.22): THREE.Mesh {
   const mat = new THREE.MeshBasicMaterial({
     map: tex,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.92,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -59,94 +70,97 @@ function createColdGasPlumeMesh(length = 2.4, radius = 0.22): THREE.Mesh {
 export function createRoadsterModel(isGhost = false): RoadsterRig {
   const root = new THREE.Group();
 
+  const satinTex = isGhost ? undefined : createRoadsterSatinPanelTexture();
+  const carbonTex = isGhost ? undefined : createCarbonWeaveTexture();
+  const tireTex = isGhost ? undefined : createTireTreadTexture();
+
   const bodyMat = isGhost
     ? new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
+        color: 0xffffff,
         wireframe: true,
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.24,
       })
     : new THREE.MeshPhysicalMaterial({
-        color: 0xf8fafc,
-        metalness: 0.18,
-        roughness: 0.22,
+        color: 0xffffff,
+        map: satinTex,
+        bumpMap: satinTex,
+        bumpScale: 0.008,
+        metalness: 0.22,
+        roughness: 0.2,
         clearcoat: 0.95,
-        clearcoatRoughness: 0.12,
+        clearcoatRoughness: 0.1,
       });
 
   const carbonMat = new THREE.MeshStandardMaterial({
-    color: 0x111827,
-    metalness: 0.45,
-    roughness: 0.4,
+    color: 0x1a1a1a,
+    map: carbonTex,
+    bumpMap: carbonTex,
+    bumpScale: 0.015,
+    metalness: 0.48,
+    roughness: 0.36,
     transparent: isGhost,
     opacity: isGhost ? 0.2 : 1,
   });
 
   const glassMat = new THREE.MeshPhysicalMaterial({
-    color: 0x090d16,
-    metalness: 0.85,
-    roughness: 0.08,
+    color: 0x0a0a0a,
+    metalness: 0.9,
+    roughness: 0.06,
     transparent: true,
     opacity: isGhost ? 0.18 : 0.92,
   });
 
-  // 1. Cyber-Wedge Sculpted Roadster Hull (matching Image 1 profile)
+  // 1. Textured Cyber-Wedge Sculpted Roadster Hull
   const hullShape = new THREE.Shape();
   hullShape.moveTo(-2.15, 0.08);
-  hullShape.lineTo(2.1, 0.05);     // Lower splitter line
-  hullShape.lineTo(2.28, 0.34);    // Sharp wedge nose tip
-  hullShape.lineTo(1.25, 0.62);    // Front hood slope
-  hullShape.lineTo(0.15, 0.98);    // Windshield peak
-  hullShape.lineTo(-1.15, 0.88);   // Fastback roofline
-  hullShape.lineTo(-2.18, 0.64);   // Rear decklid
-  hullShape.lineTo(-2.24, 0.22);   // Rear diffuser overhang
+  hullShape.lineTo(2.1, 0.05);
+  hullShape.lineTo(2.28, 0.34);
+  hullShape.lineTo(1.25, 0.62);
+  hullShape.lineTo(0.15, 0.98);
+  hullShape.lineTo(-1.15, 0.88);
+  hullShape.lineTo(-2.18, 0.64);
+  hullShape.lineTo(-2.24, 0.22);
   hullShape.closePath();
 
-  const extrudeSettings: THREE.ExtrudeGeometryOptions = {
+  const hullGeo = new THREE.ExtrudeGeometry(hullShape, {
     steps: 1,
     depth: 1.86,
     bevelEnabled: true,
     bevelThickness: 0.09,
     bevelSize: 0.07,
     bevelSegments: 3,
-  };
-  const hullGeo = new THREE.ExtrudeGeometry(hullShape, extrudeSettings);
+  });
   hullGeo.translate(0, 0, -0.93);
   const hullMesh = new THREE.Mesh(hullGeo, bodyMat);
   hullMesh.castShadow = !isGhost;
   root.add(hullMesh);
 
   // 2. Panoramic Dark Glass Canopy
-  const canopyGeo = new THREE.BoxGeometry(2.15, 0.34, 1.48);
-  const canopyMesh = new THREE.Mesh(canopyGeo, glassMat);
+  const canopyMesh = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.34, 1.48), glassMat);
   canopyMesh.position.set(-0.12, 0.78, 0);
   canopyMesh.rotation.z = -0.06;
   root.add(canopyMesh);
 
-  // 3. Carbon Fiber Lower Side Skirts, Front Splitter & Side Fender Intakes (Image 1)
-  const skirtGeo = new THREE.BoxGeometry(4.42, 0.14, 1.98);
-  const skirtMesh = new THREE.Mesh(skirtGeo, carbonMat);
+  // 3. Textured Carbon-Fiber Lower Skirts, Splitter & Side Intakes
+  const skirtMesh = new THREE.Mesh(new THREE.BoxGeometry(4.42, 0.14, 1.98), carbonMat);
   skirtMesh.position.set(0.02, 0.09, 0);
   root.add(skirtMesh);
 
-  const intakeGeo = new THREE.BoxGeometry(0.18, 0.36, 2.01);
-  const intakeMesh = new THREE.Mesh(intakeGeo, carbonMat);
+  const intakeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.36, 2.01), carbonMat);
   intakeMesh.position.set(0.68, 0.32, 0);
   intakeMesh.rotation.z = -0.18;
   root.add(intakeMesh);
 
-  // 4. Razor-Thin Continuous Front LED Light Bar & Rear Red Light Strip (Images 1, 2, 3)
-  const frontLedMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe });
-  const frontLed = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 1.88), frontLedMat);
+  // 4. Monochrome White Front & Rear Continuous LED Light Bars
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const frontLed = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 1.88), ledMat);
   frontLed.position.set(2.26, 0.34, 0);
-  root.add(frontLed);
-
-  const rearLedMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
-  const rearLed = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 1.86), rearLedMat);
+  const rearLed = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.055, 1.86), ledMat);
   rearLed.position.set(-2.23, 0.56, 0);
-  root.add(rearLed);
+  root.add(frontLed, rearLed);
 
-  // 5. Deployed Active Rear Aerodynamic Wing on Dual Pylons (Image 1)
+  // 5. Deployed Active Rear Aerodynamic Wing on Dual Carbon Pylons
   const activeWing = new THREE.Group();
   activeWing.position.set(-2.05, 0.72, 0);
   const wingBlade = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.04, 1.84), bodyMat);
@@ -159,7 +173,7 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
   activeWing.add(wingBlade, pylonL, pylonR);
   root.add(activeWing);
 
-  // 6. Switchable Wheel Assemblies (6-Spoke Track Spec from Image 1 vs Aero-Disc from Image 2)
+  // 6. Textured Wheel Assemblies (6-Spoke Track Rims vs Carbon Aero-Disc Covers)
   const wheelsGroup = new THREE.Group();
   root.add(wheelsGroup);
 
@@ -170,11 +184,12 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     { x: -1.35, y: 0.32, z: -0.96 },
   ];
 
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.75 });
-  const discMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
-    metalness: 0.7,
-    roughness: 0.25,
+  const tireMat = new THREE.MeshStandardMaterial({
+    color: 0x171717,
+    map: tireTex,
+    bumpMap: tireTex,
+    bumpScale: 0.02,
+    roughness: 0.78,
   });
 
   function buildWheels(spec: WheelSpec): void {
@@ -190,7 +205,7 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
       wGroup.add(tire);
 
       if (spec === 'aero-disc') {
-        const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.27, 24), discMat);
+        const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.27, 24), carbonMat);
         disc.rotation.x = Math.PI / 2;
         wGroup.add(disc);
       } else {
@@ -208,38 +223,34 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
   }
   buildWheels('six-spoke');
 
-  // 7. Cold-Gas COPV Supersonic Thruster Plumes (4 Vertical + 2 Lateral RCS + 1 Rear Boost)
+  // 7. Seven Individual Cold-Gas Thruster Nozzles & White Shock-Diamond Cones
   const fl = createColdGasPlumeMesh(2.5, 0.21);
-  fl.position.set(0.92, 0.12, 0.78);
+  fl.position.set(0.95, 0.12, 0.78);
   const fr = createColdGasPlumeMesh(2.5, 0.21);
-  fr.position.set(0.92, 0.12, -0.78);
+  fr.position.set(0.95, 0.12, -0.78);
   const rl = createColdGasPlumeMesh(2.5, 0.21);
-  rl.position.set(-0.92, 0.12, 0.78);
+  rl.position.set(-0.95, 0.12, 0.78);
   const rr = createColdGasPlumeMesh(2.5, 0.21);
-  rr.position.set(-0.92, 0.12, -0.78);
+  rr.position.set(-0.95, 0.12, -0.78);
 
-  // Lateral thrusters (Image 3 shows long horizontal cold-gas jet shooting sideways!)
   const latLeft = createColdGasPlumeMesh(3.1, 0.22);
-  latLeft.position.set(1.55, 0.36, 1.02);
+  latLeft.position.set(1.45, 0.36, 1.02);
   latLeft.rotation.x = -Math.PI / 2;
 
   const latRight = createColdGasPlumeMesh(3.4, 0.24);
-  latRight.position.set(0.4, 0.38, -1.02);
+  latRight.position.set(0.35, 0.38, -1.02);
   latRight.rotation.x = Math.PI / 2;
-  latRight.rotation.z = -Math.PI / 2; // Fires outward from car roof/side when pinning against wall
+  latRight.rotation.z = -Math.PI / 2;
 
-  const rearBoost = createColdGasPlumeMesh(3.2, 0.28);
+  const rearBoost = createColdGasPlumeMesh(3.3, 0.28);
   rearBoost.position.set(-2.25, 0.35, 0);
   rearBoost.rotation.z = -Math.PI / 2;
 
   root.add(fl, fr, rl, rr, latLeft, latRight, rearBoost);
 
-  // Lights that illuminate the ground-effect smoke in cyan & red/pink (Images 2 & 3)
-  const plumeLight = new THREE.PointLight(0x38bdf8, 0, 12);
+  const plumeLight = new THREE.PointLight(0xffffff, 0, 14);
   plumeLight.position.set(0, -0.6, 0);
-  const tailLightGlow = new THREE.PointLight(0xff2a55, isGhost ? 0 : 2.5, 9);
-  tailLightGlow.position.set(-2.1, -0.2, 0);
-  root.add(plumeLight, tailLightGlow);
+  root.add(plumeLight);
 
   return {
     root,
@@ -247,7 +258,6 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     wheelsGroup,
     nozzles: { fl, fr, rl, rr, latLeft, latRight, rearBoost },
     plumeLight,
-    tailLightGlow,
     setWheelSpec: buildWheels,
     updateThrusters(t: ThrusterActivation, timeSec: number) {
       if (isGhost) return;
@@ -272,7 +282,53 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
       activeWing.rotation.z = 0.1 + t.activeWingAngle * 0.42;
       const avgLift =
         (t.frontLeftLift + t.frontRightLift + t.rearLeftLift + t.rearRightLift + t.lateralRight) / 5;
-      plumeLight.intensity = avgLift * 8.5 * flicker;
+      plumeLight.intensity = avgLift * 9.0 * flicker;
+    },
+    getActiveNozzleEmitters(t: ThrusterActivation): NozzleEmitterDescriptor[] {
+      return [
+        {
+          id: 'fl',
+          localOffset: new THREE.Vector3(0.95, 0.05, 0.78),
+          localDirection: new THREE.Vector3(0, -1, 0.08),
+          intensity: t.frontLeftLift,
+        },
+        {
+          id: 'fr',
+          localOffset: new THREE.Vector3(0.95, 0.05, -0.78),
+          localDirection: new THREE.Vector3(0, -1, -0.08),
+          intensity: t.frontRightLift,
+        },
+        {
+          id: 'rl',
+          localOffset: new THREE.Vector3(-0.95, 0.05, 0.78),
+          localDirection: new THREE.Vector3(0, -1, 0.08),
+          intensity: t.rearLeftLift,
+        },
+        {
+          id: 'rr',
+          localOffset: new THREE.Vector3(-0.95, 0.05, -0.78),
+          localDirection: new THREE.Vector3(0, -1, -0.08),
+          intensity: t.rearRightLift,
+        },
+        {
+          id: 'latLeft',
+          localOffset: new THREE.Vector3(1.45, 0.36, 1.05),
+          localDirection: new THREE.Vector3(-0.2, 0, 1),
+          intensity: t.lateralLeft,
+        },
+        {
+          id: 'latRight',
+          localOffset: new THREE.Vector3(0.35, 0.38, -1.05),
+          localDirection: new THREE.Vector3(-0.4, 0.1, -1),
+          intensity: t.lateralRight,
+        },
+        {
+          id: 'rearBoost',
+          localOffset: new THREE.Vector3(-2.3, 0.35, 0),
+          localDirection: new THREE.Vector3(-1, -0.08, 0),
+          intensity: t.rearBoost,
+        },
+      ];
     },
   };
 }
