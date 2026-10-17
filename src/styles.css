@@ -297,10 +297,48 @@ body,
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-.sx-upcoming-btn:hover {
+.sx-upcoming-btn:hover,
+.sx-upcoming-btn.active,
+.sx-upcoming-btn.sx-sound-toggle-btn.active {
   background: #ffffff;
   color: #000000;
   border-color: #ffffff;
+}
+
+.sx-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.sx-action-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.sx-action-btn.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+.sx-action-btn.primary {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
 }
 
 .sx-dropdown-backdrop {

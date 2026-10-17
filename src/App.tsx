@@ -8,6 +8,8 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import type {
   MissionId,
@@ -26,6 +28,7 @@ import {
   fetchCheckpoints,
   saveCheckpointApi,
 } from './services/apiClient.ts';
+import { soundEngine } from './services/soundEngine.ts';
 import { Viewport3D } from './components/Viewport3D.tsx';
 import { RLTrainingControls } from './components/RLTrainingControls.tsx';
 import { NeuralTelemetryHUD } from './components/NeuralTelemetryHUD.tsx';
@@ -60,6 +63,15 @@ export const App: React.FC = () => {
   const [selectedBrainNode, setSelectedBrainNode] = useState<SelectedBrainNode | undefined>(
     undefined
   );
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(() => soundEngine.isEnabled());
+
+  useEffect(() => {
+    return soundEngine.subscribe(setAudioEnabled);
+  }, []);
+
+  const handleToggleAudio = useCallback(() => {
+    soundEngine.toggle();
+  }, []);
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -247,6 +259,8 @@ export const App: React.FC = () => {
     return (
       <WelcomeScreen
         selectedMissionId={missionId}
+        audioEnabled={audioEnabled}
+        onToggleAudio={handleToggleAudio}
         onSelectMissionAndEnter={(mId) => {
           handleSelectMission(mId);
           setShowWelcome(false);
@@ -316,6 +330,16 @@ export const App: React.FC = () => {
 
         {/* Right Rectangular SpaceX Action Controls */}
         <div className="sx-nav-right">
+          <button
+            type="button"
+            className={`sx-action-btn ${audioEnabled ? 'active' : ''}`}
+            onClick={handleToggleAudio}
+            title={audioEnabled ? 'Mute Simulation Sound' : 'Turn On Simulation Sound'}
+          >
+            {audioEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+            <span>{audioEnabled ? 'SOUND ON' : 'MUTED'}</span>
+          </button>
+
           <button
             type="button"
             className={`sx-action-btn ${isPaused ? 'active' : ''}`}

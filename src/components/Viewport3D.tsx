@@ -30,7 +30,7 @@ import {
 } from '../physics/starshipPhysics.ts';
 import { evaluateRLPolicy } from '../rl/policyEngine.ts';
 import { ProvingGroundSceneController } from '../three/provingGroundScene.ts';
-import { ProceduralSoundEngine } from '../services/soundEngine.ts';
+import { soundEngine } from '../services/soundEngine.ts';
 import { AnimatedDecodeText, AnimatedNumber } from './AnimatedText.tsx';
 import { HelpTooltip } from './HelpTooltip.tsx';
 
@@ -62,11 +62,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<ProvingGroundSceneController | null>(null);
-  const soundEngineRef = useRef<ProceduralSoundEngine>(new ProceduralSoundEngine());
+  const wasCrashedRef = useRef(false);
 
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [wheelSpec, setWheelSpec] = useState<WheelSpec>('six-spoke');
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(() => soundEngine.isEnabled());
   const [shutterTransition, setShutterTransition] = useState(false);
   const [statusMinimized, setStatusMinimized] = useState(false);
   const [hudState, setHudState] = useState<RigidBodyState>(() =>
@@ -100,6 +100,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   }, [mission.id]);
 
   useEffect(() => {
+    return soundEngine.subscribe(setAudioEnabled);
+  }, []);
+
+  useEffect(() => {
     const p = paramsRef.current;
     const m = missionRef.current;
     primaryStateRef.current =
@@ -107,6 +111,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         ? createInitialRoadsterState(m.id, p)
         : createInitialStarshipState(m.id);
     crashCooldownRef.current = 0;
+    wasCrashedRef.current = false;
   }, [mission.id, resetSignal]);
 
   useEffect(() => {
@@ -165,7 +170,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             windImpulseRef.current
           );
         }
-        soundEngineRef.current.update(activeMission.vehicle, thrusters);
+        soundEngine.update(activeMission.vehicle, thrusters, primaryStateRef.current);
+        if (primaryStateRef.current.crashed && !wasCrashedRef.current) {
+          soundEngine.triggerCrash(activeMission.vehicle);
+        }
+        wasCrashedRef.current = primaryStateRef.current.crashed;
 
         const maxMissionTime =
           activeMission.id === 'roadster-obstacle-race' ? 18.0 : 13.5;
@@ -229,8 +238,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   };
 
   const handleToggleAudio = () => {
-    const next = soundEngineRef.current.toggle();
-    setAudioEnabled(next);
+    soundEngine.toggle();
   };
 
   return (

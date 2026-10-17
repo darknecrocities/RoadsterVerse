@@ -15,6 +15,7 @@ import {
   stepStarshipPhysics,
 } from '../physics/starshipPhysics.ts';
 import { ProvingGroundSceneController } from '../three/provingGroundScene.ts';
+import { soundEngine } from '../services/soundEngine.ts';
 
 interface LandingStunt3DPreviewProps {
   missionId: MissionId;
@@ -29,6 +30,7 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
   const controllerRef = useRef<ProvingGroundSceneController | null>(null);
   const stateRef = useRef<RigidBodyState | null>(null);
   const cooldownRef = useRef(0);
+  const wasCrashedRef = useRef(false);
 
   const missionRef = useRef(missionId);
   missionRef.current = missionId;
@@ -83,6 +85,7 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
       stateRef.current = createInitialStarshipState(mId);
     }
     cooldownRef.current = 0;
+    wasCrashedRef.current = false;
   };
 
   useEffect(() => {
@@ -145,6 +148,13 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
         m.targetPosition,
         dt
       );
+
+      // Synchronize vehicle audio & crash sounds
+      soundEngine.update(m.vehicle, thrusters, curState);
+      if (curState.crashed && !wasCrashedRef.current) {
+        soundEngine.triggerCrash(m.vehicle);
+      }
+      wasCrashedRef.current = curState.crashed;
 
       // Reset cycle condition for continuous dynamic stunt playback
       const maxDurationSec =
