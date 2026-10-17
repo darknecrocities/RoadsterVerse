@@ -83,10 +83,15 @@ body,
   top: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  height: 52px;
+  padding: 8px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(5, 5, 5, 0.94) 0%, rgba(5, 5, 5, 0.78) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
   z-index: 40;
 }
 
@@ -950,8 +955,8 @@ body,
    ============================================================================ */
 .floating-drawer {
   position: fixed;
-  top: 60px;
-  max-height: calc(100vh - 122px);
+  top: 68px;
+  max-height: calc(100vh - 138px);
   width: 292px;
   z-index: 25;
   background: var(--bg-glass-drawer);
@@ -975,7 +980,7 @@ body,
 
 .floating-Collapsed-pill {
   position: fixed;
-  top: 64px;
+  top: 68px;
   z-index: 25;
   display: inline-flex;
   align-items: center;
@@ -1359,7 +1364,7 @@ body,
 
 .stunt-status-float {
   position: fixed;
-  top: 60px;
+  top: 68px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -1876,4 +1881,358 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+   8. MOBILE WORKSTATION GATE FALLBACK (STRICT MONOCHROME)
+   ============================================================================ */
+.mobile-gate-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  font-family: var(--font-sans);
+  color: #ffffff;
+}
+
+.mobile-gate-container {
+  max-width: 580px;
+  width: 100%;
+  background: #080808;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+}
+
+.mobile-gate-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-gate-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-gate-brand .brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 8px #ffffff;
+}
+
+.mobile-gate-brand .brand-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: #d0d0d0;
+}
+
+.mobile-gate-tag {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.mobile-gate-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+  position: relative;
+}
+
+.mobile-gate-icon-frame {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.mobile-gate-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.mobile-gate-headline {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  margin: 0;
+}
+
+.mobile-gate-subtext {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #d0d0d0;
+  margin: 0;
+}
+
+.mobile-gate-subtext-muted {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #888888;
+  margin: 0;
+}
+
+.mobile-gate-specs-card {
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.specs-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.specs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .specs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.spec-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+}
+
+.spec-label {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  color: #777777;
+}
+
+.spec-val {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.mobile-gate-cli-box {
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-mono);
+}
+
+.cli-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: #888888;
+}
+
+.cli-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cli-body code {
+  font-size: 0.65rem;
+  color: #bbbbbb;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.mobile-gate-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.mobile-gate-copy-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.mobile-gate-copy-btn:hover {
+  background: #e0e0e0;
+  transform: translateY(-1px);
+}
+
+.mobile-gate-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: #666666;
+  text-align: center;
+}
+
+/* ============================================================================
+   9. LANDING STUNT 3D PREVIEW (PHYSICS-POWERED 60FPS)
+   ============================================================================ */
+.landing-stunt-3d-root {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+  background: #030303;
+}
+
+.landing-stunt-3d-viewport {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.landing-stunt-3d-viewport canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.landing-stunt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.72) 100%),
+              linear-gradient(180deg, rgba(0, 0, 0, 0.65) 0%, transparent 22%, transparent 72%, rgba(0, 0, 0, 0.88) 100%);
+  z-index: 1;
+}
+
+.landing-stunt-telemetry-pill {
+  position: absolute;
+  bottom: 24px;
+  right: 28px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(10, 10, 10, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.landing-stunt-telemetry-pill .pill-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 8px #ffffff;
+}
+
+.landing-stunt-telemetry-pill .pill-status-dot[data-crashed="true"] {
+  background: #888888;
+  box-shadow: 0 0 8px #888888;
+  animation: pulse-crash 0.8s infinite alternate;
+}
+
+@keyframes pulse-crash {
+  0% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.landing-stunt-telemetry-pill .pill-mono-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.landing-stunt-telemetry-pill .pill-metric {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: #888888;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  padding-left: 10px;
+}
+
+@media (max-width: 768px) {
+  .landing-stunt-telemetry-pill {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+    justify-content: center;
+  }
+}
+
 

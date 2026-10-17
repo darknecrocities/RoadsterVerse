@@ -11,7 +11,7 @@ export const DEFAULT_HYPERPARAMETERS: RLHyperparameters = {
   rewardSmoothnessWeight: 1.3,
   gravityMultiplier: 1.0,
   initialCopvPsi: 10000,
-  ghostSwarmCount: 4,
+  ghostSwarmCount: 0,
   simulationSpeed: 1,
 };
 

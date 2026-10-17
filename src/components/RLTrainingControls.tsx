@@ -204,21 +204,6 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                 </div>
                 <input type="range" min={0.8} max={0.999} step={0.005} value={params.discountFactor} onChange={(e) => onChangeParams({ discountFactor: Number(e.target.value) })} className="bw-slider" />
               </div>
-
-              <div className="control-item-bw">
-                <div className="control-label-bw">
-                  <span>
-                    Ghost Practice Cars
-                    <HelpTooltip
-                      title="Ghost Practice Cars"
-                      explain="Shows see-through ghost copies of the vehicle practicing slightly different moves at the exact same time!"
-                      tip="Set to 0 to see only the main car, or up to 8 for a swarm."
-                    />
-                  </span>
-                  <strong>{params.ghostSwarmCount}</strong>
-                </div>
-                <input type="range" min={0} max={8} step={1} value={params.ghostSwarmCount} onChange={(e) => onChangeParams({ ghostSwarmCount: Number(e.target.value) })} className="bw-slider" />
-              </div>
             </div>
           )}
         </div>
