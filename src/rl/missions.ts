@@ -120,7 +120,7 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
     badge: 'MECHAZILLA BOOSTER CATCH',
     targetDescription:
       'Launch the full 2-stage rocket downrange, release the top Starship into orbit, flip the giant Super Heavy Booster in mid-air to fly back to the tower, and hover-land slowly inside the giant Chopstick arms!',
-    targetPosition: { x: 0, y: 1.5, z: 0 },
+    targetPosition: { x: 0, y: 2.6, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
     recommendedEpochs: 380,
     mlTechniqueSummary:

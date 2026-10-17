@@ -11,6 +11,8 @@ export interface StarbasePadAndCraneRig {
   group: THREE.Group;
   chopstickLeftMesh: THREE.Mesh;
   chopstickRightMesh: THREE.Mesh;
+  chopstickLeftPivot: THREE.Group;
+  chopstickRightPivot: THREE.Group;
   craneBoomPivot: THREE.Group;
   craneHoistCable: THREE.Mesh;
   qdArmPivot: THREE.Group;
@@ -310,26 +312,59 @@ export function buildArticulatedStarbasePadAndCrane(): StarbasePadAndCraneRig {
   craneBoomPivot.add(craneMainBeam, craneLedStrip, mastApex, tieCable, craneHoistCable);
   towerGroup.add(craneBoomPivot);
 
-  // 6. Articulated Mechazilla Chopstick Catch Arms flanking the rocket hull (z = +/-0.92m)
-  const chopstickLeftMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(3.6, 0.28, 0.24),
-    brightSteelMat
-  );
-  chopstickLeftMesh.position.set(1.85, 5.6, 0.92);
-  const chopstickRightMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(3.6, 0.28, 0.24),
-    brightSteelMat
-  );
-  chopstickRightMesh.position.set(1.85, 5.6, -0.92);
-  towerGroup.add(chopstickLeftMesh, chopstickRightMesh);
+  // 6. Articulated Mechazilla Chopstick Catch Arms & Crane Hands at world height y = 6.6m
+  const carriageGroup = new THREE.Group();
+  carriageGroup.position.set(0.68, 6.6, 0);
+
+  const carriageCollar = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.4, 1.7), steelMat);
+  carriageCollar.position.set(-0.16, 0, 0);
+  carriageGroup.add(carriageCollar);
+
+  const chopstickLeftPivot = new THREE.Group();
+  chopstickLeftPivot.position.set(0, 0, 0.74);
+  const chopstickRightPivot = new THREE.Group();
+  chopstickRightPivot.position.set(0, 0, -0.74);
+
+  function createCraneArm(zSign: number) {
+    const armGroup = new THREE.Group();
+
+    // Main longitudinal steel box boom extending from tower face towards x = 0
+    const boomMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.16), brightSteelMat);
+    boomMesh.position.set(1.7, 0, 0);
+
+    // Inner catch rail shelf positioned directly under the booster catch pins
+    const catchRail = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.18), steelMat);
+    catchRail.position.set(2.1, 0.08, -zSign * 0.12);
+
+    // Forward claw hook / crane hand end-stop to retain the booster pin
+    const clawHook = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.18), brightSteelMat);
+    clawHook.position.set(2.45, 0.18, -zSign * 0.12);
+
+    // High-contrast alignment marker LED strip along the crane hand
+    const handLed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.04, 0.04), whiteLedMat);
+    handLed.position.set(2.1, 0.16, -zSign * 0.2);
+
+    armGroup.add(boomMesh, catchRail, clawHook, handLed);
+    return { boomMesh, armGroup };
+  }
+
+  const leftArm = createCraneArm(1);
+  const rightArm = createCraneArm(-1);
+
+  chopstickLeftPivot.add(leftArm.armGroup);
+  chopstickRightPivot.add(rightArm.armGroup);
+  carriageGroup.add(chopstickLeftPivot, chopstickRightPivot);
+  towerGroup.add(carriageGroup);
 
   group.add(towerGroup);
   group.visible = false;
 
   return {
     group,
-    chopstickLeftMesh,
-    chopstickRightMesh,
+    chopstickLeftMesh: leftArm.boomMesh,
+    chopstickRightMesh: rightArm.boomMesh,
+    chopstickLeftPivot,
+    chopstickRightPivot,
     craneBoomPivot,
     craneHoistCable,
     qdArmPivot,
@@ -338,7 +373,7 @@ export function buildArticulatedStarbasePadAndCrane(): StarbasePadAndCraneRig {
 
 /**
  * Animates the Starbase Launch Crane Slew, Winch Cable Retraction, QD Umbilical Arm Swing,
- * and Chopstick Catch Arms during Starship launch-off and landing.
+ * and Chopstick Catch Arms during Starship launch-off and mid-air catch landing.
  */
 export function updateStarbasePadAndCraneAnimation(
   rig: StarbasePadAndCraneRig,
@@ -365,17 +400,17 @@ export function updateStarbasePadAndCraneAnimation(
   // 2. Quick-Disconnect (QD) Umbilical Arm swings back away from rocket hull on liftoff
   rig.qdArmPivot.rotation.y = -launchProgress * 0.72;
 
-  // 3. Chopstick Catch Arms open wide for launch clearance, then close to catch Booster/Starship
+  // 3. Articulated Chopstick Crane Arms & Hands open wide for launch, then clamp to catch in mid-air
   const armSpread = isTwoStageMission
     ? !isSeparated
       ? heightAbovePad > 0.4
-        ? 0.44
+        ? 0.38
         : 0.08
       : missionId === 'starship-booster-catch'
-        ? Math.max(0.0, Math.min(0.38, (primaryState.position.y - 2.4) * 0.055))
-        : 0.36
-    : Math.max(0, Math.min(0.38, (primaryState.position.y - 3.0) * 0.055));
+        ? Math.max(0.0, Math.min(0.32, (primaryState.position.y - 2.6) * 0.065))
+        : 0.32
+    : Math.max(0.0, Math.min(0.32, (primaryState.position.y - 3.0) * 0.065));
 
-  rig.chopstickLeftMesh.rotation.y = armSpread;
-  rig.chopstickRightMesh.rotation.y = -armSpread;
+  rig.chopstickLeftPivot.rotation.y = armSpread;
+  rig.chopstickRightPivot.rotation.y = -armSpread;
 }

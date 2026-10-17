@@ -245,6 +245,28 @@ export function createStarshipModel(isGhost = false): StarshipRig {
     boosterGroup.add(boosterChine);
   }
 
+  // Dual Stainless Steel Hardpoint Catch Pins / Lifting Lugs at local y = 4.0m (world y = 6.6m at catch)
+  for (const zSign of [-1, 1]) {
+    const pinGroup = new THREE.Group();
+    pinGroup.position.set(0, 4.0, zSign * shipRadius);
+
+    const pinCylinder = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 0.22, 16),
+      chromeRingMat
+    );
+    pinCylinder.rotation.x = Math.PI / 2;
+    pinCylinder.position.set(0, 0, zSign * 0.11);
+
+    const pinGusset = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.18, 0.08),
+      stainlessMat
+    );
+    pinGusset.position.set(0, -0.09, zSign * 0.04);
+
+    pinGroup.add(pinCylinder, pinGusset);
+    boosterGroup.add(pinGroup);
+  }
+
   // 4 Deployable Titanium Waffle Grid Fins
   const gridFinGeo = new THREE.BoxGeometry(0.48, 0.075, 0.4);
   for (let i = 0; i < 4; i++) {
@@ -283,6 +305,8 @@ export function createStarshipModel(isGhost = false): StarshipRig {
   shipGroup.position.set(0, 4.75, 0);
 
   const plumeLight = new THREE.PointLight(0xf97316, 0, 26);
+  let boosterBurnFade = 0;
+  let lastUpdateTimeSec = 0;
   plumeLight.position.set(0, -1.5, 0);
   if (!isGhost) {
     root.add(plumeLight);
@@ -339,12 +363,21 @@ export function createStarshipModel(isGhost = false): StarshipRig {
           }
         }
 
-        // Booster 33-Raptor Ascent / Landing Retro-Burn Plume
-        if (isGhost || t.raptorThrottle <= 0.02) {
+        // Booster 33-Raptor Ascent / Landing Retro-Burn Plume with realistic combustion cutoff fade-off
+        const deltaSec = lastUpdateTimeSec > 0 ? Math.max(0.001, Math.min(0.06, timeSec - lastUpdateTimeSec)) : 0.025;
+        lastUpdateTimeSec = timeSec;
+
+        if (t.raptorThrottle > 0.02) {
+          boosterBurnFade = Math.min(1.0, t.raptorThrottle);
+        } else {
+          boosterBurnFade = Math.max(0, boosterBurnFade - deltaSec * 1.15);
+        }
+
+        if (isGhost || (t.raptorThrottle <= 0.02 && boosterBurnFade <= 0.02)) {
           (boosterPlume.material as THREE.MeshBasicMaterial).opacity = 0;
           boosterPlume.visible = false;
           plumeLight.intensity = t.hotStageSeparated && !isGhost ? 3.2 * flicker : 0;
-        } else {
+        } else if (t.raptorThrottle > 0.02) {
           boosterPlume.visible = true;
           (boosterPlume.material as THREE.MeshBasicMaterial).opacity = Math.min(
             0.98,
@@ -359,6 +392,18 @@ export function createStarshipModel(isGhost = false): StarshipRig {
           boosterPlume.rotation.x = t.gimbalYaw * 0.28;
           plumeLight.position.y = -0.2;
           plumeLight.intensity = t.raptorThrottle * 7.5 * flicker;
+        } else {
+          // Flame fading away during engine cutoff (residual combustion dying out into nozzle throat)
+          boosterPlume.visible = true;
+          const fadeCurve = Math.pow(boosterBurnFade, 1.4);
+          (boosterPlume.material as THREE.MeshBasicMaterial).opacity = Math.min(0.95, fadeCurve * flicker);
+          boosterPlume.scale.set(
+            0.45 + boosterBurnFade * 0.45,
+            (0.18 + boosterBurnFade * 0.65) * flicker,
+            0.45 + boosterBurnFade * 0.45
+          );
+          plumeLight.position.y = -0.2;
+          plumeLight.intensity = boosterBurnFade * 5.2 * flicker;
         }
       } else {
         // Mission 05: Starship Belly-Flop Skydiver & Slow Vertical Flip-and-Burn Landing

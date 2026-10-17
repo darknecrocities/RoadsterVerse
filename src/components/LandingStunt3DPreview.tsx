@@ -155,14 +155,23 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
             : 10.0;
       const reachedObstacleFinish =
         mId === 'roadster-obstacle-race' && curState.position.x >= 1000.0;
+      const isBoosterCaught =
+        mId === 'starship-booster-catch' && curState.isGrounded && !curState.crashed;
 
       if (
         curState.crashed ||
         curState.elapsedTimeSec > maxDurationSec ||
-        reachedObstacleFinish
+        reachedObstacleFinish ||
+        isBoosterCaught
       ) {
         cooldownRef.current += dt;
-        const waitTime = curState.crashed ? 1.4 : reachedObstacleFinish ? 2.5 : 0.8;
+        const waitTime = curState.crashed
+          ? 1.4
+          : isBoosterCaught
+            ? 3.2
+            : reachedObstacleFinish
+              ? 2.5
+              : 0.8;
         if (cooldownRef.current > waitTime) {
           resetSimulation();
         }

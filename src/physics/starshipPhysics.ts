@@ -209,7 +209,7 @@ export function stepStarshipPhysics(
     next.position.x += next.velocity.x * dt;
     next.position.y += next.velocity.y * dt;
 
-    const targetLandingY = missionId === 'starship-booster-catch' ? 1.5 : 1.35;
+    const targetLandingY = missionId === 'starship-booster-catch' ? 2.6 : 1.35;
     if (next.position.y <= targetLandingY) {
       const impactSpeed = Math.abs(next.velocity.y);
       const pitchErr = Math.abs(next.attitude.pitch);
