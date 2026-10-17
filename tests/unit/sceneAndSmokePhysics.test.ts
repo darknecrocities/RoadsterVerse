@@ -261,8 +261,8 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     expect(starbaseHandles.craneBoomPivot.rotation.y).toBeGreaterThan(preLaunchCraneYaw + 0.5);
     expect(starbaseHandles.qdArmPivot.rotation.y).toBeLessThan(preLaunchQdYaw - 0.5);
     expect(starbaseHandles.craneHoistCable.scale.y).toBeLessThan(0.5);
-    expect(starbaseHandles.chopstickLeftMesh.rotation.y).toBeGreaterThan(0.2);
-    expect(starbaseHandles.chopstickRightMesh.rotation.y).toBeLessThan(-0.2);
+    expect(starbaseHandles.chopstickLeftPivot.rotation.y).toBeGreaterThan(0.2);
+    expect(starbaseHandles.chopstickRightPivot.rotation.y).toBeLessThan(-0.2);
   });
 
   it('validates all Knowledge Articles and Trivia Deck entries have complete engineering formulas and explanations', () => {

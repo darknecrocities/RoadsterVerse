@@ -329,9 +329,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                     ? 'EXPLODED!'
                     : hudState.position.x >= 995.0 && mission.id === 'roadster-obstacle-race'
                       ? '10KM CLEARED!'
-                      : hudState.isOnWall || hudState.isGrounded
-                        ? 'ON RAMP / ROAD'
-                        : 'MID-AIR JETS'}
+                      : mission.id === 'starship-booster-catch' && hudState.isGrounded
+                        ? 'BOOSTER CAUGHT IN MID-AIR!'
+                        : hudState.isOnWall || hudState.isGrounded
+                          ? 'ON RAMP / ROAD'
+                          : 'MID-AIR JETS'}
               </strong>
             </div>
           </div>

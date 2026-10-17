@@ -242,7 +242,7 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     expect(didSeparate).toBe(true);
     expect(maxDownrangeX).toBeGreaterThan(0.5); // Flew downrange before boostback flip!
     expect(state.isGrounded).toBe(true);
-    expect(state.position.y).toBeCloseTo(1.5, 2);
+    expect(state.position.y).toBeCloseTo(2.6, 2);
     expect(Math.abs(state.position.x)).toBeLessThan(1.5); // Returned to Chopstick tower!
     expect(state.crashed).toBe(false);
   });

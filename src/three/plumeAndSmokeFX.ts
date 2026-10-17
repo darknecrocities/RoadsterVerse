@@ -46,6 +46,7 @@ export class VolumetricPlumeSmokeSystem {
   private spawnAccumulator = 0;
   private wasCrashed = false;
   private shockwaveAge = 999;
+  private engineVaporTimer = 0;
 
   constructor(poolSize = 260) {
     const cloudTexture = createVolumetricSmokeCloudTexture();
@@ -239,10 +240,7 @@ export class VolumetricPlumeSmokeSystem {
       this.wasCrashed = false;
       this.shockwaveRing.visible = false;
       this.explosionLight.intensity = 0;
-      for (const s of this.debrisShards) {
-        s.mesh.visible = false;
-        s.age = 999;
-      }
+      for (const s of this.debrisShards) { s.mesh.visible = false; s.age = 999; }
     }
 
     this.spawnAccumulator += dt;
@@ -268,12 +266,7 @@ export class VolumetricPlumeSmokeSystem {
         }
       } else if (vehicle === 'roadster') {
         // Roadster cold-gas smoke ONLY triggers when nozzles are active in mid-air!
-        const euler = new THREE.Euler(
-          state.attitude.roll,
-          state.attitude.yaw,
-          state.attitude.pitch,
-          'XYZ'
-        );
+        const euler = new THREE.Euler(state.attitude.roll, state.attitude.yaw, state.attitude.pitch, 'XYZ');
 
         for (const nozzle of roadsterNozzles) {
           if (nozzle.intensity <= 0.05) continue;
@@ -318,27 +311,16 @@ export class VolumetricPlumeSmokeSystem {
         }
       } else if (thrusters.raptorThrottle > 0.06) {
         // Starship Physics-Based Fire Thruster Plume
+        this.engineVaporTimer = 1.8;
         const isFullStack = !thrusters.hotStageSeparated && state.position.y < 17.5;
         const engineBellOffsetY = isFullStack ? 0.0 : -0.1;
-        const euler = new THREE.Euler(
-          state.attitude.roll,
-          state.attitude.yaw,
-          state.attitude.pitch,
-          'XYZ'
-        );
+        const euler = new THREE.Euler(state.attitude.roll, state.attitude.yaw, state.attitude.pitch, 'XYZ');
         const nozzleWorld = new THREE.Vector3(0, engineBellOffsetY, 0).applyEuler(euler);
         nozzleWorld.x += state.position.x;
         nozzleWorld.y += state.position.y;
         nozzleWorld.z += state.position.z;
 
-        const jetDir = new THREE.Vector3(
-          Math.sin(thrusters.gimbalPitch * 0.25),
-          -1,
-          Math.sin(thrusters.gimbalYaw * 0.25)
-        )
-          .applyEuler(euler)
-          .normalize();
-
+        const jetDir = new THREE.Vector3(Math.sin(thrusters.gimbalPitch * 0.25), -1, Math.sin(thrusters.gimbalYaw * 0.25)).applyEuler(euler).normalize();
         const fireJetSpeed = 14.0 + thrusters.raptorThrottle * 16.0;
 
         for (let k = 0; k < 4; k++) {
@@ -353,6 +335,30 @@ export class VolumetricPlumeSmokeSystem {
             0.7 + Math.random() * 0.4,
             'fire-plume',
             3.5
+          );
+        }
+      } else if (this.engineVaporTimer > 0) {
+        // Lingering cooling vapor and heat smoke wafting after Raptor cutoff
+        this.engineVaporTimer -= dt;
+        const euler = new THREE.Euler(state.attitude.roll, state.attitude.yaw, state.attitude.pitch, 'XYZ');
+        const nozzleWorld = new THREE.Vector3(0, -0.1, 0).applyEuler(euler);
+        nozzleWorld.x += state.position.x;
+        nozzleWorld.y += state.position.y;
+        nozzleWorld.z += state.position.z;
+        const vaporScale = Math.min(1.0, this.engineVaporTimer / 1.8);
+
+        for (let k = 0; k < 2; k++) {
+          this.spawnParticle(
+            nozzleWorld.x + (Math.random() - 0.5) * 0.5,
+            Math.max(0.2, nozzleWorld.y),
+            nozzleWorld.z + (Math.random() - 0.5) * 0.5,
+            (Math.random() - 0.5) * 1.2,
+            0.75 + Math.random() * 1.4,
+            (Math.random() - 0.5) * 1.2,
+            0.52 + vaporScale * 0.42,
+            1.2 + Math.random() * 0.6,
+            'white-smoke',
+            3.0
           );
         }
       }

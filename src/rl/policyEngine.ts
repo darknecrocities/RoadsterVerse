@@ -303,7 +303,7 @@ export function evaluateRLPolicy(
       thrusters.hotStageSeparated = false;
     } else {
       thrusters.hotStageSeparated = true;
-      const targetY = isCatchStunt ? 1.5 : 1.35;
+      const targetY = isCatchStunt ? 2.6 : 1.35;
       const heightAbovePad = Math.max(0, state.position.y - targetY);
 
       const desiredVx = clamp(-state.position.x * 0.85 * lookAheadFactor, -3.6, 3.6);
