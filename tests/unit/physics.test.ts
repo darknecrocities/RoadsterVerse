@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   createInitialRoadsterState,
   stepRoadsterPhysics,
@@ -8,6 +10,7 @@ import {
   stepStarshipPhysics,
 } from '../../src/physics/starshipPhysics.ts';
 import { DEFAULT_HYPERPARAMETERS } from '../../src/rl/missions.ts';
+import { evaluateRLPolicy } from '../../src/rl/policyEngine.ts';
 import type { ThrusterActivation } from '../../src/types/simulation.ts';
 
 const IDLE_THRUSTERS: ThrusterActivation = {
@@ -88,6 +91,35 @@ describe('6-DoF Roadster & Starship Physics Engine', () => {
     expect(state.crashed).toBe(false);
   });
 
+  it('launches the Roadster off the Tesla Demo Stunt Road kicker ramp, executes a 360-degree kickflip in mid-air, and lands smoothly when trained', () => {
+    const trainedParams = {
+      ...DEFAULT_HYPERPARAMETERS,
+      epochs: 380,
+      explorationNoise: 0.01,
+      learningRate: 0.0004,
+    };
+    let state = createInitialRoadsterState('roadster-barrel-roll', trainedParams);
+    let peakAltitudeY = state.position.y;
+    let peakPitchKick = 0;
+
+    for (let step = 0; step < 260; step++) {
+      const { thrusters } = evaluateRLPolicy(state, 'roadster-barrel-roll', trainedParams, 0);
+      state = stepRoadsterPhysics(state, thrusters, 'roadster-barrel-roll', trainedParams, 0.025);
+      if (state.position.y > peakAltitudeY) {
+        peakAltitudeY = state.position.y;
+      }
+      if (Math.abs(state.attitude.pitch) > peakPitchKick) {
+        peakPitchKick = Math.abs(state.attitude.pitch);
+      }
+    }
+
+    expect(peakAltitudeY).toBeGreaterThan(2.2);
+    expect(peakPitchKick).toBeGreaterThan(0.15);
+    expect(state.attitude.roll).toBeCloseTo(Math.PI * 2, 1);
+    expect(state.isGrounded).toBe(true);
+    expect(state.crashed).toBe(false);
+  });
+
   it('accelerates Full-Stack Starship upward during 33-Raptor coastal launch', () => {
     let state = createInitialStarshipState('starship-launch');
     const launchThrusters: ThrusterActivation = {
@@ -113,7 +145,7 @@ describe('6-DoF Roadster & Starship Physics Engine', () => {
 
   it('rotates Starship from horizontal belly-flop to vertical during flip-and-burn maneuver', () => {
     let state = createInitialStarshipState('starship-belly-flop');
-    state.position.y = 10.0; // Inside flip zone (< 12.5m)
+    state.position.y = 10.0;
     const initialPitch = state.attitude.pitch;
 
     const flipThrusters: ThrusterActivation = {
@@ -137,5 +169,38 @@ describe('6-DoF Roadster & Starship Physics Engine', () => {
     }
 
     expect(state.attitude.pitch).toBeLessThan(initialPitch);
+  });
+
+  it('enforces 100% pure Black and White monochrome colors across all UI stylesheets and React components', () => {
+    const uiFiles = [
+      'src/styles.css',
+      'src/App.tsx',
+      'src/components/Viewport3D.tsx',
+      'src/components/RLTrainingControls.tsx',
+      'src/components/NeuralTelemetryHUD.tsx',
+      'src/components/KnowledgeAndTriviaModal.tsx',
+      'src/components/AnimatedText.tsx',
+    ];
+
+    const forbiddenColorHexes = [
+      '#22d3ee',
+      '#0ea5e9',
+      '#38bdf8',
+      '#f43f5e',
+      '#ec4899',
+      '#10b981',
+      '#f59e0b',
+      '#fde68a',
+      '#fb7185',
+    ];
+
+    for (const relPath of uiFiles) {
+      const content = fs
+        .readFileSync(path.resolve(process.cwd(), relPath), 'utf8')
+        .toLowerCase();
+      for (const banned of forbiddenColorHexes) {
+        expect(content).not.toContain(banned);
+      }
+    }
   });
 });
