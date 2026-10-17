@@ -1,419 +1,485 @@
 import React, { useState } from 'react';
 import {
+  ChevronDown,
+  ChevronRight,
+  Minimize2,
   Play,
-  Pause,
-  Zap,
-  Sliders,
-  Award,
+  RotateCcw,
   Save,
-  FolderOpen,
-  Gauge,
+  Sliders,
+  Sparkles,
 } from 'lucide-react';
 import type {
   MissionDefinition,
   RLHyperparameters,
   SavedCheckpoint,
 } from '../types/simulation.ts';
-import { AnimatedNumber } from './AnimatedText.tsx';
+import { HelpTooltip } from './HelpTooltip.tsx';
 
 interface RLTrainingControlsProps {
   mission: MissionDefinition;
-  hyperparams: RLHyperparameters;
-  isAutoTraining: boolean;
-  checkpoints: SavedCheckpoint[];
+  params: RLHyperparameters;
   stabilityScore: number;
-  meanReward: number;
-  onChangeHyperparams: (next: RLHyperparameters) => void;
+  isAutoTraining: boolean;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onChangeParams: (next: Partial<RLHyperparameters>) => void;
   onToggleAutoTrain: () => void;
-  onSaveCheckpoint: (name: string) => Promise<void>;
-  onLoadCheckpoint: (checkpoint: SavedCheckpoint) => void;
+  onApplyPreset: (preset: 'untrained' | 'mid' | 'converged') => void;
+  checkpoints: SavedCheckpoint[];
+  onSaveCheckpoint: (name: string) => void;
+  onLoadCheckpoint: (ckpt: SavedCheckpoint) => void;
 }
+
+type AccordionSection = 'practice' | 'brain' | 'goals' | 'world' | 'save';
 
 export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
   mission,
-  hyperparams,
-  isAutoTraining,
-  checkpoints,
+  params,
   stabilityScore,
-  meanReward,
-  onChangeHyperparams,
+  isAutoTraining,
+  collapsed,
+  onToggleCollapse,
+  onChangeParams,
   onToggleAutoTrain,
+  onApplyPreset,
+  checkpoints,
   onSaveCheckpoint,
   onLoadCheckpoint,
 }) => {
   const [checkpointName, setCheckpointName] = useState('');
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<AccordionSection>('practice');
 
-  const updateField = <K extends keyof RLHyperparameters>(
-    key: K,
-    value: RLHyperparameters[K]
-  ) => {
-    onChangeHyperparams({
-      ...hyperparams,
-      [key]: value,
-    });
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="floating-Collapsed-pill left"
+        onClick={onToggleCollapse}
+        title="Open AI Controls"
+      >
+        <Sliders size={15} />
+        <span>AI CONTROLS (TRY #{params.epochs})</span>
+      </button>
+    );
+  }
+
+  const toggleSection = (sec: AccordionSection) => {
+    setOpenSection((prev) => (prev === sec ? 'practice' : sec));
   };
 
-  const handleSaveSubmit = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = checkpointName.trim();
-    if (trimmed.length < 2) {
-      setSaveStatus('Enter at least 2 characters for checkpoint name.');
-      return;
-    }
-    try {
-      setSaveStatus('Saving policy checkpoint...');
-      await onSaveCheckpoint(trimmed);
-      setCheckpointName('');
-      setSaveStatus('Saved to SQLite!');
-      setTimeout(() => setSaveStatus(null), 2500);
-    } catch (err) {
-      setSaveStatus(err instanceof Error ? err.message : 'Save failed');
-    }
+    const label =
+      checkpointName.trim() || `${mission.id.toUpperCase()} // Try ${params.epochs}`;
+    onSaveCheckpoint(label);
+    setCheckpointName('');
   };
+
+  const skillBadge =
+    stabilityScore >= 82
+      ? 'STUNT PRO'
+      : stabilityScore >= 45
+        ? 'LEARNING'
+        : 'CLUMSY BABY';
 
   return (
-    <aside className="panel-card" aria-label="No-Code Reinforcement Learning Hyperparameter Controls">
-      <div className="panel-title">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Zap size={15} />
-          RL Policy &amp; Epoch Trainer
-        </span>
-        <span style={{ fontSize: '0.72rem', color: '#ffffff', fontFamily: 'monospace' }}>
-          <AnimatedNumber value={stabilityScore} decimals={0} suffix="% Converged" />
-        </span>
-      </div>
-
-      {/* Primary Epoch Training Scrubber & Auto-Train Button */}
-      <div
-        style={{
-          background: '#080808',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: '0.45rem',
-          padding: '0.75rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.55rem',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '0.68rem', color: '#9e9e9e', textTransform: 'uppercase' }}>
-              Training Progress
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff' }}>
-              Epoch <AnimatedNumber value={hyperparams.epochs} />{' '}
-              <span style={{ fontSize: '0.75rem', color: '#9e9e9e', fontWeight: 600 }}>
-                / 500
-              </span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onToggleAutoTrain}
-            className="action-btn primary"
-          >
-            {isAutoTraining ? <Pause size={14} /> : <Play size={14} />}
-            {isAutoTraining ? 'Pause Training' : 'Live Train Epochs'}
-          </button>
+    <aside className="floating-drawer left-drawer">
+      <div className="drawer-header">
+        <div className="drawer-title-group">
+          <Sliders size={15} />
+          <span>AI STUNT CONTROLS</span>
+          <span className="status-badge-bw">{skillBadge}</span>
         </div>
-
-        <input
-          type="range"
-          min={1}
-          max={500}
-          step={1}
-          value={hyperparams.epochs}
-          aria-label="Training Epochs"
-          onChange={(e) => updateField('epochs', Number(e.target.value))}
-        />
-
-        {/* Quick-Jump Epoch Stage Presets */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem' }}>
-          <button
-            type="button"
-            className="action-btn"
-            style={{ fontSize: '0.68rem', justifyContent: 'center', padding: '0.3rem' }}
-            onClick={() =>
-              onChangeHyperparams({
-                ...hyperparams,
-                epochs: 8,
-                explorationNoise: 0.75,
-              })
-            }
-          >
-            Ep 8: Chaos
-          </button>
-          <button
-            type="button"
-            className="action-btn"
-            style={{ fontSize: '0.68rem', justifyContent: 'center', padding: '0.3rem' }}
-            onClick={() =>
-              onChangeHyperparams({
-                ...hyperparams,
-                epochs: 75,
-                explorationNoise: 0.22,
-              })
-            }
-          >
-            Ep 75: Learning
-          </button>
-          <button
-            type="button"
-            className="action-btn"
-            style={{ fontSize: '0.68rem', justifyContent: 'center', padding: '0.3rem' }}
-            onClick={() =>
-              onChangeHyperparams({
-                ...hyperparams,
-                epochs: mission.recommendedEpochs,
-                explorationNoise: 0.03,
-                learningRate: 0.0004,
-              })
-            }
-          >
-            Ep {mission.recommendedEpochs}: Pro
-          </button>
-        </div>
-      </div>
-
-      {/* Hyperparameter Sliders */}
-      <div className="panel-title" style={{ marginTop: '0.15rem' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Sliders size={14} />
-          PPO / SAC Hyperparameters
-        </span>
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Learning Rate (α — Step Size)</span>
-          <span className="slider-val">{hyperparams.learningRate.toFixed(4)}</span>
-        </div>
-        <input
-          type="range"
-          min={0.0001}
-          max={0.025}
-          step={0.0001}
-          value={hyperparams.learningRate}
-          aria-label="Learning Rate Alpha"
-          onChange={(e) => updateField('learningRate', Number(e.target.value))}
-        />
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Exploration Noise (ε — Valve Entropy)</span>
-          <span className="slider-val">{Math.round(hyperparams.explorationNoise * 100)}%</span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={0.95}
-          step={0.01}
-          value={hyperparams.explorationNoise}
-          aria-label="Exploration Noise Epsilon"
-          onChange={(e) => updateField('explorationNoise', Number(e.target.value))}
-        />
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Discount Factor (γ — Horizon Foresight)</span>
-          <span className="slider-val">{hyperparams.discountFactor.toFixed(3)}</span>
-        </div>
-        <input
-          type="range"
-          min={0.8}
-          max={0.999}
-          step={0.001}
-          value={hyperparams.discountFactor}
-          aria-label="Discount Factor Gamma"
-          onChange={(e) => updateField('discountFactor', Number(e.target.value))}
-        />
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Parallel Ghost Swarm Agents</span>
-          <span className="slider-val">{hyperparams.ghostSwarmCount} Vehicles</span>
-        </div>
-        <input
-          type="range"
-          min={1}
-          max={8}
-          step={1}
-          value={hyperparams.ghostSwarmCount}
-          aria-label="Parallel Ghost Swarm Count"
-          onChange={(e) => updateField('ghostSwarmCount', Number(e.target.value))}
-        />
-      </div>
-
-      {/* Reward Function Shaping */}
-      <div className="panel-title" style={{ marginTop: '0.15rem' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Award size={14} />
-          Reward Function Shaper
-        </span>
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Target Altitude / Wall-Pin Weight</span>
-          <span className="slider-val">{hyperparams.rewardAltitudeWeight.toFixed(1)}x</span>
-        </div>
-        <input
-          type="range"
-          min={0.2}
-          max={3.5}
-          step={0.1}
-          value={hyperparams.rewardAltitudeWeight}
-          aria-label="Reward Altitude Weight"
-          onChange={(e) => updateField('rewardAltitudeWeight', Number(e.target.value))}
-        />
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Attitude &amp; Kickflip Stability Bonus</span>
-          <span className="slider-val">{hyperparams.rewardAttitudeWeight.toFixed(1)}x</span>
-        </div>
-        <input
-          type="range"
-          min={0.2}
-          max={3.5}
-          step={0.1}
-          value={hyperparams.rewardAttitudeWeight}
-          aria-label="Reward Attitude Weight"
-          onChange={(e) => updateField('rewardAttitudeWeight', Number(e.target.value))}
-        />
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Valve Smoothness (Anti-Chatter)</span>
-          <span className="slider-val">{hyperparams.rewardSmoothnessWeight.toFixed(1)}x</span>
-        </div>
-        <input
-          type="range"
-          min={0.0}
-          max={3.0}
-          step={0.1}
-          value={hyperparams.rewardSmoothnessWeight}
-          aria-label="Reward Smoothness Weight"
-          onChange={(e) => updateField('rewardSmoothnessWeight', Number(e.target.value))}
-        />
-      </div>
-
-      {/* Physics Environment Sliders */}
-      <div className="panel-title" style={{ marginTop: '0.15rem' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Gauge size={14} />
-          Physics &amp; COPV Blowdown
-        </span>
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Gravity Environment</span>
-          <span className="slider-val">
-            {hyperparams.gravityMultiplier.toFixed(2)} G (
-            {hyperparams.gravityMultiplier < 0.25
-              ? 'Moon'
-              : hyperparams.gravityMultiplier < 0.5
-                ? 'Mars'
-                : hyperparams.gravityMultiplier <= 1.05
-                  ? 'Earth'
-                  : 'Hyper-G'}
-            )
-          </span>
-        </div>
-        <input
-          type="range"
-          min={0.16}
-          max={1.6}
-          step={0.02}
-          value={hyperparams.gravityMultiplier}
-          aria-label="Gravity Multiplier"
-          onChange={(e) => updateField('gravityMultiplier', Number(e.target.value))}
-        />
-      </div>
-
-      <div className="slider-group">
-        <div className="slider-header">
-          <span>Initial COPV Tank Pressure</span>
-          <span className="slider-val">{hyperparams.initialCopvPsi} PSI</span>
-        </div>
-        <input
-          type="range"
-          min={4000}
-          max={10000}
-          step={250}
-          value={hyperparams.initialCopvPsi}
-          aria-label="Initial COPV Tank Pressure PSI"
-          onChange={(e) => updateField('initialCopvPsi', Number(e.target.value))}
-        />
-      </div>
-
-      {/* Save / Load Policy Checkpoints (SQLite Backend) */}
-      <form onSubmit={handleSaveSubmit} style={{ display: 'flex', gap: '0.35rem', marginTop: '0.2rem' }}>
-        <input
-          type="text"
-          value={checkpointName}
-          onChange={(e) => setCheckpointName(e.target.value)}
-          placeholder="Save policy checkpoint..."
-          maxLength={60}
-          style={{
-            flex: 1,
-            background: '#080808',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-            borderRadius: '0.35rem',
-            padding: '0.38rem 0.6rem',
-            color: '#ffffff',
-            fontSize: '0.75rem',
-          }}
-        />
-        <button type="submit" className="action-btn primary" title="Save Policy Checkpoint to SQLite">
-          <Save size={14} />
-          Save
+        <button
+          type="button"
+          className="icon-min-btn"
+          onClick={onToggleCollapse}
+          title="Minimize Controls"
+        >
+          <Minimize2 size={14} />
         </button>
-      </form>
-      {saveStatus && (
-        <div style={{ fontSize: '0.7rem', color: '#ffffff' }}>
-          {saveStatus} (Mean R: {meanReward.toFixed(0)})
-        </div>
-      )}
+      </div>
 
-      {checkpoints.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-          <div style={{ fontSize: '0.68rem', color: '#9e9e9e', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <FolderOpen size={12} /> Saved SQLite Policy Checkpoints:
-          </div>
-          <div style={{ maxHeight: '105px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {checkpoints.slice(0, 5).map((chk) => (
-              <button
-                key={chk.id}
-                type="button"
-                onClick={() => onLoadCheckpoint(chk)}
-                className="action-btn"
-                style={{
-                  justifyContent: 'space-between',
-                  fontSize: '0.7rem',
-                  padding: '0.32rem 0.55rem',
-                  textAlign: 'left',
-                }}
-              >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {chk.name}
-                </span>
-                <span style={{ color: '#ffffff', fontFamily: 'monospace', marginLeft: '0.4rem' }}>
-                  Ep {chk.epochs}
-                </span>
-              </button>
-            ))}
-          </div>
+      <div className="drawer-body">
+        {/* SECTION 1: AI PRACTICE RUNS */}
+        <div className="accordion-box">
+          <button
+            type="button"
+            className="accordion-header active"
+            onClick={() => toggleSection('practice')}
+          >
+            <span>1. Practice Runs (AI Skill)</span>
+            {openSection === 'practice' ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+
+          {openSection === 'practice' && (
+            <div className="accordion-content">
+              <div className="epoch-top-row">
+                <div>
+                  <div className="simple-label">
+                    Practice Try #{params.epochs}
+                    <HelpTooltip
+                      title="Practice Runs (Epochs)"
+                      explain="How many times the AI has practiced this stunt! At Try #10, it acts like a clumsy baby and crashes. At Try #350+, it's a master stunt driver!"
+                      tip="Drag left to watch it fail, or right to watch it master the stunt."
+                    />
+                  </div>
+                  <div className="epoch-big-num">
+                    {params.epochs} <small>/ 500 tries</small>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className={`train-btn-bw ${isAutoTraining ? 'active' : ''}`}
+                  onClick={onToggleAutoTrain}
+                >
+                  {isAutoTraining ? <RotateCcw size={14} /> : <Play size={14} />}
+                  <span>{isAutoTraining ? 'Stop Practice' : 'Auto-Practice'}</span>
+                </button>
+              </div>
+
+              <input
+                type="range"
+                min={0}
+                max={500}
+                step={1}
+                value={params.epochs}
+                onChange={(e) => onChangeParams({ epochs: Number(e.target.value) })}
+                className="bw-slider"
+              />
+
+              <div className="preset-row-bw">
+                <button
+                  type="button"
+                  className="preset-btn-bw"
+                  onClick={() => onApplyPreset('untrained')}
+                >
+                  Baby (Try 8)
+                </button>
+                <button
+                  type="button"
+                  className="preset-btn-bw"
+                  onClick={() => onApplyPreset('mid')}
+                >
+                  Learner (Try 75)
+                </button>
+                <button
+                  type="button"
+                  className="preset-btn-bw"
+                  onClick={() => onApplyPreset('converged')}
+                >
+                  <Sparkles size={12} /> Stunt Pro (Try 360)
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* SECTION 2: AI BRAIN SETTINGS */}
+        <div className="accordion-box">
+          <button
+            type="button"
+            className={`accordion-header ${openSection === 'brain' ? 'active' : ''}`}
+            onClick={() => toggleSection('brain')}
+          >
+            <span>2. AI Brain Settings</span>
+            {openSection === 'brain' ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+
+          {openSection === 'brain' && (
+            <div className="accordion-content">
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Brain Speed (Learning Rate)
+                    <HelpTooltip
+                      title="Brain Speed (Learning Rate)"
+                      explain="How big of a change the AI makes after each mistake. Too high makes the AI hyper and shaky; a gentle speed helps it learn smoothly!"
+                      tip="Keep around 0.0005 for smooth stunts."
+                    />
+                  </span>
+                  <strong>{params.learningRate.toFixed(4)}</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.0001}
+                  max={0.01}
+                  step={0.0001}
+                  value={params.learningRate}
+                  onChange={(e) => onChangeParams({ learningRate: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Random Curiosity (Try New Tricks)
+                    <HelpTooltip
+                      title="Random Curiosity (Exploration Noise)"
+                      explain="How often the AI presses random air-jet buttons just to see what happens! Low = careful and steady; High = wild and crazy!"
+                      tip="Set to 5% for clean landings, or 50%+ for wild chaos."
+                    />
+                  </span>
+                  <strong>{Math.round(params.explorationNoise * 100)}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={params.explorationNoise}
+                  onChange={(e) => onChangeParams({ explorationNoise: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Look-Ahead Memory
+                    <HelpTooltip
+                      title="Look-Ahead Memory (Discount Factor)"
+                      explain="Does the AI only care about the next 1 second, or does it plan ahead for the landing at the end of the jump?"
+                      tip="0.99 means the AI plans ahead for a safe landing!"
+                    />
+                  </span>
+                  <strong>{params.discountFactor.toFixed(2)}</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.8}
+                  max={0.999}
+                  step={0.005}
+                  value={params.discountFactor}
+                  onChange={(e) => onChangeParams({ discountFactor: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Ghost Practice Cars
+                    <HelpTooltip
+                      title="Ghost Practice Cars"
+                      explain="Shows see-through ghost copies of the vehicle practicing slightly different moves at the exact same time!"
+                      tip="Set to 0 to see only the main car, or up to 8 for a swarm."
+                    />
+                  </span>
+                  <strong>{params.ghostSwarmCount}</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={8}
+                  step={1}
+                  value={params.ghostSwarmCount}
+                  onChange={(e) => onChangeParams({ ghostSwarmCount: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 3: AI SCORE RULES */}
+        <div className="accordion-box">
+          <button
+            type="button"
+            className={`accordion-header ${openSection === 'goals' ? 'active' : ''}`}
+            onClick={() => toggleSection('goals')}
+          >
+            <span>3. AI Score Rules (Rewards)</span>
+            {openSection === 'goals' ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+
+          {openSection === 'goals' && (
+            <div className="accordion-content">
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Reach Target Height / Loop Stick
+                    <HelpTooltip
+                      title="Reach Target Goal Points"
+                      explain="How many treat points the AI gets for floating at the right height or sticking tightly to the Hot-Wheels loop!"
+                    />
+                  </span>
+                  <strong>{params.rewardAltitudeWeight.toFixed(1)}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.2}
+                  max={4.0}
+                  step={0.1}
+                  value={params.rewardAltitudeWeight}
+                  onChange={(e) =>
+                    onChangeParams({ rewardAltitudeWeight: Number(e.target.value) })
+                  }
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Stay Flat & Level Bonus
+                    <HelpTooltip
+                      title="Stay Flat & Level Bonus"
+                      explain="Rewards the AI for keeping the car level so it doesn't land upside-down!"
+                    />
+                  </span>
+                  <strong>{params.rewardAttitudeWeight.toFixed(1)}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.2}
+                  max={4.0}
+                  step={0.1}
+                  value={params.rewardAttitudeWeight}
+                  onChange={(e) =>
+                    onChangeParams({ rewardAttitudeWeight: Number(e.target.value) })
+                  }
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Smoothness (No Jitter)
+                    <HelpTooltip
+                      title="Smoothness Bonus"
+                      explain="Stops the AI from slamming the air jets on and off like a jackhammer!"
+                    />
+                  </span>
+                  <strong>{params.rewardSmoothnessWeight.toFixed(1)}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={3.0}
+                  step={0.1}
+                  value={params.rewardSmoothnessWeight}
+                  onChange={(e) =>
+                    onChangeParams({ rewardSmoothnessWeight: Number(e.target.value) })
+                  }
+                  className="bw-slider"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 4: PLANET GRAVITY & AIR TANK */}
+        <div className="accordion-box">
+          <button
+            type="button"
+            className={`accordion-header ${openSection === 'world' ? 'active' : ''}`}
+            onClick={() => toggleSection('world')}
+          >
+            <span>4. Planet Gravity & Air Tank</span>
+            {openSection === 'world' ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+
+          {openSection === 'world' && (
+            <div className="accordion-content">
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Planet Pull (Gravity)
+                    <HelpTooltip
+                      title="Planet Pull (Gravity)"
+                      explain="How hard the ground pulls the car down! 0.16G is the Moon (super floaty!), 0.38G is Mars, and 1.00G is Earth."
+                    />
+                  </span>
+                  <strong>
+                    {params.gravityMultiplier.toFixed(2)} G{' '}
+                    {params.gravityMultiplier < 0.25
+                      ? '(Moon)'
+                      : params.gravityMultiplier < 0.5
+                        ? '(Mars)'
+                        : '(Earth)'}
+                  </strong>
+                </div>
+                <input
+                  type="range"
+                  min={0.16}
+                  max={1.8}
+                  step={0.02}
+                  value={params.gravityMultiplier}
+                  onChange={(e) => onChangeParams({ gravityMultiplier: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Air Tank Pressure (PSI)
+                    <HelpTooltip
+                      title="Air Tank Pressure (COPV PSI)"
+                      explain="How much squeezed air is inside the Roadster's tank! 10,000 PSI gives maximum jet power; low pressure makes the jets weak."
+                    />
+                  </span>
+                  <strong>{params.initialCopvPsi} PSI</strong>
+                </div>
+                <input
+                  type="range"
+                  min={3000}
+                  max={10000}
+                  step={250}
+                  value={params.initialCopvPsi}
+                  onChange={(e) => onChangeParams({ initialCopvPsi: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 5: SAVED AI BRAINS */}
+        <div className="accordion-box">
+          <button
+            type="button"
+            className={`accordion-header ${openSection === 'save' ? 'active' : ''}`}
+            onClick={() => toggleSection('save')}
+          >
+            <span>5. Saved AI Brains ({checkpoints.length})</span>
+            {openSection === 'save' ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+
+          {openSection === 'save' && (
+            <div className="accordion-content">
+              <form className="save-row-bw" onSubmit={handleSave}>
+                <input
+                  type="text"
+                  placeholder="Name your AI brain..."
+                  value={checkpointName}
+                  onChange={(e) => setCheckpointName(e.target.value)}
+                  maxLength={50}
+                />
+                <button type="submit" className="save-btn-bw">
+                  <Save size={13} /> Save
+                </button>
+              </form>
+
+              <div className="ckpt-list-bw">
+                {checkpoints.map((c) => (
+                  <div key={c.id} className="ckpt-item-bw" onClick={() => onLoadCheckpoint(c)}>
+                    <div className="ckpt-info-bw">
+                      <strong>{c.name}</strong>
+                      <span>Try #{c.epochs}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </aside>
   );
 };
