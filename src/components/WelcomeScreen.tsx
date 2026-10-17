@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ChevronDown, Cpu, Play, Sparkles, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, Cpu, Play, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { MissionId } from '../types/simulation.ts';
 import { MISSION_LIST, MISSIONS } from '../rl/missions.ts';
 import { AnimatedDecodeText } from './AnimatedText.tsx';
@@ -7,6 +7,8 @@ import { LandingStunt3DPreview } from './LandingStunt3DPreview.tsx';
 
 interface WelcomeScreenProps {
   selectedMissionId: MissionId;
+  audioEnabled: boolean;
+  onToggleAudio: () => void;
   onSelectMissionAndEnter: (missionId: MissionId) => void;
   onEnterPlayground: () => void;
 }
@@ -80,6 +82,8 @@ export const ROADSTERVERSE_STUNT_DETAILS: Record<MissionId, RoadsterVerseStuntMe
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   selectedMissionId,
+  audioEnabled,
+  onToggleAudio,
   onSelectMissionAndEnter,
   onEnterPlayground,
 }) => {
@@ -150,8 +154,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </nav>
         </div>
 
-        {/* Right Action Controls: All Stunts Dropdown */}
+        {/* Right Action Controls: Sound Button & All Stunts Dropdown */}
         <div className="sx-nav-right">
+          <button
+            type="button"
+            className={`sx-upcoming-btn sx-sound-toggle-btn ${audioEnabled ? 'active' : ''}`}
+            onClick={onToggleAudio}
+            title={audioEnabled ? 'Mute Vehicle & Rocket Sound' : 'Turn On Vehicle & Rocket Sound'}
+          >
+            {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+            <span>{audioEnabled ? 'SOUND ON' : 'MUTED'}</span>
+          </button>
+
           <div className="sx-dropdown-wrap">
             <button
               type="button"
