@@ -208,12 +208,12 @@ export const App: React.FC = () => {
             type="button"
             className="nav-pill-btn"
             onClick={() => setShowWelcome(true)}
-            title="Back to Welcome Screen"
+            title="Back to RoadsterVerse Landing Page"
           >
             <Home size={14} />
-            <span>WELCOME</span>
+            <span>HOME</span>
           </button>
-          <span className="brand-mini-title">THRUST // WEIGHT</span>
+          <span className="brand-mini-title">ROADSTERVERSE</span>
         </div>
 
         {/* 5 Stunt Selector Pills */}

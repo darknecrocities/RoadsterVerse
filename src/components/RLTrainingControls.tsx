@@ -48,7 +48,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
   onLoadCheckpoint,
 }) => {
   const [checkpointName, setCheckpointName] = useState('');
-  const [openSection, setOpenSection] = useState<AccordionSection>('practice');
+  const [openSection, setOpenSection] = useState<AccordionSection | null>('practice');
 
   if (collapsed) {
     return (
@@ -65,7 +65,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
   }
 
   const toggleSection = (sec: AccordionSection) => {
-    setOpenSection((prev) => (prev === sec ? 'practice' : sec));
+    setOpenSection((prev) => (prev === sec ? null : sec));
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -106,7 +106,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
         <div className="accordion-box">
           <button
             type="button"
-            className="accordion-header active"
+            className={`accordion-header ${openSection === 'practice' ? 'active' : ''}`}
             onClick={() => toggleSection('practice')}
           >
             <span>1. Practice Runs (AI Skill)</span>

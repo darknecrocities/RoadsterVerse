@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Car, HelpCircle, Rocket, Sparkles, Zap } from 'lucide-react';
+import { ArrowUpRight, Car, Compass, Flame, HelpCircle, Rocket, Sparkles } from 'lucide-react';
 import type { MissionId } from '../types/simulation.ts';
 import { MISSION_LIST } from '../rl/missions.ts';
 import { AnimatedDecodeText } from './AnimatedText.tsx';
@@ -16,96 +16,111 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onEnterPlayground,
 }) => {
   return (
-    <div className="welcome-screen">
-      <div className="welcome-grid-bg" />
+    <div className="rv-landing">
+      {/* Subtle Architectural Grid & Orbital Halo Backdrop */}
+      <div className="rv-grid-backdrop" />
+      <div className="rv-orbital-ring rv-ring-outer" />
+      <div className="rv-orbital-ring rv-ring-inner" />
 
-      <div className="welcome-container">
-        <div className="welcome-badge-row">
-          <span className="mono-pill">INTERACTIVE 3D AI STUNT LAB</span>
-          <span className="mono-pill">SIMPLE KID-FRIENDLY MODE</span>
+      {/* Minimalist Top Bar */}
+      <header className="rv-top-nav">
+        <div className="rv-brand-mark">
+          <span className="rv-dot" />
+          <span className="rv-brand-name">ROADSTERVERSE</span>
+          <span className="rv-brand-tag">v4.0 // 6-DoF ROCKET LAB</span>
         </div>
 
-        <h1 className="welcome-hero-title">
-          <AnimatedDecodeText text="THRUST // WEIGHT" durationMs={520} />
+        <div className="rv-nav-telemetry">
+          <span>10,000 PSI COLD-GAS</span>
+          <span className="rv-sep">/</span>
+          <span>33 RAPTOR GIMBALS</span>
+          <span className="rv-sep">/</span>
+          <span>REAL GRAVITY</span>
+        </div>
+
+        <button type="button" className="rv-nav-cta" onClick={onEnterPlayground}>
+          <span>LAUNCH SANDBOX</span>
+          <ArrowUpRight size={14} />
+        </button>
+      </header>
+
+      {/* Center Minimalist Hero */}
+      <main className="rv-hero-center">
+        <div className="rv-pill-eyebrow">
+          <Sparkles size={12} />
+          <span>2026 TESLA ROADSTER COUPÉ &amp; SPACEX STARSHIP AI PLAYGROUND</span>
+        </div>
+
+        <h1 className="rv-hero-title">
+          <AnimatedDecodeText text="RoadsterVerse" durationMs={560} />
         </h1>
 
-        <p className="welcome-hero-subtitle">
-          Watch a computer brain learn how to fly a{' '}
-          <strong>2026 Tesla Roadster with Cold-Air Rocket Jets</strong> and catch a{' '}
-          <strong>SpaceX Starship</strong>—one practice try at a time!
+        <p className="rv-hero-lead">
+          Train a live neural brain to fly a{' '}
+          <strong>Cold-Gas Rocket Roadster Coupé</strong> and catch a{' '}
+          <strong>SpaceX Starship</strong> under real gravity. Slide from{' '}
+          <strong>Try #8 (Clumsy Crash)</strong> to <strong>Try #360 (Stunt Master)</strong>.
         </p>
 
-        {/* Simple 3-Step Kid-Friendly Guide */}
-        <div className="welcome-steps-grid">
-          <div className="welcome-step-card">
-            <div className="welcome-step-num">01</div>
-            <h3>
-              <Zap size={15} /> Pick a Cool Stunt
-            </h3>
-            <p>
-              Hover like a UFO, drive upside-down on a giant Hot-Wheels loop, jump a ramp for a
-              360° kickflip, or launch a giant rocket!
-            </p>
-          </div>
+        {/* Primary Action Row */}
+        <div className="rv-hero-actions">
+          <button type="button" className="rv-primary-btn" onClick={onEnterPlayground}>
+            <span>ENTER ROADSTERVERSE</span>
+            <ArrowUpRight size={17} />
+          </button>
 
-          <div className="welcome-step-card">
-            <div className="welcome-step-num">02</div>
-            <h3>
-              <Sparkles size={15} /> Slide the Practice Bar
-            </h3>
-            <p>
-              At <strong>10 Practice Runs</strong>, the AI is like a clumsy baby and crashes! Slide
-              it to <strong>350+ Practice Runs</strong> and watch it become a stunt pro.
-            </p>
-          </div>
-
-          <div className="welcome-step-card">
-            <div className="welcome-step-num">03</div>
-            <h3>
-              <HelpCircle size={15} /> Tap Any &ldquo;?&rdquo; Button
-            </h3>
-            <p>
-              Every button and slider has a <strong>?</strong> helper that explains what it does in
-              super simple words anyone can understand.
-            </p>
+          <div className="rv-mini-badges">
+            <span className="rv-glass-chip">
+              <Flame size={12} /> Side-Jet Kickflips
+            </span>
+            <span className="rv-glass-chip">
+              <Compass size={12} /> Zero-Levitation Gravity Arcs
+            </span>
+            <span className="rv-glass-chip">
+              <HelpCircle size={12} /> Kid-Friendly &ldquo;?&rdquo; Guides
+            </span>
           </div>
         </div>
 
-        {/* Choose Your Starting Stunt */}
-        <div className="welcome-stunt-section">
-          <div className="welcome-section-label">CHOOSE A STUNT TO START PLAYING:</div>
-          <div className="welcome-mission-grid">
+        {/* Minimalist Glassmorphic Stunt Selector Strip */}
+        <section className="rv-stunt-deck" aria-label="Select Stunt Arena">
+          <div className="rv-deck-header">
+            <span>SELECT A STUNT ARENA TO LAUNCH IMMEDIATELY</span>
+            <span>01 — 05</span>
+          </div>
+
+          <div className="rv-stunt-grid">
             {MISSION_LIST.map((m, idx) => {
               const active = m.id === selectedMissionId;
+              const cleanName = m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '');
               return (
                 <button
                   key={m.id}
                   type="button"
-                  className={`welcome-mission-card ${active ? 'active' : ''}`}
+                  className={`rv-stunt-card ${active ? 'active' : ''}`}
                   onClick={() => onSelectMissionAndEnter(m.id)}
                 >
-                  <div className="welcome-mission-top">
-                    <span className="welcome-mission-idx">0{idx + 1}</span>
-                    {m.vehicle === 'roadster' ? <Car size={15} /> : <Rocket size={15} />}
+                  <div className="rv-stunt-card-top">
+                    <span className="rv-stunt-num">0{idx + 1}</span>
+                    {m.vehicle === 'roadster' ? <Car size={14} /> : <Rocket size={14} />}
                   </div>
-                  <div className="welcome-mission-name">
-                    {m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '')}
-                  </div>
-                  <div className="welcome-mission-desc">{m.subtitle}</div>
+                  <div className="rv-stunt-card-title">{cleanName}</div>
+                  <div className="rv-stunt-card-sub">{m.subtitle}</div>
                 </button>
               );
             })}
           </div>
-        </div>
+        </section>
+      </main>
 
-        {/* Primary CTA */}
-        <div className="welcome-cta-row">
-          <button type="button" className="welcome-enter-btn" onClick={onEnterPlayground}>
-            <span>ENTER 3D STUNT PLAYGROUND</span>
-            <ArrowRight size={18} />
-          </button>
-        </div>
-      </div>
+      {/* Minimalist Bottom Footnote */}
+      <footer className="rv-footer">
+        <span>PURE MONOCHROME EDITION</span>
+        <span>•</span>
+        <span>CLICK ANY &ldquo;?&rdquo; BADGE INSIDE FOR SIMPLE KID-FRIENDLY EXPLANATIONS</span>
+        <span>•</span>
+        <span>GLASSMORPHIC MINIMIZABLE HUD</span>
+      </footer>
     </div>
   );
 };

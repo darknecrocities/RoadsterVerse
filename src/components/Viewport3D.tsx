@@ -65,6 +65,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const [wheelSpec, setWheelSpec] = useState<WheelSpec>('six-spoke');
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [shutterTransition, setShutterTransition] = useState(false);
+  const [statusMinimized, setStatusMinimized] = useState(false);
   const [hudState, setHudState] = useState<RigidBodyState>(() =>
     createInitialRoadsterState('roadster-hover', params)
   );
@@ -247,8 +248,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       <div ref={containerRef} className="webgl-canvas-container" />
       <div className={`shutter-wipe-overlay ${shutterTransition ? 'active' : ''}`} />
 
-      {/* Minimalist Top-Center Stunt Status Pill */}
-      <div className="stunt-status-float">
+      {/* Minimalist Top-Center Glassmorphic Stunt Status Card (Minimizable) */}
+      <div className={`stunt-status-float ${statusMinimized ? 'minimized' : ''}`}>
         <div className="stunt-status-top">
           <span className="stunt-badge-bw">
             <AnimatedDecodeText text={mission.badge} durationMs={320} />
@@ -261,39 +262,49 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             explain={mission.targetDescription}
             tip="Use the Practice Runs slider on the left to watch the AI improve!"
           />
+          <button
+            type="button"
+            className="icon-min-btn"
+            onClick={() => setStatusMinimized((v) => !v)}
+            title={statusMinimized ? 'Expand Stunt Telemetry' : 'Minimize Stunt Telemetry'}
+          >
+            {statusMinimized ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
+          </button>
         </div>
 
-        <div className="stunt-metrics-strip">
-          <div className="metric-mini">
-            <span>HEIGHT</span>
-            <strong>
-              <AnimatedNumber value={hudState.position.y} decimals={1} suffix=" m" />
-            </strong>
+        {!statusMinimized && (
+          <div className="stunt-metrics-strip">
+            <div className="metric-mini">
+              <span>HEIGHT</span>
+              <strong>
+                <AnimatedNumber value={hudState.position.y} decimals={1} suffix=" m" />
+              </strong>
+            </div>
+            <div className="metric-mini">
+              <span>TILT / FLIP</span>
+              <strong>
+                {Math.round((hudState.attitude.pitch * 180) / Math.PI)}° /{' '}
+                {Math.round((hudState.attitude.roll * 180) / Math.PI)}°
+              </strong>
+            </div>
+            <div className="metric-mini">
+              <span>{mission.vehicle === 'roadster' ? 'AIR TANK' : 'FUEL'}</span>
+              <strong>
+                {mission.vehicle === 'roadster' ? (
+                  <AnimatedNumber value={hudState.copvPressurePsi} decimals={0} suffix=" PSI" />
+                ) : (
+                  `${hudState.propellantRemainingPct}%`
+                )}
+              </strong>
+            </div>
+            <div className="metric-mini">
+              <span>STATUS</span>
+              <strong className={hudState.crashed ? 'status-crash' : 'status-ok'}>
+                {hudState.crashed ? 'CRASHED!' : hudState.isOnWall ? 'ON LOOP!' : 'FLYING'}
+              </strong>
+            </div>
           </div>
-          <div className="metric-mini">
-            <span>TILT / FLIP</span>
-            <strong>
-              {Math.round((hudState.attitude.pitch * 180) / Math.PI)}° /{' '}
-              {Math.round((hudState.attitude.roll * 180) / Math.PI)}°
-            </strong>
-          </div>
-          <div className="metric-mini">
-            <span>{mission.vehicle === 'roadster' ? 'AIR TANK' : 'FUEL'}</span>
-            <strong>
-              {mission.vehicle === 'roadster' ? (
-                <AnimatedNumber value={hudState.copvPressurePsi} decimals={0} suffix=" PSI" />
-              ) : (
-                `${hudState.propellantRemainingPct}%`
-              )}
-            </strong>
-          </div>
-          <div className="metric-mini">
-            <span>STATUS</span>
-            <strong className={hudState.crashed ? 'status-crash' : 'status-ok'}>
-              {hudState.crashed ? 'CRASHED!' : hudState.isOnWall ? 'ON LOOP!' : 'FLYING'}
-            </strong>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Minimalist Bottom Control Dock */}

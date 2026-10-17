@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import {
   Activity,
+  ChevronDown,
+  ChevronRight,
   Cpu,
   Flame,
   Info,
@@ -31,7 +33,10 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
   collapsed,
   onToggleCollapse,
 }) => {
+  const [showStoryCard, setShowStoryCard] = useState(true);
+  const [showJetsCard, setShowJetsCard] = useState(true);
   const [showBrainGraph, setShowBrainGraph] = useState(true);
+  const [showScoreChart, setShowScoreChart] = useState(true);
 
   if (collapsed) {
     return (
@@ -80,20 +85,37 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
       </div>
 
       <div className="drawer-body">
-        {/* 1. Simple Story Card */}
-        <div className="simple-story-card">
-          <div className="story-header">
-            <Info size={13} />
-            <span>HOW THIS STUNT WORKS (SIMPLE GUIDE)</span>
+        {/* 1. Minimizable Simple Story Card */}
+        <div className="hud-card-bw">
+          <div
+            className="hud-card-header-bw clickable"
+            onClick={() => setShowStoryCard((v) => !v)}
+            role="button"
+            tabIndex={0}
+          >
+            <span className="hud-header-left">
+              <Info size={13} />
+              <span>HOW THIS STUNT WORKS</span>
+            </span>
+            {showStoryCard ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </div>
-          <p className="story-text">{mission.mlTechniqueSummary}</p>
-          <div className="story-rule-pill">{mission.physicsFormulaLatex}</div>
+          {showStoryCard && (
+            <div className="hud-card-collapse-body">
+              <p className="story-text">{mission.mlTechniqueSummary}</p>
+              <div className="story-rule-pill">{mission.physicsFormulaLatex}</div>
+            </div>
+          )}
         </div>
 
-        {/* 2. Jet / Engine Power Meters */}
+        {/* 2. Minimizable Jet / Engine Power Meters */}
         <div className="hud-card-bw">
-          <div className="hud-card-header-bw">
-            <span>
+          <div
+            className="hud-card-header-bw clickable"
+            onClick={() => setShowJetsCard((v) => !v)}
+            role="button"
+            tabIndex={0}
+          >
+            <span className="hud-header-left">
               <Flame size={13} />{' '}
               {mission.vehicle === 'roadster' ? 'AIR JET POWER' : 'ROCKET ENGINE POWER'}
               <HelpTooltip
@@ -101,40 +123,48 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
                 explain="Shows how hard each air nozzle or rocket engine is blasting right now from 0% (off) to 100% (full blast)!"
               />
             </span>
-            <small>SKILL: {nnSnapshot.stabilityScore}%</small>
+            <span className="hud-header-right">
+              <small>SKILL: {nnSnapshot.stabilityScore}%</small>
+              {showJetsCard ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </span>
           </div>
 
-          <div className="jet-grid-bw">
-            {nnSnapshot.outputs.map((outItem) => {
-              const pct = Math.round(outItem.value * 100);
-              return (
-                <div key={outItem.label} className="jet-cell-bw">
-                  <div className="jet-cell-top">
-                    <span>{outItem.label}</span>
-                    <strong>{pct}%</strong>
+          {showJetsCard && (
+            <div className="jet-grid-bw">
+              {nnSnapshot.outputs.map((outItem) => {
+                const pct = Math.round(outItem.value * 100);
+                return (
+                  <div key={outItem.label} className="jet-cell-bw">
+                    <div className="jet-cell-top">
+                      <span>{outItem.label}</span>
+                      <strong>{pct}%</strong>
+                    </div>
+                    <div className="jet-bar-track">
+                      <div className="jet-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                  <div className="jet-bar-track">
-                    <div className="jet-bar-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* 3. Collapsible Live Neural Brain Wire Diagram */}
+        {/* 3. Minimizable Live Neural Brain Wire Diagram */}
         <div className="hud-card-bw">
           <button
             type="button"
             className="brain-toggle-btn"
             onClick={() => setShowBrainGraph((v) => !v)}
           >
-            <span>
-              <Cpu size={13} /> LIVE BRAIN WIRES ({showBrainGraph ? 'HIDE' : 'SHOW'})
+            <span className="hud-header-left">
+              <Cpu size={13} /> LIVE BRAIN WIRES
             </span>
-            <strong>
-              SCORE: <AnimatedNumber value={nnSnapshot.cumulativeReward} decimals={0} />
-            </strong>
+            <span className="hud-header-right">
+              <strong>
+                SCORE: <AnimatedNumber value={nnSnapshot.cumulativeReward} decimals={0} />
+              </strong>
+              {showBrainGraph ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </span>
           </button>
 
           {showBrainGraph && (
@@ -257,35 +287,45 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
           )}
         </div>
 
-        {/* 4. Practice Score Progress Curve */}
+        {/* 4. Minimizable Practice Score Progress Curve */}
         <div className="hud-card-bw">
-          <div className="hud-card-header-bw">
-            <span>
+          <div
+            className="hud-card-header-bw clickable"
+            onClick={() => setShowScoreChart((v) => !v)}
+            role="button"
+            tabIndex={0}
+          >
+            <span className="hud-header-left">
               <Activity size={13} /> PRACTICE SCORE CHART
               <HelpTooltip
                 title="Practice Score Chart"
                 explain="As the line goes UP from left to right, the AI is getting smarter and earning more points on each stunt!"
               />
             </span>
-            <small>TRY #{epoch}</small>
+            <span className="hud-header-right">
+              <small>TRY #{epoch}</small>
+              {showScoreChart ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </span>
           </div>
-          <svg viewBox="0 0 280 68" className="reward-svg-bw">
-            {rewardHistory.length > 1 && (
-              <polyline
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth="2"
-                points={rewardHistory
-                  .map((pt, idx) => {
-                    const x = 8 + (idx / Math.max(1, rewardHistory.length - 1)) * 264;
-                    const normY = Math.max(0, Math.min(1, (pt.meanReward + 80) / 280));
-                    const y = 58 - normY * 46;
-                    return `${x.toFixed(1)},${y.toFixed(1)}`;
-                  })
-                  .join(' ')}
-              />
-            )}
-          </svg>
+          {showScoreChart && (
+            <svg viewBox="0 0 280 68" className="reward-svg-bw">
+              {rewardHistory.length > 1 && (
+                <polyline
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  points={rewardHistory
+                    .map((pt, idx) => {
+                      const x = 8 + (idx / Math.max(1, rewardHistory.length - 1)) * 264;
+                      const normY = Math.max(0, Math.min(1, (pt.meanReward + 80) / 280));
+                      const y = 58 - normY * 46;
+                      return `${x.toFixed(1)},${y.toFixed(1)}`;
+                    })
+                    .join(' ')}
+                />
+              )}
+            </svg>
+          )}
         </div>
       </div>
     </aside>
