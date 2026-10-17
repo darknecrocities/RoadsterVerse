@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ChevronDown, Cpu, Play, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronDown, Cpu, Play, Sparkles, X } from 'lucide-react';
 import type { MissionId } from '../types/simulation.ts';
 import { MISSION_LIST, MISSIONS } from '../rl/missions.ts';
 import { AnimatedDecodeText } from './AnimatedText.tsx';
@@ -163,29 +163,81 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </button>
 
             {dropdownOpen && (
-              <div className="sx-dropdown-menu">
-                {MISSION_LIST.map((m, i) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    className={`sx-dropdown-item ${m.id === previewMissionId ? 'active' : ''}`}
-                    onClick={() => {
-                      setDropdownOpen(false);
-                      setPreviewMissionId(m.id);
-                    }}
-                  >
-                    <small>0{i + 1}</small>
-                    <div>
-                      <strong>{m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '')}</strong>
-                      <span>{m.subtitle}</span>
+              <>
+                <div
+                  className="sx-dropdown-backdrop"
+                  onClick={() => setDropdownOpen(false)}
+                  aria-hidden="true"
+                />
+                <div className="sx-dropdown-menu">
+                  <div className="sx-dropdown-header">
+                    <div className="sx-dropdown-header-title">
+                      <strong>ALL STUNTS ({MISSION_LIST.length})</strong>
+                      <span>SELECT TO PREVIEW LIVE 6-DOF PHYSICS</span>
                     </div>
-                  </button>
-                ))}
-              </div>
+                    <button
+                      type="button"
+                      className="sx-dropdown-close-btn"
+                      onClick={() => setDropdownOpen(false)}
+                      title="Close Stunts Menu"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  {MISSION_LIST.map((m, i) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className={`sx-dropdown-item ${m.id === previewMissionId ? 'active' : ''}`}
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        setPreviewMissionId(m.id);
+                      }}
+                    >
+                      <small>0{i + 1}</small>
+                      <div>
+                        <strong>{m.title.replace(/^Stunt \d+ \/\/ |^Mission \d+ \/\/ /, '')}</strong>
+                        <span>{m.subtitle}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
       </header>
+
+      {/* Mobile Horizontal Quick-Select Chip Strip */}
+      <nav className="sx-mobile-chips-bar" aria-label="Mobile Stunts Bar">
+        {MISSION_LIST.map((m) => {
+          const isSelected = m.id === previewMissionId;
+          const shortName =
+            m.id === 'roadster-hover'
+              ? '01 HOVER'
+              : m.id === 'roadster-wall-climb'
+                ? '02 HALF-LOOP'
+                : m.id === 'roadster-barrel-roll'
+                  ? '03 KICKFLIP'
+                  : m.id === 'roadster-obstacle-race'
+                    ? '04 RACE'
+                    : m.id === 'starship-launch'
+                      ? '05 ASCENT'
+                      : m.id === 'starship-belly-flop'
+                        ? '06 SKYDIVE'
+                        : '07 TOWER CATCH';
+          return (
+            <button
+              key={m.id}
+              type="button"
+              className={`sx-mobile-chip ${isSelected ? 'active' : ''}`}
+              onClick={() => setPreviewMissionId(m.id)}
+            >
+              {shortName}
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Bottom-Left RoadsterVerse Mission Headline & Action Buttons */}
       <main className="sx-bottom-left-hero">
