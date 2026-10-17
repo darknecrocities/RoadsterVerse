@@ -164,13 +164,8 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
   rightFender.position.z = -0.88;
   root.add(leftFender, rightFender);
 
-  // 3. Deep Side Air Intake Scoops, Vertical Front-Fender Aero Vent Slots & Rocker Skirts
+  // 3. Vertical Front-Fender Aero Vent Slots, Cold-Gas Thruster Ports & Rocker Skirts
   for (const zSign of [-1, 1]) {
-    // Deep triangular side intake cove ahead of rear wheel
-    const sideIntake = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.28, 0.12), darkIntakeMat);
-    sideIntake.position.set(-0.38, 0.44, zSign * 0.91);
-    sideIntake.rotation.z = -0.14;
-
     // Vertical Front-Fender Aero Vent Slot + Top Marker Bar behind front wheel (Images 1 & 2)
     const fenderVentSlot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.08), darkIntakeMat);
     fenderVentSlot.position.set(0.76, 0.35, zSign * 0.92);
@@ -193,7 +188,6 @@ export function createRoadsterModel(isGhost = false): RoadsterRig {
     const rockerWhiteLip = new THREE.Mesh(new THREE.BoxGeometry(2.32, 0.024, 0.18), bodyMat);
     rockerWhiteLip.position.set(0.0, 0.1, zSign * 0.95);
     root.add(
-      sideIntake,
       fenderVentSlot,
       fenderMarkerBar,
       sideJetPort,
