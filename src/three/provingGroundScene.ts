@@ -7,6 +7,14 @@ import type {
   VehicleId,
   WheelSpec,
 } from '../types/simulation.ts';
+import {
+  HALF_LOOP_RUNWAY_LENGTH,
+  HALF_LOOP_TOTAL_LENGTH,
+  KICKFLIP_RAMP_END_X,
+  KICKFLIP_RAMP_START_X,
+  sampleCurvedKickflipRamp,
+  sampleHotWheelsHalfLoop,
+} from '../physics/rampGeometry.ts';
 import { createRoadsterModel, type RoadsterRig } from './roadsterModel.ts';
 import { createStarshipModel, type StarshipRig } from './starshipModel.ts';
 import { VolumetricPlumeSmokeSystem } from './plumeAndSmokeFX.ts';
@@ -34,9 +42,9 @@ export class ProvingGroundSceneController {
   private chopstickRightMesh!: THREE.Mesh;
   private craneHoistCable!: THREE.Mesh;
   private cameraMode: CameraMode = 'orbit';
-  private orbitAngle = 0.35;
-  private smoothedCamPos = new THREE.Vector3(0, 4.8, 13.5);
-  private smoothedLookAt = new THREE.Vector3(0, 1.5, 0);
+  private orbitAngle = 0.28;
+  private smoothedCamPos = new THREE.Vector3(0, 4.8, 15.0);
+  private smoothedLookAt = new THREE.Vector3(0, 2.0, 0);
 
   constructor(container: HTMLElement) {
     const width = Math.max(320, container.clientWidth);
@@ -54,16 +62,15 @@ export class ProvingGroundSceneController {
     container.replaceChildren(this.renderer.domElement);
 
     this.setupLighting();
-    this.buildRoadsterStuntRoadAndWall();
+    this.buildRoadsterStuntRoadAndHalfLoop();
     this.buildStarshipLaunchPaddockAndCrane();
 
-    // Monochrome Target Waypoint Ring
-    const ringGeo = new THREE.TorusGeometry(1.65, 0.045, 16, 48);
+    const ringGeo = new THREE.TorusGeometry(1.55, 0.04, 16, 48);
     ringGeo.rotateX(Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.55,
     });
     this.targetMarker = new THREE.Mesh(ringGeo, ringMat);
     this.scene.add(this.targetMarker);
@@ -85,122 +92,162 @@ export class ProvingGroundSceneController {
 
   private setupLighting(): void {
     this.scene.background = new THREE.Color(0x030303);
-    this.scene.fog = new THREE.FogExp2(0x030303, 0.013);
+    this.scene.fog = new THREE.FogExp2(0x030303, 0.011);
 
-    const ambient = new THREE.AmbientLight(0xd4d4d4, 0.85);
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
-    keyLight.position.set(10, 24, 14);
+    const ambient = new THREE.AmbientLight(0xd4d4d4, 0.9);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    keyLight.position.set(10, 26, 16);
 
-    const rimLightLeft = new THREE.PointLight(0xffffff, 3.8, 32);
-    rimLightLeft.position.set(-10, 4.5, -5);
-    const rimLightRight = new THREE.PointLight(0xe5e5e5, 3.5, 32);
-    rimLightRight.position.set(10, 6.0, 6);
+    const rimLightLeft = new THREE.PointLight(0xffffff, 3.8, 36);
+    rimLightLeft.position.set(-10, 5.0, -5);
+    const rimLightRight = new THREE.PointLight(0xe5e5e5, 3.6, 36);
+    rimLightRight.position.set(10, 8.0, 6);
 
     this.scene.add(ambient, keyLight, rimLightLeft, rimLightRight);
   }
 
   /**
-   * Builds the Tesla Demo Stunt Road:
-   * - Textured high-contrast asphalt stunt track with white chevrons
-   * - 22-deg Stunt Launch Kicker Ramp (for the 360° Air Kickflip!)
-   * - Stunt Landing Deck + Overhead Telemetry Arches
-   * - 90-Degree Curved Concrete Mega-Ramp with white LED edge strips
+   * Builds:
+   * 1) High-contrast Stunt Road Track
+   * 2) Curved Steel Quarter-Pipe Launch Ramp with Truss Struts (Image 2, using sampleCurvedKickflipRamp)
+   * 3) Hot-Wheels Giant C-Shaped Overhanging Half-Loop Ramp with Steel Truss Backing (Image 1 & Image 3, using sampleHotWheelsHalfLoop)
    */
-  private buildRoadsterStuntRoadAndWall(): void {
+  private buildRoadsterStuntRoadAndHalfLoop(): void {
     const roadTex = createStuntRoadTexture();
     const carbonTex = createCarbonWeaveTexture();
 
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x080808,
-      roughness: 0.45,
-      metalness: 0.2,
+      color: 0x070707,
+      roughness: 0.42,
+      metalness: 0.22,
     });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), floorMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), floorMat);
     floor.rotation.x = -Math.PI / 2;
     this.roadsterArenaGroup.add(floor);
 
-    const grid = new THREE.GridHelper(70, 70, 0x333333, 0x171717);
+    const grid = new THREE.GridHelper(80, 80, 0x2e2e2e, 0x141414);
     grid.position.y = 0.01;
     this.roadsterArenaGroup.add(grid);
 
-    // Textured Tesla Demo Stunt Road Track Strip
     const stuntStripMat = new THREE.MeshStandardMaterial({
       map: roadTex,
       bumpMap: roadTex,
       bumpScale: 0.015,
       roughness: 0.5,
     });
-    const stuntStrip = new THREE.Mesh(new THREE.BoxGeometry(26, 0.05, 5.2), stuntStripMat);
-    stuntStrip.position.set(-0.5, 0.025, 0);
+    const stuntStrip = new THREE.Mesh(new THREE.BoxGeometry(28, 0.04, 5.2), stuntStripMat);
+    stuntStrip.position.set(-0.5, 0.02, 0);
     this.roadsterArenaGroup.add(stuntStrip);
 
-    // Stunt Road Launch Kicker Ramp (x: -3.8 to -1.2) for the Kickflip Stunt!
     const rampMat = new THREE.MeshStandardMaterial({
       color: 0x262626,
       map: carbonTex,
-      roughness: 0.4,
-      metalness: 0.35,
+      roughness: 0.38,
+      metalness: 0.42,
+    });
+    const trussMat = new THREE.MeshStandardMaterial({
+      color: 0x737373,
+      metalness: 0.72,
+      roughness: 0.3,
     });
     const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-    const kickerRamp = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.22, 4.4), rampMat);
-    kickerRamp.position.set(-2.5, 0.52, 0);
-    kickerRamp.rotation.z = 0.36;
-    const kickerLed = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.25, 0.08), ledMat);
-    kickerLed.position.set(-2.5, 0.54, 2.22);
-    kickerLed.rotation.z = 0.36;
-    const kickerLedR = kickerLed.clone();
-    kickerLedR.position.z = -2.22;
-    this.stuntKickerGroup.add(kickerRamp, kickerLed, kickerLedR);
+    // A. Curved Steel Quarter-Pipe Launch Ramp with Truss Frame (Image 2)
+    const kickSteps = 18;
+    const kickSpan = KICKFLIP_RAMP_END_X - KICKFLIP_RAMP_START_X;
+    const segLen = kickSpan / kickSteps;
+    for (let i = 0; i < kickSteps; i++) {
+      const xm = KICKFLIP_RAMP_START_X + (i + 0.5) * segLen;
+      const sample = sampleCurvedKickflipRamp(xm);
+      const slabLen = segLen / Math.cos(sample.tangentAngle) + 0.04;
 
-    // Overhead Stunt Road Telemetry Gantry Arches
-    for (const archX of [-7.5, 5.0]) {
-      const arch = new THREE.Group();
-      const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 5.2, 0.18), rampMat);
-      pillarL.position.set(archX, 2.6, 2.7);
-      const pillarR = pillarL.clone();
-      pillarR.position.z = -2.7;
-      const topBeam = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 5.6), ledMat);
-      topBeam.position.set(archX, 5.2, 0);
-      arch.add(pillarL, pillarR, topBeam);
-      this.stuntKickerGroup.add(arch);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(slabLen, 0.14, 4.4), rampMat);
+      slab.position.set(xm, sample.surfaceY - 0.07, 0);
+      slab.rotation.z = sample.tangentAngle;
+      this.stuntKickerGroup.add(slab);
+
+      for (const zSide of [-2.22, 2.22]) {
+        const edgeLed = new THREE.Mesh(new THREE.BoxGeometry(slabLen, 0.16, 0.06), ledMat);
+        edgeLed.position.set(xm, sample.surfaceY - 0.05, zSide);
+        edgeLed.rotation.z = sample.tangentAngle;
+        this.stuntKickerGroup.add(edgeLed);
+      }
+
+      if (i % 3 === 2 && sample.surfaceY > 0.25) {
+        for (const zCol of [-1.95, 1.95]) {
+          const strut = new THREE.Mesh(
+            new THREE.BoxGeometry(0.1, sample.surfaceY, 0.1),
+            trussMat
+          );
+          strut.position.set(xm, sample.surfaceY / 2, zCol);
+          this.stuntKickerGroup.add(strut);
+        }
+      }
     }
     this.roadsterArenaGroup.add(this.stuntKickerGroup);
 
-    // 90-Degree Curved Concrete Wall Mega-Ramp
+    // B. Hot-Wheels Giant Overhanging C-Shaped Half-Loop Ramp + Steel Truss Backing (Image 1 & Image 3)
     const concreteMat = new THREE.MeshStandardMaterial({
-      color: 0x525252,
-      roughness: 0.6,
-      metalness: 0.15,
+      color: 0xd4d4d4,
+      roughness: 0.45,
+      metalness: 0.18,
     });
-    const segments = 18;
-    const radius = 9.0;
-    for (let i = 0; i <= segments; i++) {
-      const frac = i / segments;
-      const angle = frac * (Math.PI / 2);
-      const cx = 3.0 + Math.sin(angle) * radius;
-      const cy = radius - Math.cos(angle) * radius;
 
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.28, 4.8), concreteMat);
-      slab.position.set(cx, cy, 0);
-      slab.rotation.z = angle;
+    const loopSegments = 38;
+    const loopArcSpan = HALF_LOOP_TOTAL_LENGTH - HALF_LOOP_RUNWAY_LENGTH;
+    const ds = loopArcSpan / loopSegments;
+
+    for (let i = 0; i <= loopSegments; i++) {
+      const s = HALF_LOOP_RUNWAY_LENGTH + i * ds;
+      const sample = sampleHotWheelsHalfLoop(s);
+
+      // Offset slab outward (-normal) by half slab thickness (0.14m) so inner track matches sample.surfaceX/Y
+      const slabX = sample.surfaceX - sample.normalX * 0.14;
+      const slabY = sample.surfaceY - sample.normalY * 0.14;
+
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(ds * 1.12, 0.28, 4.6), concreteMat);
+      slab.position.set(slabX, slabY, 0);
+      slab.rotation.z = sample.tangentAngle;
       this.wallRampGroup.add(slab);
 
-      const ledL = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.32, 0.08), ledMat);
-      ledL.position.set(cx, cy + 0.03, 2.42);
-      ledL.rotation.z = angle;
-      const ledR = ledL.clone();
-      ledR.position.z = -2.42;
-      this.wallRampGroup.add(ledL, ledR);
+      for (const zSide of [-2.32, 2.32]) {
+        const led = new THREE.Mesh(new THREE.BoxGeometry(ds * 1.14, 0.32, 0.07), ledMat);
+        led.position.set(slabX, slabY, zSide);
+        led.rotation.z = sample.tangentAngle;
+        this.wallRampGroup.add(led);
+      }
+
+      // Outer structural truss ribs hugging the back of the C-Loop
+      if (i % 3 === 0) {
+        const ribX = sample.surfaceX - sample.normalX * 0.55;
+        const ribY = sample.surfaceY - sample.normalY * 0.55;
+        const rib = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 4.7), trussMat);
+        rib.position.set(ribX, ribY, 0);
+        rib.rotation.z = sample.tangentAngle;
+        this.wallRampGroup.add(rib);
+      }
     }
 
-    const upperWall = new THREE.Mesh(new THREE.BoxGeometry(0.32, 8.0, 4.8), concreteMat);
-    upperWall.position.set(12.0, 12.8, 0);
-    const upperLedL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 8.0, 0.08), ledMat);
-    upperLedL.position.set(12.0, 12.8, 2.42);
-    const upperLedR = upperLedL.clone();
-    upperLedR.position.z = -2.42;
-    this.wallRampGroup.add(upperWall, upperLedL, upperLedR);
+    // Rear Vertical Steel Scaffolding Truss Tower supporting the Giant C-Loop (Image 1)
+    const trussTowerX = 8.4;
+    const towerHeight = 14.8;
+    for (const tx of [trussTowerX - 0.7, trussTowerX + 0.7]) {
+      for (const tz of [-2.1, 2.1]) {
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, towerHeight, 0.16), trussMat);
+        col.position.set(tx, towerHeight / 2, tz);
+        this.wallRampGroup.add(col);
+      }
+    }
+    for (let y = 2.0; y <= towerHeight; y += 2.4) {
+      const crossBeam = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 4.3), trussMat);
+      crossBeam.position.set(trussTowerX, y, 0);
+      this.wallRampGroup.add(crossBeam);
+    }
+    // Top overhanging truss canopy supporting the 142-deg inverted ramp lip
+    const topCanopyTruss = new THREE.Mesh(new THREE.BoxGeometry(7.8, 0.75, 4.4), trussMat);
+    topCanopyTruss.position.set(4.8, 14.7, 0);
+    topCanopyTruss.rotation.z = -0.35;
+    this.wallRampGroup.add(topCanopyTruss);
 
     this.roadsterArenaGroup.add(this.wallRampGroup);
     this.scene.add(this.roadsterArenaGroup);
@@ -236,7 +283,6 @@ export class ProvingGroundSceneController {
     });
     const whiteLedMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-    // 1. Orbital Launch Paddock Mount (OLM Ring + 6 Heavy Steel Columns + Flame Deflector)
     const olmRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.22, 16, 32), steelMat);
     olmRing.rotation.x = Math.PI / 2;
     olmRing.position.set(0, 1.35, 0);
@@ -249,25 +295,27 @@ export class ProvingGroundSceneController {
       this.starbasePaddockGroup.add(leg);
     }
 
-    // 2. Paddock Cryogenic Tank Farm (4 Vertical Stainless Cryo Silos)
     for (let t = 0; t < 4; t++) {
       const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 4.2, 20), brightSteelMat);
       silo.position.set(-7.5, 2.1, -4.5 + t * 2.4);
       this.starbasePaddockGroup.add(silo);
     }
 
-    // 3. Tall Cross-Braced Mechazilla Launch Tower + Top Cantilever Crane Beam
     const towerGroup = new THREE.Group();
     towerGroup.position.set(-2.35, 0, 0);
 
     const towerCore = new THREE.Mesh(
       new THREE.BoxGeometry(1.35, 22.0, 1.35),
-      new THREE.MeshStandardMaterial({ color: 0x262626, metalness: 0.75, roughness: 0.3, wireframe: true })
+      new THREE.MeshStandardMaterial({
+        color: 0x262626,
+        metalness: 0.75,
+        roughness: 0.3,
+        wireframe: true,
+      })
     );
     towerCore.position.y = 11.0;
     towerGroup.add(towerCore);
 
-    // 4 Corner Structural Columns of the Tower
     for (const cx of [-0.65, 0.65]) {
       for (const cz of [-0.65, 0.65]) {
         const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, 22.0, 0.16), steelMat);
@@ -276,14 +324,12 @@ export class ProvingGroundSceneController {
       }
     }
 
-    // Heavy Top Cantilever Crane Beam & Pulley Jib extending over the Starship Launch Mount!
     const craneMainBeam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.55, 1.45), brightSteelMat);
     craneMainBeam.position.set(1.4, 22.25, 0);
     const craneLedStrip = new THREE.Mesh(new THREE.BoxGeometry(4.65, 0.08, 1.5), whiteLedMat);
     craneLedStrip.position.set(1.4, 22.56, 0);
     towerGroup.add(craneMainBeam, craneLedStrip);
 
-    // Diagonal Crane Tension Tie-Rod Struts above the Cantilever Beam
     const mastApex = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), steelMat);
     mastApex.position.set(-0.2, 23.4, 0);
     const tieCable = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.8, 8), whiteLedMat);
@@ -291,7 +337,6 @@ export class ProvingGroundSceneController {
     tieCable.rotation.z = 0.98;
     towerGroup.add(mastApex, tieCable);
 
-    // Vertical Crane Hoist Cable dropping from the Cantilever Beam toward the Nosecone
     this.craneHoistCable = new THREE.Mesh(
       new THREE.CylinderGeometry(0.03, 0.03, 6.0, 8),
       brightSteelMat
@@ -299,7 +344,6 @@ export class ProvingGroundSceneController {
     this.craneHoistCable.position.set(2.35, 19.2, 0);
     towerGroup.add(this.craneHoistCable);
 
-    // 4. Articulated Chopstick Catch Arms / Structural Beams on the Tower
     this.chopstickLeftMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
     this.chopstickLeftMesh.position.set(1.5, 11.5, 0.92);
     this.chopstickRightMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.24), brightSteelMat);
@@ -346,9 +390,10 @@ export class ProvingGroundSceneController {
     this.roadsterArenaGroup.visible = isRoadster;
     this.stuntKickerGroup.visible = missionId === 'roadster-barrel-roll';
     this.wallRampGroup.visible = missionId !== 'roadster-barrel-roll';
+    // In hover mode (Image 3), offset the C-Loop to the right so the hover pad is wide open
+    this.wallRampGroup.position.x = missionId === 'roadster-hover' ? 5.2 : 0;
     this.starbasePaddockGroup.visible = !isRoadster;
 
-    // Smoothly relax FOV warp back to 48 deg
     if (Math.abs(this.camera.fov - 48) > 0.2) {
       this.camera.fov += (48 - this.camera.fov) * Math.min(1, dt * 6);
       this.camera.updateProjectionMatrix();
@@ -386,7 +431,6 @@ export class ProvingGroundSceneController {
         primaryState.elapsedTimeSec
       );
 
-      // Animate Paddock Crane Chopstick Arms & Hoist Cable
       const armSpread =
         missionId === 'starship-launch'
           ? primaryState.position.y > 2.5
@@ -414,29 +458,28 @@ export class ProvingGroundSceneController {
       : [];
     this.smokeSystem.update(dt, vehicle, primaryState, primaryThrusters, nozzleEmitters);
 
-    // Smooth Physics-Damped Camera Tracking
     const px = primaryState.position.x;
     const py = primaryState.position.y;
     const desiredCam = new THREE.Vector3();
-    const desiredLook = new THREE.Vector3(px, Math.max(1.2, py + 0.4), 0);
+    const desiredLook = new THREE.Vector3(px, Math.max(1.4, py + 0.3), 0);
 
     if (this.cameraMode === 'orbit') {
-      this.orbitAngle += dt * 0.14;
-      const dist = isRoadster ? 11.8 : 16.5;
+      this.orbitAngle += dt * 0.1;
+      const dist = missionId === 'roadster-wall-climb' ? 18.5 : isRoadster ? 13.0 : 17.0;
       desiredCam.set(
-        px + Math.sin(this.orbitAngle) * dist * 0.35,
-        Math.max(2.4, py + 2.0),
+        px * 0.65 + Math.sin(this.orbitAngle) * dist * 0.25,
+        Math.max(2.6, py * 0.75 + 2.4),
         dist
       );
     } else if (this.cameraMode === 'chase') {
-      desiredCam.set(px - 7.2, Math.max(2.0, py + 2.4), 6.5);
+      desiredCam.set(px - 7.5, Math.max(2.2, py + 2.5), 7.0);
       desiredLook.set(px + 1.5, py + 0.5, 0);
     } else if (this.cameraMode === 'thruster-cam') {
       desiredCam.set(px - 1.2, Math.max(0.6, py - 1.2), 6.2);
       desiredLook.set(px, py + 0.2, 0);
     } else {
-      desiredCam.set(5.5, 9.8, 17.5);
-      desiredLook.set(px * 0.5 + 1.5, Math.max(3.5, py), 0);
+      desiredCam.set(2.0, 7.5, 21.0);
+      desiredLook.set(1.5, Math.max(4.5, py * 0.8), 0);
     }
 
     const lerpFactor = Math.min(1, dt * 8.5);
