@@ -255,11 +255,13 @@ export const App: React.FC = () => {
                     ? '02 HALF-LOOP'
                     : m.id === 'roadster-barrel-roll'
                       ? '03 KICKFLIP'
-                      : m.id === 'starship-launch'
-                        ? '04 STAGE RELEASE'
-                        : m.id === 'starship-belly-flop'
-                          ? '05 CRANE CATCH'
-                          : '06 BOOSTER CATCH';
+                      : m.id === 'roadster-obstacle-race'
+                        ? '04 OBSTACLE RACE'
+                        : m.id === 'starship-launch'
+                          ? '05 STAGE RELEASE'
+                          : m.id === 'starship-belly-flop'
+                            ? '06 CRANE CATCH'
+                            : '07 BOOSTER CATCH';
               return (
                 <button
                   key={m.id}

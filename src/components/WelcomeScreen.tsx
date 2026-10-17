@@ -31,6 +31,10 @@ const SPACEX_HEADLINES: Record<MissionId, { dateTag: string; heroTitle: string }
     dateTag: 'OCTOBER 17, 2026 // 10,000 PSI COPV AEROBATICS',
     heroTitle: 'ROADSTER 360° KICKFLIP',
   },
+  'roadster-obstacle-race': {
+    dateTag: 'OCTOBER 17, 2026 // HIGH-SPEED AERO GAUNTLET & THRUSTER JUMP',
+    heroTitle: 'ROADSTER OBSTACLE RACE',
+  },
   'roadster-hover': {
     dateTag: 'OCTOBER 17, 2026 // 6-DoF COLD-GAS HOVER TEST',
     heroTitle: 'ROADSTER SUPERSONIC HOVER',
@@ -45,9 +49,42 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [previewMissionId, setPreviewMissionId] = useState<MissionId>(selectedMissionId);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
+  const burstsRef = useRef<Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number }>>([]);
 
   const activeMission = MISSIONS[previewMissionId];
   const heroMeta = SPACEX_HEADLINES[previewMissionId];
+
+  // Mouse move and click particle interaction
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      mouseRef.current.targetX = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseRef.current.targetY = (e.clientY / window.innerHeight) * 2 - 1;
+    };
+
+    const onClickCanvas = (e: MouseEvent) => {
+      for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const spd = 2 + Math.random() * 5;
+        burstsRef.current.push({
+          x: e.clientX,
+          y: e.clientY,
+          vx: Math.cos(angle) * spd,
+          vy: Math.sin(angle) * spd,
+          life: 0,
+          maxLife: 24 + Math.random() * 18,
+          size: 2 + Math.random() * 4,
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('click', onClickCanvas);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('click', onClickCanvas);
+    };
+  }, []);
 
   // Full-bleed 60fps SpaceX Flight 14 & Roadster Stunt Monochrome Canvas Backdrop
   useEffect(() => {
@@ -69,9 +106,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     const draw = () => {
       raf = requestAnimationFrame(draw);
       t += 0.016;
+
+      // Smooth mouse parallax lerp
+      mouseRef.current.x += (mouseRef.current.targetX - mouseRef.current.x) * 0.06;
+      mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.06;
+      const px = mouseRef.current.x * 28;
+      const py = mouseRef.current.y * 18;
+
       const w = canvas.width;
       const h = canvas.height;
-      const cx = w * 0.5;
+      const cx = w * 0.5 + px;
 
       // 1. Deep Stratosphere Monochrome Sky Gradient
       const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
@@ -82,20 +126,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Diagonal High-Altitude Contrail Streak (matching SpaceX Flight 14 backdrop)
+      // 2. Diagonal High-Altitude Contrail Streak (with parallax)
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.lineWidth = Math.max(2, w * 0.004);
       ctx.beginPath();
-      ctx.moveTo(w * 0.18, h * 0.06);
-      ctx.quadraticCurveTo(w * 0.48, h * 0.34, w * 0.86, h * 0.68);
+      ctx.moveTo(w * 0.18 + px * 0.4, h * 0.06 + py * 0.4);
+      ctx.quadraticCurveTo(w * 0.48 + px * 0.7, h * 0.34 + py * 0.7, w * 0.86 + px, h * 0.68 + py);
       ctx.stroke();
       ctx.restore();
 
       // 3. Lower Horizon Cumulus Cloud Banks (lit by plume glow)
       for (let i = 0; i < 9; i++) {
-        const cloudX = (w * (i + 0.3)) / 8.5 + Math.sin(t * 0.25 + i) * 18;
-        const cloudY = h * (0.76 + (i % 3) * 0.06);
+        const cloudX = (w * (i + 0.3)) / 8.5 + Math.sin(t * 0.25 + i) * 18 + px * 0.3;
+        const cloudY = h * (0.76 + (i % 3) * 0.06) + py * 0.3;
         const cloudR = Math.max(w, h) * (0.11 + (i % 2) * 0.05);
         const cg = ctx.createRadialGradient(cloudX, cloudY, cloudR * 0.1, cloudX, cloudY, cloudR);
         cg.addColorStop(0, 'rgba(212, 212, 212, 0.22)');
@@ -109,7 +153,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
       if (activeMission.vehicle === 'starship') {
         // 4A. Center Ascending 2-Stage SpaceX Starship + Super Heavy Booster Silhouette & Plume
-        const bobY = Math.sin(t * 2.2) * 6;
+        const bobY = Math.sin(t * 2.2) * 6 + py;
         const rocketTopY = h * 0.24 + bobY;
         const shipH = h * 0.17;
         const boosterH = h * 0.26;
@@ -130,6 +174,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ctx.lineTo(cx - radius * 2.8, h * 0.98);
         ctx.closePath();
         ctx.fill();
+
+        // Pulsing Mach Diamonds in Plume
+        for (let m = 0; m < 5; m++) {
+          const dy = plumeTopY + (m + 1) * 36 + Math.sin(t * 8 + m) * 4;
+          if (dy < h * 0.88) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.beginPath();
+            ctx.arc(cx, dy, radius * 0.55 - m * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
 
         // Super Heavy Booster (White/Silver Cryogenic Frost Cladding + Grid Fins)
         ctx.fillStyle = '#e5e5e5';
@@ -164,7 +219,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ctx.fill();
       } else {
         // 4B. Center 2026 Tesla Roadster Coupé Firing Cold-Gas Jets Over Stunt Track
-        const carY = h * 0.46 + Math.sin(t * 2.8) * 10;
+        const carY = h * 0.46 + Math.sin(t * 2.8) * 10 + py;
         const carW = Math.max(220, w * 0.22);
         const carH = carW * 0.28;
 
@@ -193,6 +248,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ctx.lineTo(cx + carW * 0.48, carY + carH * 0.28);
         ctx.closePath();
         ctx.fill();
+      }
+
+      // 5. Interactive Click Particles
+      const bursts = burstsRef.current;
+      for (let b = bursts.length - 1; b >= 0; b--) {
+        const pt = bursts[b];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.life++;
+        const alpha = Math.max(0, 1 - pt.life / pt.maxLife);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.size * (1 - pt.life / pt.maxLife), 0, Math.PI * 2);
+        ctx.fill();
+        if (pt.life >= pt.maxLife) {
+          bursts.splice(b, 1);
+        }
       }
     };
 
@@ -235,11 +307,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     ? '02 HALF-LOOP'
                     : m.id === 'roadster-barrel-roll'
                       ? '03 KICKFLIP'
-                      : m.id === 'starship-launch'
-                        ? '04 STAGE RELEASE'
-                        : m.id === 'starship-belly-flop'
-                          ? '05 CRANE CATCH'
-                          : '06 BOOSTER CATCH';
+                      : m.id === 'roadster-obstacle-race'
+                        ? '04 OBSTACLE RACE'
+                        : m.id === 'starship-launch'
+                          ? '05 STAGE RELEASE'
+                          : m.id === 'starship-belly-flop'
+                            ? '06 CRANE CATCH'
+                            : '07 BOOSTER CATCH';
               return (
                 <button
                   key={m.id}
