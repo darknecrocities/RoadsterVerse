@@ -22,6 +22,14 @@ export interface RoadsterVerseStuntMeta {
 }
 
 export const ROADSTERVERSE_STUNT_DETAILS: Record<MissionId, RoadsterVerseStuntMeta> = {
+  'starship-pod-orbit': {
+    category: 'PROJECT ROADSTERVERSE // ORBITAL MICROGRAVITY & MORPH',
+    heroTitle: 'ORBITAL POD & SATELLITE TRANSFORMATION',
+    tagline: 'Deep Space Attitude Stabilization & Solar Array Articulation',
+    description:
+      'Zero-G orbital pod flight mechanics with cold-gas lateral and bottom micro-thruster RCS pulses arresting atmospheric separation tumble, followed by dual solar array wing deployment and satellite reconfiguration.',
+    badge: 'STUNT 08',
+  },
   'starship-booster-catch': {
     category: 'PROJECT ROADSTERVERSE // TOWER RECOVERY DYNAMICS',
     heroTitle: 'SUPER HEAVY MECHAZILLA CATCH',
@@ -137,7 +145,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                           ? '05 STAGE'
                           : m.id === 'starship-belly-flop'
                             ? '06 CRANE'
-                            : '07 BOOSTER';
+                            : m.id === 'starship-booster-catch'
+                              ? '07 BOOSTER'
+                              : '08 ORBIT';
               return (
                 <button
                   key={m.id}
