@@ -5,10 +5,16 @@ import type {
   ThrusterActivation,
 } from '../types/simulation.ts';
 import { computeStarshipAerodynamics } from './aerodynamicsAndRace.ts';
+import { resolveCrashDynamics } from './crashDynamics.ts';
+import { createInitialOrbitalPodState, stepOrbitalPodPhysics } from './orbitalPhysics.ts';
 
 const EARTH_GRAVITY = 9.81;
 
 export function createInitialStarshipState(missionId: MissionId): RigidBodyState {
+  if (missionId === 'starship-pod-orbit') {
+    return createInitialOrbitalPodState();
+  }
+
   if (missionId === 'starship-belly-flop') {
     // Starts high in horizontal skydiver belly-flop attitude (pitch ~ 1.48 rad / 85 deg)
     return {
@@ -55,6 +61,10 @@ export function stepStarshipPhysics(
   dt: number,
   windImpulseX = 0
 ): RigidBodyState {
+  if (missionId === 'starship-pod-orbit') {
+    return stepOrbitalPodPhysics(state, thrusters, params, dt);
+  }
+
   const next: RigidBodyState = {
     position: { ...state.position },
     velocity: { ...state.velocity },
@@ -139,18 +149,36 @@ export function stepStarshipPhysics(
 
       // Crash / Fall detection during ascent:
       if (state.position.y > 1.38 && next.position.y <= 1.36) {
+        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
         next.crashed = true;
+        next.crashType = crash.type;
+        next.crashReason = crash.diagnosticMessage;
+        next.angularVelocity = crash.tumbleVelocity;
         next.position.y = 1.35;
       }
       if (next.position.y < 4.0 && (Math.abs(next.attitude.pitch) > 0.50 || Math.abs(next.attitude.roll) > 0.50)) {
+        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
         next.crashed = true;
+        next.crashType = crash.type;
+        next.crashReason = crash.diagnosticMessage;
+        next.angularVelocity = crash.tumbleVelocity;
       }
       if (Math.abs(next.attitude.pitch) > 0.95) {
+        const crash = resolveCrashDynamics('max-q-aerodynamic-breakup', next.velocity, next.attitude);
         next.crashed = true;
+        next.crashType = crash.type;
+        next.crashReason = crash.diagnosticMessage;
+        next.angularVelocity = crash.tumbleVelocity;
       }
       if (next.position.y < 1.35) {
         next.position.y = 1.35;
-        if (state.position.y > 1.36) next.crashed = true;
+        if (state.position.y > 1.36) {
+          const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
+          next.crashed = true;
+          next.crashType = crash.type;
+          next.crashReason = crash.diagnosticMessage;
+          next.angularVelocity = crash.tumbleVelocity;
+        }
       }
 
       if (next.crashed) {
@@ -219,7 +247,19 @@ export function stepStarshipPhysics(
         pitchErr > 0.22 ||
         (missionId === 'starship-booster-catch' && xErr > 1.2)
       ) {
+        const type =
+          missionId === 'starship-booster-catch'
+            ? xErr > 1.2
+              ? 'tower-chopstick-miss'
+              : pitchErr > 0.22
+                ? 'chopstick-arm-collision'
+                : 'catch-hard-landing-over-g'
+            : 'orbital-pad-mount-strike';
+        const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
         next.crashed = true;
+        next.crashType = crash.type;
+        next.crashReason = crash.diagnosticMessage;
+        next.angularVelocity = crash.tumbleVelocity;
       }
       next.position.y = targetLandingY;
       if (!next.crashed) {
@@ -283,7 +323,17 @@ export function stepStarshipPhysics(
     const impactSpeed = Math.abs(next.velocity.y);
     const pitchErr = Math.abs(next.attitude.pitch);
     if (impactSpeed > 1.8 || pitchErr > 0.22) {
+      const type =
+        pitchErr > 0.85
+          ? 'flip-failure-belly-slam'
+          : next.attitude.pitch < -0.35
+            ? 'flip-over-rotation-tail-strike'
+            : 'skydive-flat-spin';
+      const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
       next.crashed = true;
+      next.crashType = crash.type;
+      next.crashReason = crash.diagnosticMessage;
+      next.angularVelocity = crash.tumbleVelocity;
     }
     next.position.y = 1.5;
     if (!next.crashed) {

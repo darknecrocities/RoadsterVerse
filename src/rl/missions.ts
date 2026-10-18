@@ -128,6 +128,22 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
     physicsFormulaLatex:
       'RULE: Release top Ship -> Flip Booster back toward Tower -> Hover-land slowly!',
   },
+  'starship-pod-orbit': {
+    id: 'starship-pod-orbit',
+    vehicle: 'orbital-pod',
+    title: 'Stunt 08 // Orbital Pod & Satellite Morph',
+    subtitle: 'Deploy into deep space microgravity, stabilize attitude with cold-gas RCS, and unfold solar array wings!',
+    badge: 'DEEP SPACE SATELLITE MORPH',
+    targetDescription:
+      'Separate into deep space microgravity above the atmospheric horizon, fire cold-gas RCS nitrogen micro-thrusters on the pod bottom and lateral sides to arrest orbital tumble, and articulate solar array wings for full satellite transformation!',
+    targetPosition: { x: 0, y: 120.0, z: 0 },
+    targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
+    recommendedEpochs: 320,
+    mlTechniqueSummary:
+      'In zero-G microgravity with no atmospheric drag, any thruster firing causes continuous rotation. The RL policy computes exact sub-second pulsed cold-gas firings across 8 lateral and bottom RCS thrusters to damp tumble rates to zero before commanding servo actuators to deploy the dual solar wings!',
+    physicsFormulaLatex:
+      'RULE: Zero-G attitude hold: sum(Torque_RCS) * dt -> 0 rad/s before solar array deploy!',
+  },
 };
 
 export const MISSION_LIST: MissionDefinition[] = Object.values(MISSIONS);

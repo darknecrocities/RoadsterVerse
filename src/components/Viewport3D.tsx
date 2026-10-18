@@ -172,7 +172,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         }
         soundEngine.update(activeMission.vehicle, thrusters, primaryStateRef.current);
         if (primaryStateRef.current.crashed && !wasCrashedRef.current) {
-          soundEngine.triggerCrash(activeMission.vehicle);
+          soundEngine.triggerCrash(activeMission.vehicle, primaryStateRef.current.crashType);
         }
         wasCrashedRef.current = primaryStateRef.current.crashed;
 
@@ -301,6 +301,19 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                   </strong>
                 </div>
               </>
+            ) : mission.id === 'starship-pod-orbit' ? (
+              <>
+                <div className="metric-mini">
+                  <span>ORBIT ALT</span>
+                  <strong>
+                    <AnimatedNumber value={hudState.position.y} decimals={1} suffix=" km" />
+                  </strong>
+                </div>
+                <div className="metric-mini">
+                  <span>SOLAR WINGS</span>
+                  <strong>{Math.round(hudState.solarArrayDeployPct ?? 0)}%</strong>
+                </div>
+              </>
             ) : (
               <>
                 <div className="metric-mini">
@@ -319,9 +332,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
               </>
             )}
             <div className="metric-mini">
-              <span>{mission.vehicle === 'roadster' ? 'AIR TANK' : 'FUEL'}</span>
+              <span>{mission.vehicle === 'roadster' ? 'AIR TANK' : mission.vehicle === 'orbital-pod' ? 'RCS N2' : 'FUEL'}</span>
               <strong>
-                {mission.vehicle === 'roadster' ? (
+                {mission.vehicle === 'roadster' || mission.vehicle === 'orbital-pod' ? (
                   <AnimatedNumber value={hudState.copvPressurePsi} decimals={0} suffix=" PSI" />
                 ) : (
                   `${hudState.propellantRemainingPct}%`
@@ -334,14 +347,18 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                 {isPaused
                   ? 'PAUSED'
                   : hudState.crashed
-                    ? 'EXPLODED!'
-                    : hudState.position.x >= 995.0 && mission.id === 'roadster-obstacle-race'
-                      ? '10KM CLEARED!'
-                      : mission.id === 'starship-booster-catch' && hudState.isGrounded
-                        ? 'BOOSTER CAUGHT IN MID-AIR!'
-                        : hudState.isOnWall || hudState.isGrounded
-                          ? 'ON RAMP / ROAD'
-                          : 'MID-AIR JETS'}
+                    ? hudState.crashReason || 'EXPLODED!'
+                    : mission.id === 'starship-pod-orbit'
+                      ? (hudState.solarArrayDeployPct ?? 0) >= 100
+                        ? 'SATELLITE MORPH COMPLETE'
+                        : 'MICRO-G ATTITUDE HOLD'
+                      : hudState.position.x >= 995.0 && mission.id === 'roadster-obstacle-race'
+                        ? '10KM CLEARED!'
+                        : mission.id === 'starship-booster-catch' && hudState.isGrounded
+                          ? 'BOOSTER CAUGHT IN MID-AIR!'
+                          : hudState.isOnWall || hudState.isGrounded
+                            ? 'ON RAMP / ROAD'
+                            : 'MID-AIR JETS'}
               </strong>
             </div>
           </div>

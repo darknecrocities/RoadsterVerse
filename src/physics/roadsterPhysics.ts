@@ -1,4 +1,5 @@
 import type {
+  CrashType,
   MissionId,
   RigidBodyState,
   RLHyperparameters,
@@ -16,6 +17,7 @@ import {
   computeRoadsterAerodynamics,
   stepRoadsterObstacleRacePhysics,
 } from './aerodynamicsAndRace.ts';
+import { resolveCrashDynamics } from './crashDynamics.ts';
 
 export const ROADSTER_MASS_KG = 1850;
 export const GRAVITY_EARTH = 9.81;
@@ -30,54 +32,32 @@ export function createInitialRoadsterState(
   missionId: MissionId,
   params: RLHyperparameters
 ): RigidBodyState {
-  if (missionId === 'roadster-wall-climb') {
-    const startSample = sampleHotWheelsHalfLoop(0);
-    return {
-      position: { x: startSample.carCenterX, y: startSample.carCenterY, z: 0 },
-      velocity: { x: 0, y: 0, z: 0 },
-      attitude: { roll: 0, pitch: 0, yaw: 0 },
-      angularVelocity: { x: 0, y: 0, z: 0 },
-      copvPressurePsi: params.initialCopvPsi,
-      propellantRemainingPct: 100,
-      gForce: 1.0,
-      wallContactNormalForceN: ROADSTER_MASS_KG * GRAVITY_EARTH,
-      isGrounded: true,
-      isOnWall: false,
-      crashed: false,
-      missionProgressPct: 0,
-      elapsedTimeSec: 0,
-    };
-  }
+  let pos = { x: 0, y: GROUND_Y + 0.08, z: 0 };
+  let isGrounded = false;
+  let wallNormal = 0;
 
-  if (missionId === 'roadster-barrel-roll' || missionId === 'roadster-obstacle-race') {
+  if (missionId === 'roadster-wall-climb') {
+    const s = sampleHotWheelsHalfLoop(0);
+    pos = { x: s.carCenterX, y: s.carCenterY, z: 0 };
+    isGrounded = true;
+    wallNormal = ROADSTER_MASS_KG * GRAVITY_EARTH;
+  } else if (missionId === 'roadster-barrel-roll' || missionId === 'roadster-obstacle-race') {
     const isRace = missionId === 'roadster-obstacle-race';
-    return {
-      position: { x: isRace ? 0.0 : -9.2, y: GROUND_Y, z: isRace ? 2.5 : 0 },
-      velocity: { x: 0, y: 0, z: 0 },
-      attitude: { roll: 0, pitch: 0, yaw: 0 },
-      angularVelocity: { x: 0, y: 0, z: 0 },
-      copvPressurePsi: params.initialCopvPsi,
-      propellantRemainingPct: 100,
-      gForce: 1.0,
-      wallContactNormalForceN: ROADSTER_MASS_KG * GRAVITY_EARTH,
-      isGrounded: true,
-      isOnWall: false,
-      crashed: false,
-      missionProgressPct: 0,
-      elapsedTimeSec: 0,
-    };
+    pos = { x: isRace ? 0.0 : -9.2, y: GROUND_Y, z: isRace ? 2.5 : 0 };
+    isGrounded = true;
+    wallNormal = ROADSTER_MASS_KG * GRAVITY_EARTH;
   }
 
   return {
-    position: { x: 0, y: GROUND_Y + 0.08, z: 0 },
+    position: pos,
     velocity: { x: 0, y: 0, z: 0 },
     attitude: { roll: 0, pitch: 0, yaw: 0 },
     angularVelocity: { x: 0, y: 0, z: 0 },
     copvPressurePsi: params.initialCopvPsi,
     propellantRemainingPct: 100,
     gForce: 1.0,
-    wallContactNormalForceN: 0,
-    isGrounded: false,
+    wallContactNormalForceN: wallNormal,
+    isGrounded,
     isOnWall: false,
     crashed: false,
     missionProgressPct: 0,
@@ -282,7 +262,16 @@ export function stepRoadsterPhysics(
         const pitchError = Math.min(Math.abs(next.attitude.pitch), Math.abs(Math.PI * 2 - next.attitude.pitch));
         const rollError = Math.abs(Math.PI * 2 - next.attitude.roll);
         if (!isCleanDismount || Math.abs(next.velocity.y) > 6.5 || pitchError > 0.65 || rollError > 0.65) {
+          const type: CrashType = !isCleanDismount
+            ? 'loop-curvature-smash'
+            : pitchError > 0.65
+              ? 'loop-apex-gravity-stall'
+              : 'loop-inverted-exit-flat-spin';
+          const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
           next.crashed = true;
+          next.crashType = crash.type;
+          next.crashReason = crash.diagnosticMessage;
+          next.angularVelocity = crash.tumbleVelocity;
         } else {
           next.attitude.pitch = 0;
           next.attitude.roll = Math.PI * 2;
@@ -293,7 +282,7 @@ export function stepRoadsterPhysics(
         }
         next.position.y = GROUND_Y;
         next.velocity.y = 0;
-        next.isGrounded = true;
+        next.isGrounded = !next.crashed;
         next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity + aero.downforceN;
       }
     }
@@ -392,7 +381,16 @@ export function stepRoadsterPhysics(
         const impactVy = Math.abs(next.velocity.y);
         const rollErrorFrom360 = Math.abs(Math.PI * 2 - next.attitude.roll);
         if (impactVy > 6.2 || rollErrorFrom360 > 0.65) {
+          const type: CrashType = next.attitude.roll < Math.PI * 1.5
+            ? 'kickflip-under-rotation-nose-dive'
+            : next.attitude.roll > Math.PI * 2.2
+              ? 'kickflip-over-rotation-roof-crush'
+              : 'ramp-lip-strike';
+          const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
           next.crashed = true;
+          next.crashType = crash.type;
+          next.crashReason = crash.diagnosticMessage;
+          next.angularVelocity = crash.tumbleVelocity;
         } else {
           next.attitude.roll = Math.PI * 2;
           next.attitude.pitch = 0;
@@ -401,7 +399,7 @@ export function stepRoadsterPhysics(
         }
         next.position.y = GROUND_Y;
         next.velocity.y = 0;
-        next.isGrounded = true;
+        next.isGrounded = !next.crashed;
         next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity + aero.downforceN;
       }
     }
@@ -448,41 +446,37 @@ export function stepRoadsterPhysics(
       const rollMod = Math.abs(((next.attitude.roll % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
       const tiltError = Math.min(rollMod, Math.abs(Math.PI * 2 - rollMod));
       if (impactSpeed > 6.5 || (state.position.y > 1.8 && tiltError > 0.75)) {
+        const type: CrashType = next.copvPressurePsi <= 1850
+          ? 'hover-blowdown-ground-slam'
+          : tiltError > 0.75
+            ? 'hover-attitude-flip'
+            : 'hover-boundary-impact';
+        const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
         next.crashed = true;
+        next.crashType = crash.type;
+        next.crashReason = crash.diagnosticMessage;
+        next.angularVelocity = crash.tumbleVelocity;
       }
       next.position.y = GROUND_Y;
       next.velocity.y = Math.max(0, next.velocity.y);
       next.velocity.x *= 0.85;
-      next.isGrounded = true;
+      next.isGrounded = !next.crashed;
       next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity + aero.downforceN;
     }
   }
 
   const totalValveDuty =
-    (thrusters.frontLeftLift +
-      thrusters.frontRightLift +
-      thrusters.rearLeftLift +
-      thrusters.rearRightLift +
-      thrusters.lateralLeft +
-      thrusters.lateralRight +
-      thrusters.rearBoost) /
-    7;
-
-  // Fuel-Saving Rule (rewardFuelWeight) directly calibrates COPV blowdown conservation
+    (thrusters.frontLeftLift + thrusters.frontRightLift + thrusters.rearLeftLift +
+      thrusters.rearRightLift + thrusters.lateralLeft + thrusters.lateralRight + thrusters.rearBoost) / 7;
   const fuelConservationScale = Math.max(0.45, Math.min(1.75, 1.35 - params.rewardFuelWeight * 0.35));
   const psiDrainRate = totalValveDuty * 420 * fuelConservationScale;
-  const electricPlaidCompressorRecharge = 85;
   next.copvPressurePsi = Math.max(
     1800,
-    Math.min(
-      params.initialCopvPsi,
-      next.copvPressurePsi - (psiDrainRate - electricPlaidCompressorRecharge) * dt
-    )
+    Math.min(params.initialCopvPsi, next.copvPressurePsi - (psiDrainRate - 85) * dt)
   );
   next.propellantRemainingPct = Math.round(
     ((next.copvPressurePsi - 1800) / Math.max(1000, params.initialCopvPsi - 1800)) * 100
   );
-
   const totalThrustMag =
     totalUnderbodyLiftN + Math.abs(lateralLeftN - lateralRightN) + rearBoostN + aero.downforceN * 0.35;
   next.gForce = Number((Math.max(1.0, totalThrustMag / (ROADSTER_MASS_KG * GRAVITY_EARTH))).toFixed(2));

@@ -1,4 +1,4 @@
-export type VehicleId = 'roadster' | 'starship';
+export type VehicleId = 'roadster' | 'starship' | 'orbital-pod';
 
 export type MissionId =
   | 'roadster-hover'
@@ -7,7 +7,43 @@ export type MissionId =
   | 'roadster-obstacle-race'
   | 'starship-launch'
   | 'starship-belly-flop'
-  | 'starship-booster-catch';
+  | 'starship-booster-catch'
+  | 'starship-pod-orbit';
+
+export type CrashType =
+  // Stunt 01 Hover
+  | 'hover-blowdown-ground-slam'
+  | 'hover-attitude-flip'
+  | 'hover-boundary-impact'
+  // Stunt 02 Loop
+  | 'loop-apex-gravity-stall'
+  | 'loop-curvature-smash'
+  | 'loop-inverted-exit-flat-spin'
+  // Stunt 03 Kickflip
+  | 'kickflip-under-rotation-nose-dive'
+  | 'kickflip-over-rotation-roof-crush'
+  | 'ramp-lip-strike'
+  // Stunt 04 Gauntlet Race
+  | 'obstacle-concrete-chicane-impact'
+  | 'obstacle-cyber-drone-collision'
+  | 'laser-wall-clip'
+  | 'post-jump-cartwheel'
+  // Stunt 05 Launch
+  | 'orbital-pad-mount-strike'
+  | 'max-q-aerodynamic-breakup'
+  | 'hot-stage-collision'
+  // Stunt 06 Belly-Flop
+  | 'skydive-flat-spin'
+  | 'flip-failure-belly-slam'
+  | 'flip-over-rotation-tail-strike'
+  // Stunt 07 Booster Catch
+  | 'tower-chopstick-miss'
+  | 'chopstick-arm-collision'
+  | 'catch-hard-landing-over-g'
+  // Stunt 08 Pod Orbit
+  | 'orbital-deployment-tumble'
+  | 'zero-g-thruster-depletion-drift'
+  | 'orbital-debris-collision';
 
 export type WheelSpec = 'aero-disc' | 'six-spoke';
 
@@ -43,6 +79,10 @@ export interface ThrusterActivation {
   flapAftLeft: number;     // [0..1] aft left aero flap deflection
   flapAftRight: number;    // [0..1] aft right aero flap deflection
   hotStageSeparated: boolean;
+  // Orbital pod specific channels
+  podRcsBottom?: number;   // [0..1] bottom orbital RCS nozzles
+  podRcsLateral?: number;  // [0..1] lateral orbital RCS nozzles
+  podSolarDeployCmd?: number; // [0..1] satellite transformation command
 }
 
 export interface RigidBodyState {
@@ -57,6 +97,9 @@ export interface RigidBodyState {
   isOnWall: boolean;
   isGrounded: boolean;
   crashed: boolean;
+  crashType?: CrashType;
+  crashReason?: string;
+  solarArrayDeployPct?: number; // 0 - 100% for satellite transformation
   missionProgressPct: number;
   elapsedTimeSec: number;
 }

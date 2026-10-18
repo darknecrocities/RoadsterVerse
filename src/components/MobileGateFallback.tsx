@@ -36,56 +36,44 @@ export const MobileGateFallback: React.FC = () => {
           <div className="mobile-gate-pulse-ring" />
         </div>
 
-        {/* Main Title & Notice */}
+        {/* Main Title & Simple Notice */}
         <div className="mobile-gate-content">
-          <h1 className="mobile-gate-headline">DESKTOP WORKSTATION REQUIRED</h1>
+          <h1 className="mobile-gate-headline">PLEASE OPEN ON YOUR COMPUTER</h1>
           <p className="mobile-gate-subtext">
-            This simulator executes full 6-DoF numerical rigid-body mechanics, real-time COPV cold-gas
-            thruster dynamics, aerodynamic lift/drag vectors, and real-time neural network tensor updates.
+            This 3D vehicle & rocket simulator is built exclusively for desktop and laptop computers.
+            Mobile devices and cellphones are not supported.
           </p>
-          <p className="mobile-gate-subtext-muted">
-            To preserve 60 FPS computation and accommodate multi-panel telemetry instrumentation, mobile
-            and handheld touch displays are strictly redirected to desktop clients.
-          </p>
+          <div className="mobile-gate-platforms">
+            <span className="platform-pill">Windows (PC)</span>
+            <span className="platform-pill">macOS (Mac)</span>
+            <span className="platform-pill">Linux</span>
+          </div>
         </div>
 
         {/* System Specifications Checklist */}
         <div className="mobile-gate-specs-card">
           <div className="specs-card-header">
             <Cpu size={15} strokeWidth={1.75} />
-            <span>COMPATIBLE WORKSTATION PLATFORMS</span>
+            <span>COMPATIBLE COMPUTER PLATFORMS</span>
           </div>
 
           <div className="specs-grid">
             <div className="spec-item">
-              <span className="spec-label">OPERATING SYSTEM</span>
-              <span className="spec-val">Windows 10 / 11, macOS, Linux</span>
+              <span className="spec-label">COMPUTERS</span>
+              <span className="spec-val">Windows 10 / 11, Mac, Linux</span>
             </div>
             <div className="spec-item">
-              <span className="spec-label">MINIMUM RESOLUTION</span>
-              <span className="spec-val">&gt;= 1024 x 640 Screen Space</span>
+              <span className="spec-label">DISPLAY</span>
+              <span className="spec-val">&gt;= 1024 x 640 Resolution</span>
             </div>
             <div className="spec-item">
-              <span className="spec-label">ACCELERATION</span>
-              <span className="spec-val">WebGL 2.0 / Hardware GPU</span>
+              <span className="spec-label">GRAPHICS</span>
+              <span className="spec-val">WebGL 2.0 GPU Acceleration</span>
             </div>
             <div className="spec-item">
-              <span className="spec-label">DESKTOP BROWSERS</span>
-              <span className="spec-val">Chrome, Edge, Firefox, Safari</span>
+              <span className="spec-label">BROWSERS</span>
+              <span className="spec-val">Chrome, Edge, Safari, Firefox</span>
             </div>
-          </div>
-        </div>
-
-        {/* Diagnostic Command Line Box */}
-        <div className="mobile-gate-cli-box">
-          <div className="cli-header">
-            <Terminal size={12} strokeWidth={1.5} />
-            <span>DIAGNOSTIC STATUS // ENV_CHECK</span>
-          </div>
-          <div className="cli-body">
-            <code>[WARN] Mobile viewport detected: {window.innerWidth}x{window.innerHeight}</code>
-            <code>[INFO] Platform redirection active: Simulator entry blocked.</code>
-            <code>[INFO] Please open this URL on a Windows, macOS, or Linux computer.</code>
           </div>
         </div>
 
@@ -97,14 +85,14 @@ export const MobileGateFallback: React.FC = () => {
             onClick={handleCopyLink}
           >
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            <span>{copied ? 'URL COPIED TO CLIPBOARD' : 'COPY SIMULATOR URL'}</span>
+            <span>{copied ? 'LINK COPIED TO CLIPBOARD' : 'COPY SIMULATOR LINK'}</span>
           </button>
         </div>
 
         {/* Footer Note */}
         <div className="mobile-gate-footer">
-          <span>TESLA ROADSTER &bull; SPACEX STARSHIP PROVING GROUND</span>
-          <span>STRICT MONOCHROME COMPUTATION ARCHITECTURE</span>
+          <span>TESLA ROADSTER // SPACEX STARSHIP PROVING GROUND</span>
+          <span>DESKTOP WORKSTATION REQUIRED</span>
         </div>
       </div>
     </div>

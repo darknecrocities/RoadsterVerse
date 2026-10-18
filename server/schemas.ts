@@ -8,9 +8,10 @@ export const MissionIdSchema = z.enum([
   'starship-launch',
   'starship-belly-flop',
   'starship-booster-catch',
+  'starship-pod-orbit',
 ]);
 
-export const VehicleIdSchema = z.enum(['roadster', 'starship']);
+export const VehicleIdSchema = z.enum(['roadster', 'starship', 'orbital-pod']);
 
 export const CheckpointCreateSchema = z.object({
   name: z

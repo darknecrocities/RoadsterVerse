@@ -17,6 +17,7 @@ import {
 } from '../physics/rampGeometry.ts';
 import { createRoadsterModel, type RoadsterRig } from './roadsterModel.ts';
 import { createStarshipModel, type StarshipRig } from './starshipModel.ts';
+import { createOrbitalPodModel, type OrbitalPodRig } from './orbitalPodModel.ts';
 import { VolumetricPlumeSmokeSystem } from './plumeAndSmokeFX.ts';
 import {
   createCarbonWeaveTexture,
@@ -35,6 +36,8 @@ export class ProvingGroundSceneController {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly roadsterRig: RoadsterRig;
   private readonly starshipRig: StarshipRig;
+  private readonly orbitalPodRig: OrbitalPodRig;
+  private readonly spaceGroup = new THREE.Group();
   private readonly smokeSystem = new VolumetricPlumeSmokeSystem(220);
   private readonly roadsterArenaGroup = new THREE.Group();
   private readonly stuntKickerGroup = new THREE.Group();
@@ -81,7 +84,15 @@ export class ProvingGroundSceneController {
 
     this.roadsterRig = createRoadsterModel(false);
     this.starshipRig = createStarshipModel(false);
-    this.scene.add(this.roadsterRig.root, this.starshipRig.root, this.smokeSystem.group);
+    this.orbitalPodRig = createOrbitalPodModel(false);
+    this.buildSpaceEnvironment();
+    this.scene.add(
+      this.roadsterRig.root,
+      this.starshipRig.root,
+      this.orbitalPodRig.root,
+      this.spaceGroup,
+      this.smokeSystem.group
+    );
   }
 
   private setupLighting(): void {
@@ -98,6 +109,37 @@ export class ProvingGroundSceneController {
     rimLightRight.position.set(10, 8.0, 6);
 
     this.scene.add(ambient, keyLight, rimLightLeft, rimLightRight);
+  }
+
+  private buildSpaceEnvironment(): void {
+    const starCount = 360;
+    const starGeo = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const theta = Math.random() * 2.0 * Math.PI;
+      const phi = Math.acos(2.0 * Math.random() - 1.0);
+      const r = 160 + Math.random() * 80;
+      starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = Math.abs(r * Math.sin(phi) * Math.sin(theta)) - 10;
+      starPositions[i * 3 + 2] = r * Math.cos(phi);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, transparent: true, opacity: 0.85 });
+    this.spaceGroup.add(new THREE.Points(starGeo, starMat));
+
+    const earthGeo = new THREE.SphereGeometry(180, 48, 24, 0, Math.PI * 2, 0, Math.PI * 0.45);
+    const earthMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.75, metalness: 0.1 });
+    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    earthMesh.position.set(0, -188, 0);
+    earthMesh.rotation.x = Math.PI;
+
+    const atmosphereRingGeo = new THREE.TorusGeometry(180, 1.2, 16, 80);
+    const atmosphereRingMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.35 });
+    const ringMesh = new THREE.Mesh(atmosphereRingGeo, atmosphereRingMat);
+    ringMesh.rotation.x = Math.PI / 2;
+    ringMesh.position.set(0, -8, 0);
+
+    this.spaceGroup.add(earthMesh, ringMesh);
   }
 
   /** Builds the Stunt Road Track, Curved Steel Quarter-Pipe Ramp, and Giant C-Shaped Half-Loop */
@@ -252,9 +294,12 @@ export class ProvingGroundSceneController {
     targetPos: { x: number; y: number; z: number },
     dt: number
   ): void {
+    const isSpace = missionId === 'starship-pod-orbit';
     const isRoadster = vehicle === 'roadster';
     this.roadsterRig.root.visible = isRoadster;
-    this.starshipRig.root.visible = !isRoadster;
+    this.starshipRig.root.visible = !isRoadster && !isSpace;
+    this.orbitalPodRig.root.visible = isSpace;
+    this.spaceGroup.visible = isSpace;
     this.roadsterArenaGroup.visible = isRoadster;
 
     // Strict exclusive stunt prop visibility — ZERO overlapping ramps or obstacles!
@@ -263,7 +308,8 @@ export class ProvingGroundSceneController {
     this.wallRampGroup.visible = missionId === 'roadster-wall-climb';
     this.wallRampGroup.position.x = 0;
     this.obstacleCourseGroup.visible = missionId === 'roadster-obstacle-race';
-    this.starbaseRig.group.visible = !isRoadster;
+    this.starbaseRig.group.visible = !isRoadster && !isSpace;
+    this.targetMarker.visible = !isSpace;
 
     if (Math.abs(this.camera.fov - 48) > 0.2) {
       this.camera.fov += (48 - this.camera.fov) * Math.min(1, dt * 6);
@@ -276,7 +322,20 @@ export class ProvingGroundSceneController {
     const isRoadsterMidAir =
       !primaryState.isGrounded && !primaryState.isOnWall && !primaryState.crashed;
 
-    if (isRoadster) {
+    if (isSpace) {
+      this.orbitalPodRig.root.position.set(
+        primaryState.position.x,
+        primaryState.position.y - 110,
+        primaryState.position.z
+      );
+      this.orbitalPodRig.root.rotation.set(
+        primaryState.attitude.roll,
+        primaryState.attitude.yaw,
+        primaryState.attitude.pitch
+      );
+      this.orbitalPodRig.updateRCS(primaryThrusters, primaryState.elapsedTimeSec);
+      this.orbitalPodRig.updateDeployment(primaryState.solarArrayDeployPct ?? 0);
+    } else if (isRoadster) {
       this.roadsterRig.root.position.set(
         primaryState.position.x,
         primaryState.position.y + (primaryState.crashed ? 0.12 : 0),
@@ -335,7 +394,16 @@ export class ProvingGroundSceneController {
     const desiredCam = new THREE.Vector3();
     const desiredLook = new THREE.Vector3(px, Math.max(1.4, py + 0.3), pz);
 
-    if (missionId === 'roadster-obstacle-race') {
+    if (isSpace) {
+      this.orbitAngle += dt * 0.12;
+      const podY = py - 110;
+      desiredCam.set(
+        px * 0.35 + Math.sin(this.orbitAngle) * 8.5,
+        Math.max(1.8, podY + 2.4),
+        Math.cos(this.orbitAngle) * 8.5
+      );
+      desiredLook.set(px, podY, pz);
+    } else if (missionId === 'roadster-obstacle-race') {
       if (this.cameraMode === 'chase') {
         desiredCam.set(px - 14.0, Math.max(2.6, py + 3.2), pz * 0.4 + 5.5);
         desiredLook.set(px + 8.0, py + 0.6, pz);

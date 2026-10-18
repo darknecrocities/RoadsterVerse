@@ -16,7 +16,8 @@ import {
   computeRoadsterAerodynamics,
   computeStarshipAerodynamics,
 } from '../../src/physics/aerodynamicsAndRace.ts';
-import type { ThrusterActivation } from '../../src/types/simulation.ts';
+import { resolveCrashDynamics } from '../../src/physics/crashDynamics.ts';
+import type { CrashType, ThrusterActivation } from '../../src/types/simulation.ts';
 
 describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle Race & Gravity)', () => {
   it('lifts the 2026 Tesla Roadster into a supersonic cold-gas hover when 4 corner nozzles fire', () => {
@@ -433,5 +434,31 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
         expect(r === g && g === b, `Non-monochrome color #${hex} found in ${relPath}`).toBe(true);
       }
     }
+  });
+
+  it('stabilizes Stunt 08 Orbital Pod in microgravity and deploys satellite solar array wings', () => {
+    let state = createInitialStarshipState('starship-pod-orbit');
+    expect(state.position.y).toBe(121.5);
+    expect(state.gForce).toBe(0.0);
+    expect(state.solarArrayDeployPct).toBe(0);
+
+    const trainedParams = { ...DEFAULT_HYPERPARAMETERS, epochs: 340, explorationNoise: 0.01 };
+    for (let i = 0; i < 90; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-pod-orbit', trainedParams, 0);
+      state = stepStarshipPhysics(state, thrusters, 'starship-pod-orbit', trainedParams, 0.025);
+    }
+    expect(state.crashed).toBe(false);
+    expect(state.solarArrayDeployPct).toBeGreaterThan(0);
+    expect(Math.abs(state.attitude.pitch)).toBeLessThan(0.25);
+  });
+
+  it('computes tailored physical tumbling velocities and diagnostics for every stunt crash type', () => {
+    const res1 = resolveCrashDynamics('obstacle-concrete-chicane-impact', { x: 50, y: 0, z: 0 }, { roll: 0, pitch: 0, yaw: 0 });
+    expect(res1.diagnosticMessage).toContain('CHICANE');
+    expect(res1.tumbleVelocity.x).toBeGreaterThan(0);
+
+    const res2 = resolveCrashDynamics('orbital-deployment-tumble', { x: 0, y: 0, z: 0 }, { roll: 0, pitch: 0, yaw: 0 });
+    expect(res2.diagnosticMessage).toContain('SOLAR WING');
+    expect(res2.tumbleVelocity.z).toBeGreaterThan(0);
   });
 });

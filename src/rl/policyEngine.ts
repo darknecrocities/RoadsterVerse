@@ -342,6 +342,15 @@ export function evaluateRLPolicy(
       thrusters.gimbalPitch = clamp(2.1 * competence * attGain * pitchErr - 0.85 * competence * smoothGain * state.angularVelocity.y + n2 * 0.45 + lrOscillation, -1, 1);
       thrusters.gimbalYaw = clamp(-1.5 * competence * attGain * state.attitude.roll - 0.65 * competence * smoothGain * state.angularVelocity.x + n3 * 0.4, -1, 1);
     }
+  } else if (missionId === 'starship-pod-orbit') {
+    const pitchErr = -state.attitude.pitch;
+    const rollErr = -state.attitude.roll;
+    const rcsPitchCmd = clamp(2.2 * competence * attGain * pitchErr - 1.1 * smoothGain * state.angularVelocity.y + n1 * 0.15, -1, 1);
+    const rcsRollCmd = clamp(2.2 * competence * attGain * rollErr - 1.1 * smoothGain * state.angularVelocity.x + n2 * 0.15, -1, 1);
+    thrusters.podRcsBottom = clamp(0.25 * competence + (state.velocity.y < 0 ? 0.45 : 0), 0, 1);
+    thrusters.podRcsLateral = clamp(Math.max(Math.abs(rcsPitchCmd), Math.abs(rcsRollCmd)), 0, 1);
+    const settled = Math.hypot(pitchErr, rollErr) < 0.08 && Math.hypot(state.angularVelocity.y, state.angularVelocity.x) < 0.05;
+    thrusters.podSolarDeployCmd = settled || (competence > 0.85 && state.elapsedTimeSec > 1.2) ? 1.0 : 0.0;
   } else {
     const isFlipPhase = state.position.y < 9.8 + 2.6 * lookAheadFactor;
     const heightAboveCatch = Math.max(0, state.position.y - 1.5);
@@ -375,20 +384,10 @@ export function evaluateRLPolicy(
   ];
 
   const hiddenLayer1 = Array.from({ length: 8 }, (_, idx) =>
-    Number(
-      Math.tanh(
-        inputs[idx % inputs.length].value * (0.9 + idx * 0.12) * competence +
-          Math.sin(t * 3 + idx) * 0.25
-      ).toFixed(2)
-    )
+    Number(Math.tanh(inputs[idx % inputs.length].value * (0.9 + idx * 0.12) * competence + Math.sin(t * 3 + idx) * 0.25).toFixed(2))
   );
-
   const hiddenLayer2 = Array.from({ length: 6 }, (_, idx) =>
-    Number(
-      Math.tanh(
-        hiddenLayer1[idx] * 0.85 + hiddenLayer1[(idx + 2) % hiddenLayer1.length] * 0.55
-      ).toFixed(2)
-    )
+    Number(Math.tanh(hiddenLayer1[idx] * 0.85 + hiddenLayer1[(idx + 2) % hiddenLayer1.length] * 0.55).toFixed(2))
   );
 
   const outputs =
@@ -401,14 +400,23 @@ export function evaluateRLPolicy(
           { label: 'Side/Steer', value: Number(Math.max(thrusters.lateralLeft, thrusters.lateralRight).toFixed(2)) },
           { label: 'Aero Wing', value: Number(thrusters.activeWingAngle.toFixed(2)) },
         ]
-      : [
-          { label: 'Raptor Fire', value: Number(thrusters.raptorThrottle.toFixed(2)) },
-          { label: 'TVC Pitch', value: Number(((thrusters.gimbalPitch + 1) / 2).toFixed(2)) },
-          { label: 'Fwd Flaps', value: Number(thrusters.flapFrontLeft.toFixed(2)) },
-          { label: 'Aft Flaps', value: Number(thrusters.flapAftLeft.toFixed(2)) },
-          { label: 'Hot-Stage', value: thrusters.hotStageSeparated ? 1 : 0 },
-          { label: 'Grid Fins', value: Number(clamp(0.5 + thrusters.gimbalYaw * 0.4, 0, 1).toFixed(2)) },
-        ];
+      : mission.vehicle === 'orbital-pod'
+        ? [
+            { label: 'Bottom RCS', value: Number((thrusters.podRcsBottom ?? 0).toFixed(2)) },
+            { label: 'Lateral RCS', value: Number((thrusters.podRcsLateral ?? 0).toFixed(2)) },
+            { label: 'Deploy Cmd', value: (thrusters.podSolarDeployCmd ?? 0) > 0.5 ? 1 : 0 },
+            { label: 'Solar Wing %', value: Number(((state.solarArrayDeployPct ?? 0) / 100).toFixed(2)) },
+            { label: 'RCS Press', value: Number((state.copvPressurePsi / 10000).toFixed(2)) },
+            { label: 'Micro-G', value: Number(state.gForce.toFixed(2)) },
+          ]
+        : [
+            { label: 'Raptor Fire', value: Number(thrusters.raptorThrottle.toFixed(2)) },
+            { label: 'TVC Pitch', value: Number(((thrusters.gimbalPitch + 1) / 2).toFixed(2)) },
+            { label: 'Fwd Flaps', value: Number(thrusters.flapFrontLeft.toFixed(2)) },
+            { label: 'Aft Flaps', value: Number(thrusters.flapAftLeft.toFixed(2)) },
+            { label: 'Hot-Stage', value: thrusters.hotStageSeparated ? 1 : 0 },
+            { label: 'Grid Fins', value: Number(clamp(0.5 + thrusters.gimbalYaw * 0.4, 0, 1).toFixed(2)) },
+          ];
 
   const posReward = params.rewardAltitudeWeight * Math.exp(-Math.abs(altError) * 0.35);
   const attReward =
