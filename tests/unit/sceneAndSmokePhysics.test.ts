@@ -3,7 +3,10 @@ import { createRoadsterModel } from '../../src/three/roadsterModel.ts';
 import { createStarshipModel } from '../../src/three/starshipModel.ts';
 import { createOrbitalPodModel } from '../../src/three/orbitalPodModel.ts';
 import { VolumetricPlumeSmokeSystem } from '../../src/three/plumeAndSmokeFX.ts';
-import { SpacePlumeAndStagingFX } from '../../src/three/spacePlumeEffects.ts';
+import {
+  SpacePlumeAndStagingFX,
+  computeBoosterSeparationPhysics,
+} from '../../src/three/spacePlumeEffects.ts';
 import {
   DEFAULT_HYPERPARAMETERS,
   MISSION_LIST,
@@ -354,5 +357,29 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
       // Emitters must fire downward (-Y) or laterally (X != 0) — strictly ZERO top or forward nozzles!
       expect(emitter.localDirection.y <= 0 || Math.abs(emitter.localDirection.x) > 0.5).toBe(true);
     }
+  });
+
+  it('computes continuous Newtonian booster separation physics with gravity drop, backward tumble, and engine flame cutoff', () => {
+    // Before separation (elapsedTimeSec < stagingTimeSec)
+    const preSep = computeBoosterSeparationPhysics(28.0, 3.2, 3.8);
+    expect(preSep.boosterWorldY).toBe(28.0);
+    expect(preSep.boosterPitch).toBe(0);
+    expect(preSep.plumeOpacity).toBe(1.0);
+    expect(preSep.isVisible).toBe(true);
+
+    // 1 second after separation (tSep = 1.0s)
+    const postSep1s = computeBoosterSeparationPhysics(28.0, 4.8, 3.8);
+    // gravityDrop = 3.5 * 1.0 + 0.5 * 9.81 * 1.0^2 = 8.405m
+    // boosterWorldY = 28.0 - 8.405 = 19.595m
+    expect(postSep1s.boosterWorldY).toBeLessThan(20.0);
+    expect(postSep1s.boosterWorldY).toBeGreaterThan(18.0);
+    expect(postSep1s.boosterPitch).toBeLessThan(0); // Tumbles backward
+    expect(postSep1s.plumeOpacity).toBe(0); // Flame has decayed to 0 after 0.65s
+    expect(postSep1s.isVisible).toBe(true);
+
+    // After falling past ground boundary (-15m)
+    const postSepLong = computeBoosterSeparationPhysics(28.0, 8.0, 3.8);
+    expect(postSepLong.boosterWorldY).toBeLessThan(-15.0);
+    expect(postSepLong.isVisible).toBe(false);
   });
 });

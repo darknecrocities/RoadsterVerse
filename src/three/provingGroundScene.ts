@@ -1,12 +1,5 @@
 import * as THREE from 'three';
-import type {
-  CameraMode,
-  MissionId,
-  RigidBodyState,
-  ThrusterActivation,
-  VehicleId,
-  WheelSpec,
-} from '../types/simulation.ts';
+import type { CameraMode, MissionId, RigidBodyState, ThrusterActivation, VehicleId, WheelSpec } from '../types/simulation.ts';
 import {
   HALF_LOOP_RUNWAY_LENGTH,
   HALF_LOOP_TOTAL_LENGTH,
@@ -19,14 +12,8 @@ import { createRoadsterModel, type RoadsterRig } from './roadsterModel.ts';
 import { createStarshipModel, type StarshipRig } from './starshipModel.ts';
 import { createOrbitalPodModel, type OrbitalPodRig } from './orbitalPodModel.ts';
 import { VolumetricPlumeSmokeSystem } from './plumeAndSmokeFX.ts';
-import {
-  SpacePlumeAndStagingFX,
-  buildSpaceEnvironment,
-} from './spacePlumeEffects.ts';
-import {
-  createCarbonWeaveTexture,
-  createStuntRoadTexture,
-} from './proceduralTextures.ts';
+import { SpacePlumeAndStagingFX, buildSpaceEnvironment, computeBoosterSeparationPhysics } from './spacePlumeEffects.ts';
+import { createCarbonWeaveTexture, createStuntRoadTexture } from './proceduralTextures.ts';
 import {
   buildArticulatedStarbasePadAndCrane,
   buildObstacleCourseGroup,
@@ -274,12 +261,10 @@ export class ProvingGroundSceneController {
     const isPodOrbit = missionId === 'starship-pod-orbit';
     const isRoadster = vehicle === 'roadster';
     const py = primaryState.position.y;
-    const isOrbitalSpace = isPodOrbit && py >= 65.0;
-
     this.roadsterRig.root.visible = isRoadster;
-    this.starshipRig.root.visible = !isRoadster && (!isPodOrbit || py < 105.0);
-    this.orbitalPodRig.root.visible = isOrbitalSpace;
-    this.spaceGroup.visible = isPodOrbit ? py > 35.0 : false;
+    this.starshipRig.root.visible = !isRoadster && !isPodOrbit;
+    this.orbitalPodRig.root.visible = isPodOrbit;
+    this.spaceGroup.visible = isPodOrbit ? py > 25.0 : false;
     this.roadsterArenaGroup.visible = isRoadster;
 
     // Strict exclusive stunt prop visibility — ZERO overlapping ramps or obstacles!
@@ -312,49 +297,74 @@ export class ProvingGroundSceneController {
     if (isPodOrbit) {
       const isSeparated = py >= 28.0 || primaryState.elapsedTimeSec >= 3.8;
       if (primaryState.elapsedTimeSec < 0.2) this.stagingRingTriggered = false;
-      if (isSeparated && !this.stagingRingTriggered) {
-        this.spacePlumeFX.triggerStagingVaporRing(primaryState.position);
-        this.stagingRingTriggered = true;
-      }
 
-      if (py < 65.0) {
-        const stageSepTime = isSeparated ? Math.max(0, primaryState.elapsedTimeSec - 3.8) : 0;
+      const podY = py + 4.75;
+      this.orbitalPodRig.root.position.set(primaryState.position.x, podY, primaryState.position.z);
+      this.orbitalPodRig.root.rotation.set(
+        primaryState.attitude.roll,
+        primaryState.attitude.yaw,
+        primaryState.attitude.pitch
+      );
+      this.orbitalPodRig.updateDeployment(isSeparated ? (primaryState.solarArrayDeployPct ?? 0) : 0);
+      this.orbitalPodRig.updateRCS(
+        isSeparated ? primaryThrusters : { ...primaryThrusters, podRcsBottom: 0, podRcsLateral: 0 },
+        primaryState.elapsedTimeSec
+      );
+
+      if (isSeparated) {
+        if (!this.stagingRingTriggered) {
+          this.spacePlumeFX.triggerStagingVaporRing(new THREE.Vector3(primaryState.position.x, 28.0 + 4.75, primaryState.position.z));
+          this.stagingRingTriggered = true;
+        }
+
+        const boosterTraj = computeBoosterSeparationPhysics(28.0, primaryState.elapsedTimeSec, 3.8);
+        this.starshipRig.root.visible = boosterTraj.isVisible;
+        this.starshipRig.root.position.set(primaryState.position.x, boosterTraj.boosterWorldY, primaryState.position.z);
+        this.starshipRig.root.rotation.set(boosterTraj.boosterRoll, 0, boosterTraj.boosterPitch);
+        this.starshipRig.boosterGroup.visible = true;
+        this.starshipRig.boosterGroup.position.set(0, 0, 0);
+        this.starshipRig.shipGroup.visible = false;
+
+        if (boosterTraj.plumeOpacity > 0.02) {
+          this.starshipRig.boosterPlume.visible = true;
+          (this.starshipRig.boosterPlume.material as THREE.MeshBasicMaterial).opacity = boosterTraj.plumeOpacity;
+        } else {
+          this.starshipRig.boosterPlume.visible = false;
+        }
+        this.starshipRig.plumeLight.intensity = boosterTraj.plumeOpacity * 4.5;
+
+        const rcsAct = (primaryThrusters.podRcsBottom ?? 0) + (primaryThrusters.podRcsLateral ?? 0);
+        if (rcsAct > 0.05) {
+          this.spacePlumeFX.spawnVacuumRcsPuff(this.orbitalPodRig.root.position, rcsAct);
+        }
+      } else {
+        this.starshipRig.root.visible = true;
         this.starshipRig.root.position.set(primaryState.position.x, py, primaryState.position.z);
         this.starshipRig.root.rotation.set(
           primaryState.attitude.roll,
           primaryState.attitude.yaw,
           primaryState.attitude.pitch
         );
+        this.starshipRig.boosterGroup.visible = true;
+        this.starshipRig.boosterGroup.position.set(0, 0, 0);
+        this.starshipRig.shipGroup.visible = false;
         this.starshipRig.updateStarship(
-          { ...primaryThrusters, hotStageSeparated: isSeparated },
+          primaryThrusters,
           true,
           primaryState.elapsedTimeSec,
           py,
           primaryState.attitude.pitch,
-          stageSepTime
+          0
         );
         updateStarbasePadAndCraneAnimation(this.starbaseRig, missionId, primaryState, primaryThrusters);
-      } else {
-        const podY = Math.max(6.0, py - 110.0);
-        this.orbitalPodRig.root.position.set(primaryState.position.x, podY, primaryState.position.z);
-        this.orbitalPodRig.root.rotation.set(
-          primaryState.attitude.roll,
-          primaryState.attitude.yaw,
-          primaryState.attitude.pitch
-        );
-        this.orbitalPodRig.updateRCS(primaryThrusters, primaryState.elapsedTimeSec);
-        this.orbitalPodRig.updateDeployment(primaryState.solarArrayDeployPct ?? 0);
-        const rcsAct = (primaryThrusters.podRcsBottom ?? 0) + (primaryThrusters.podRcsLateral ?? 0);
-        if (rcsAct > 0.05) {
-          this.spacePlumeFX.spawnVacuumRcsPuff(this.orbitalPodRig.root.position, rcsAct);
-        }
       }
+
       this.spacePlumeFX.update(
         dt,
-        py,
+        podY,
         isSeparated,
         primaryThrusters.raptorThrottle,
-        primaryState.position,
+        this.orbitalPodRig.root.position,
         primaryState.elapsedTimeSec
       );
     } else if (isRoadster) {
@@ -416,21 +426,17 @@ export class ProvingGroundSceneController {
     const desiredLook = new THREE.Vector3(px, Math.max(1.4, py + 0.3), pz);
 
     if (isPodOrbit) {
+      const podY = py + 4.75;
       if (py < 28.0) {
         desiredCam.set(px - 14.0, Math.max(3.2, py * 0.65 + 3.0), 18.0);
         desiredLook.set(px, py + 2.5, 0);
-      } else if (py < 65.0) {
-        desiredCam.set(px - 15.0, py + 3.5, 15.0);
-        desiredLook.set(px, py + 1.2, 0);
+      } else if (py < 75.0) {
+        desiredCam.set(px - 15.0, podY + 3.5, 15.0);
+        desiredLook.set(px, podY + 0.5, 0);
       } else {
         this.orbitAngle += dt * 0.12;
-        const podY = Math.max(6.0, py - 110.0);
-        desiredCam.set(
-          px * 0.35 + Math.sin(this.orbitAngle) * 8.5,
-          podY + 2.4,
-          Math.cos(this.orbitAngle) * 8.5
-        );
-        desiredLook.set(px, podY, pz);
+        desiredCam.set(px * 0.35 + Math.sin(this.orbitAngle) * 9.5, podY + 2.2, Math.cos(this.orbitAngle) * 9.5);
+        desiredLook.set(px, podY + 0.4, pz);
       }
     } else if (missionId === 'roadster-obstacle-race') {
       if (this.cameraMode === 'chase') {

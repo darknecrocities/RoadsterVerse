@@ -120,7 +120,7 @@ export class SpacePlumeAndStagingFX {
 
     // 2. Engine Afterburn & Thermal Nozzle Afterglow
     // During active thrust, intensity tracks throttle; on MECO cutoff, intensity decays exponentially
-    if (throttle > 0.05) {
+    if (isStaged && throttle > 0.05) {
       this.afterburnIntensity = Math.min(1.0, throttle);
     } else {
       this.afterburnIntensity = Math.max(0, this.afterburnIntensity - dt * 1.45);
@@ -157,18 +157,68 @@ export class SpacePlumeAndStagingFX {
   }
 }
 
+export interface BoosterSeparationTrajectory {
+  boosterWorldY: number;
+  boosterPitch: number;
+  boosterRoll: number;
+  plumeOpacity: number;
+  isVisible: boolean;
+}
+
+/**
+ * Computes Newtonian gravity drop and aerodynamic tumble for the Super Heavy Booster
+ * falling away after hot-staging separation in mid-air.
+ */
+export function computeBoosterSeparationPhysics(
+  stagingAltitude: number,
+  elapsedTimeSec: number,
+  stagingTimeSec = 3.8
+): BoosterSeparationTrajectory {
+  if (elapsedTimeSec < stagingTimeSec) {
+    return {
+      boosterWorldY: stagingAltitude,
+      boosterPitch: 0,
+      boosterRoll: 0,
+      plumeOpacity: 1.0,
+      isVisible: true,
+    };
+  }
+
+  const tSep = elapsedTimeSec - stagingTimeSec;
+  // Separation impulse pushes booster downward relative to staging altitude
+  // Gravity acceleration pulls booster down: a_y = -9.81 m/s^2
+  const separationVelocity = 3.5;
+  const gravityDrop = separationVelocity * tSep + 0.5 * 9.81 * tSep * tSep;
+  const boosterWorldY = stagingAltitude - gravityDrop;
+
+  // Gentle aerodynamic tumble pitch and roll away from the stack
+  const boosterPitch = -Math.min(1.4, tSep * 0.32);
+  const boosterRoll = Math.sin(tSep * 0.9) * 0.12;
+
+  // Booster engine flame cuts off over 0.65s
+  const plumeOpacity = Math.max(0, 1.0 - tSep * 1.55);
+  const isVisible = boosterWorldY > -15.0;
+
+  return {
+    boosterWorldY,
+    boosterPitch,
+    boosterRoll,
+    plumeOpacity,
+    isVisible,
+  };
+}
+
 export function buildSpaceEnvironment(): THREE.Group {
   const group = new THREE.Group();
-  const starCount = 360;
+  const starCount = 380;
   const starGeo = new THREE.BufferGeometry();
   const starPositions = new Float32Array(starCount * 3);
   for (let i = 0; i < starCount; i++) {
     const theta = Math.random() * 2.0 * Math.PI;
-    const phi = Math.acos(2.0 * Math.random() - 1.0);
-    const r = 160 + Math.random() * 80;
-    starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    starPositions[i * 3 + 1] = Math.abs(r * Math.sin(phi) * Math.sin(theta)) - 10;
-    starPositions[i * 3 + 2] = r * Math.cos(phi);
+    const r = 160 + Math.random() * 90;
+    starPositions[i * 3] = r * Math.cos(theta);
+    starPositions[i * 3 + 1] = -20 + Math.random() * 260; // Spans entire vertical flight corridor
+    starPositions[i * 3 + 2] = r * Math.sin(theta);
   }
   starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
   const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, transparent: true, opacity: 0.85 });
@@ -189,4 +239,5 @@ export function buildSpaceEnvironment(): THREE.Group {
   group.add(earthMesh, ringMesh);
   return group;
 }
+
 
