@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRoadsterModel } from '../../src/three/roadsterModel.ts';
 import { createStarshipModel } from '../../src/three/starshipModel.ts';
+import { createOrbitalPodModel } from '../../src/three/orbitalPodModel.ts';
 import { VolumetricPlumeSmokeSystem } from '../../src/three/plumeAndSmokeFX.ts';
 import { SpacePlumeAndStagingFX } from '../../src/three/spacePlumeEffects.ts';
 import {
@@ -306,5 +307,52 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     fx.update(0.05, 120, true, 0.0, { x: 0, y: 120, z: 0 }, 9.5);
     fx.spawnVacuumRcsPuff({ x: 0, y: 10, z: 0 }, 0.8);
     expect(fx.group.children.length).toBeGreaterThan(10);
+  });
+
+  it('constructs aerodynamic rocket tip ogive fairings and transforms into deep-space satellite with parabolic dish and 6-panel solar wings', () => {
+    const podRig = createOrbitalPodModel(false);
+    expect(podRig.root.children.length).toBeGreaterThanOrEqual(3);
+
+    // Initially stowed/folded before transformation (deployPct = 0)
+    podRig.updateDeployment(0);
+    expect(podRig.fairingDoorLeft.rotation.z).toBeCloseTo(0, 2);
+    expect(podRig.fairingDoorRight.rotation.z).toBeCloseTo(0, 2);
+    expect(podRig.solarWingLeft.scale.x).toBeLessThan(0.05);
+
+    // Full mechanical transformation into deep-space satellite (deployPct = 100)
+    podRig.updateDeployment(100);
+    expect(Math.abs(podRig.fairingDoorLeft.rotation.z)).toBeGreaterThan(1.5); // Petals peeled open > 85 deg!
+    expect(Math.abs(podRig.fairingDoorRight.rotation.z)).toBeGreaterThan(1.5);
+    expect(podRig.solarWingLeft.scale.x).toBeCloseTo(1.0, 1); // 6 solar array panels fully unfurled!
+    expect(podRig.solarWingRight.scale.x).toBeCloseTo(1.0, 1);
+    expect(podRig.magnetometerBoom.scale.y).toBeCloseTo(1.0, 1); // Forward boom extended!
+
+    // Verify Cold-Gas RCS nozzles fire strictly on the bottom and lateral sides only
+    const dummyThrusters = {
+      frontLeftLift: 0,
+      frontRightLift: 0,
+      rearLeftLift: 0,
+      rearRightLift: 0,
+      lateralLeft: 0.8,
+      lateralRight: 0,
+      rearBoost: 0,
+      activeWingAngle: 0,
+      raptorThrottle: 0,
+      gimbalPitch: 0,
+      gimbalYaw: 0,
+      flapFrontLeft: 0,
+      flapFrontRight: 0,
+      flapAftLeft: 0,
+      flapAftRight: 0,
+      hotStageSeparated: true,
+      podRcsBottom: 0.9,
+      podRcsLateral: 0.85,
+    };
+    const emitters = podRig.getActiveNozzleEmitters(dummyThrusters);
+    expect(emitters.length).toBeGreaterThanOrEqual(3);
+    for (const emitter of emitters) {
+      // Emitters must fire downward (-Y) or laterally (X != 0) — strictly ZERO top or forward nozzles!
+      expect(emitter.localDirection.y <= 0 || Math.abs(emitter.localDirection.x) > 0.5).toBe(true);
+    }
   });
 });

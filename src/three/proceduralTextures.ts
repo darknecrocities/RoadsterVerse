@@ -265,3 +265,67 @@ export function createVolumetricSmokeCloudTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * Generates an authentic aerospace photovoltaic solar cell wafer grid texture
+ * with dark silicon cells, metallic silver busbars, grid fingers, and corner crop marks.
+ */
+export function createSatelliteSolarCellTexture(): THREE.CanvasTexture {
+  const canvas = createCanvas(512, 512);
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#0f0f0f';
+    ctx.fillRect(0, 0, 512, 512);
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 4; c++) {
+        const x = c * 128 + 4;
+        const y = r * 64 + 4;
+        ctx.fillStyle = (r + c) % 2 === 0 ? '#1c1c1c' : '#141414';
+        ctx.fillRect(x, y, 120, 56);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        for (let fy = y + 6; fy < y + 56; fy += 8) {
+          ctx.fillRect(x, fy, 120, 1);
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 38, y, 3, 56);
+        ctx.fillRect(x + 78, y, 3, 56);
+      }
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+/**
+ * Generates multi-layer insulation (MLI) crinkled thermal blanket texture for the satellite bus.
+ */
+export function createSatelliteMliTexture(): THREE.CanvasTexture {
+  const canvas = createCanvas(256, 256);
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#222222';
+    ctx.fillRect(0, 0, 256, 256);
+
+    for (let y = 0; y < 256; y += 32) {
+      for (let x = 0; x < 256; x += 32) {
+        const patchShade = (x * 7 + y * 13) % 2 === 0 ? '#333333' : '#1a1a1a';
+        ctx.fillStyle = patchShade;
+        ctx.fillRect(x + 2, y + 2, 28, 28);
+
+        ctx.strokeStyle = '#444444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 2, y + 2, 28, 28);
+      }
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+

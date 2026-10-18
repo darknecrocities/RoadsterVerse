@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import type { ThrusterActivation } from '../types/simulation.ts';
 import type { NozzleEmitterDescriptor } from './roadsterModel.ts';
-import { createCanvas } from './proceduralTextures.ts';
+import {
+  createCanvas,
+  createCarbonWeaveTexture,
+  createSatelliteMliTexture,
+  createSatelliteSolarCellTexture,
+  createStarshipHullAndTpsTexture,
+} from './proceduralTextures.ts';
 
 export interface OrbitalPodRig {
   root: THREE.Group;
@@ -10,6 +16,8 @@ export interface OrbitalPodRig {
   solarWingLeft: THREE.Group;
   solarWingRight: THREE.Group;
   antennaDish: THREE.Mesh;
+  antennaGimbal: THREE.Group;
+  magnetometerBoom: THREE.Group;
   nozzles: {
     bottom1: THREE.Mesh;
     bottom2: THREE.Mesh;
@@ -51,121 +59,262 @@ function createRcsVaporMesh(length = 1.4, radius = 0.14): THREE.Mesh {
 }
 
 /**
- * Builds the 3D Orbital Payload Pod and transforming satellite array.
+ * Builds the Authentic Aerodynamic Rocket Nosecone Tip that mechanically splits
+ * and transforms in space into a high-fidelity deep-space satellite bus.
  */
 export function createOrbitalPodModel(isGhost = false): OrbitalPodRig {
   const root = new THREE.Group();
   const opacity = isGhost ? 0.25 : 1.0;
   const transparent = isGhost;
 
-  const steelMat = new THREE.MeshStandardMaterial({
-    color: 0xe0e0e0,
-    metalness: 0.92,
+  const hullTex = createStarshipHullAndTpsTexture();
+  const solarTex = createSatelliteSolarCellTexture();
+  const mliTex = createSatelliteMliTexture();
+  const carbonTex = createCarbonWeaveTexture();
+
+  const stainlessMat = new THREE.MeshPhysicalMaterial({
+    color: isGhost ? 0xa3a3a3 : 0xe5e5e5,
+    map: isGhost ? null : hullTex,
+    bumpMap: isGhost ? null : hullTex,
+    bumpScale: 0.015,
+    metalness: 0.9,
+    roughness: 0.2,
+    clearcoat: 0.5,
+    transparent,
+    opacity,
+  });
+
+  const tpsDarkMat = new THREE.MeshStandardMaterial({
+    color: 0x141414,
+    metalness: 0.2,
+    roughness: 0.75,
+    transparent,
+    opacity,
+  });
+
+  const mliMat = new THREE.MeshStandardMaterial({
+    color: 0xd4d4d4,
+    map: isGhost ? null : mliTex,
+    metalness: 0.85,
+    roughness: 0.28,
+    transparent,
+    opacity,
+  });
+
+  const solarPanelMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: isGhost ? null : solarTex,
+    metalness: 0.75,
     roughness: 0.22,
     transparent,
     opacity,
   });
 
   const carbonMat = new THREE.MeshStandardMaterial({
-    color: 0x141414,
-    metalness: 0.45,
-    roughness: 0.35,
+    color: 0x1a1a1a,
+    map: isGhost ? null : carbonTex,
+    roughness: 0.45,
+    metalness: 0.35,
     transparent,
     opacity,
   });
 
-  const solarCellMat = new THREE.MeshStandardMaterial({
-    color: 0x222222,
-    metalness: 0.85,
-    roughness: 0.15,
+  const chromeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.95,
+    roughness: 0.12,
     transparent,
     opacity,
   });
 
-  const interiorMat = new THREE.MeshStandardMaterial({
-    color: 0x2c2c2c,
-    metalness: 0.6,
-    roughness: 0.4,
-    transparent,
-    opacity,
-  });
+  // 1. Central Satellite Avionics Bus Chassis (Inside the Rocket Tip)
+  const busGroup = new THREE.Group();
+  busGroup.position.set(0, 0.15, 0);
+  root.add(busGroup);
 
-  // 1. Pod Base Chassis & Avionics Core
-  const coreBody = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 1.8, 32), interiorMat);
-  coreBody.position.y = 0.0;
-  root.add(coreBody);
+  const busCore = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.44, 1.45, 8), mliMat);
+  busGroup.add(busCore);
 
-  // 2. High-Gain Phased-Array Satellite Dish (inside payload core)
-  const dishGeo = new THREE.CylinderGeometry(0.32, 0.04, 0.08, 24);
-  const antennaDish = new THREE.Mesh(dishGeo, steelMat);
-  antennaDish.position.set(0, 0.65, 0);
-  root.add(antennaDish);
+  // Structural equipment decks (Top Nadir & Bottom Propulsion)
+  const topDeck = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 8), carbonMat);
+  topDeck.position.y = 0.75;
+  const bottomDeck = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.08, 8), carbonMat);
+  bottomDeck.position.y = -0.75;
+  busGroup.add(topDeck, bottomDeck);
 
-  // 3. Articulated Payload Fairing Shell Doors (Left & Right)
-  const fairingGeo = new THREE.CylinderGeometry(0.55, 0.55, 2.1, 24, 1, false, 0, Math.PI);
+  // Nadir-facing Earth-Observation Optical Camera / Sensor Aperture
+  const cameraBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, 0.28, 24), chromeMat);
+  cameraBarrel.position.set(0, 0.88, 0.16);
+  const opticalLens = new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), tpsDarkMat);
+  opticalLens.rotation.x = -Math.PI / 2;
+  opticalLens.position.set(0, 1.02, 0.16);
+  busGroup.add(cameraBarrel, opticalLens);
+
+  // Twin Conical Optical Star Tracker Navigation Baffles (pointing to deep space)
+  for (const xSign of [-1, 1]) {
+    const starTracker = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 16, 1, true), carbonMat);
+    starTracker.position.set(xSign * 0.28, 0.65, -0.22);
+    starTracker.rotation.set(-0.6, 0, xSign * 0.4);
+    busGroup.add(starTracker);
+  }
+
+  // 3-Axis Gyroscopic Reaction Wheels
+  for (let i = 0; i < 3; i++) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 18), chromeMat);
+    wheel.position.set((i - 1) * 0.18, -0.45, -0.2);
+    wheel.rotation.set(i === 0 ? Math.PI / 2 : 0, 0, i === 1 ? Math.PI / 2 : 0);
+    busGroup.add(wheel);
+  }
+
+  // Telescoping Forward Magnetometer & Telemetry Boom
+  const magnetometerBoom = new THREE.Group();
+  magnetometerBoom.position.set(0, 0.78, 0);
+  const boomMast = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.95, 12), chromeMat);
+  boomMast.position.y = 0.48;
+  const sensorSphere1 = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), chromeMat);
+  sensorSphere1.position.y = 0.95;
+  const sensorCross = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.015, 0.015), carbonMat);
+  sensorCross.position.y = 0.88;
+  magnetometerBoom.add(boomMast, sensorSphere1, sensorCross);
+  magnetometerBoom.scale.set(1, 0.05, 1);
+  busGroup.add(magnetometerBoom);
+
+  // 2. High-Gain Concave Parabolic Communications Dish & Sub-Reflector Feed Horn
+  const antennaGimbal = new THREE.Group();
+  antennaGimbal.position.set(0, 0.22, 0.32);
+  busGroup.add(antennaGimbal);
+
+  const gimbalArm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.48, 12), carbonMat);
+  gimbalArm.position.set(0, 0.24, 0.14);
+  gimbalArm.rotation.x = 0.55;
+
+  const dishPts: THREE.Vector2[] = [];
+  const dishRadius = 0.46;
+  for (let i = 0; i <= 14; i++) {
+    const r = (i / 14) * dishRadius;
+    const y = 0.24 * (r / dishRadius) * (r / dishRadius);
+    dishPts.push(new THREE.Vector2(Math.max(0.01, r), y));
+  }
+  const dishGeo = new THREE.LatheGeometry(dishPts, 32);
+  const antennaDish = new THREE.Mesh(dishGeo, chromeMat);
+  antennaDish.position.set(0, 0.42, 0.26);
+  antennaDish.rotation.x = Math.PI * 0.65;
+
+  // Central Feed Horn with Tripod Struts
+  const feedHorn = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.14, 12), chromeMat);
+  feedHorn.position.set(0, 0.08, 0);
+  antennaDish.add(feedHorn);
+
+  antennaGimbal.add(gimbalArm, antennaDish);
+  antennaGimbal.scale.set(0.1, 0.1, 0.1);
+
+  // 3. Clamshell Aerodynamic Ogive Rocket Tip (Fairing Shell Petals)
+  const shipRadius = 0.56;
+  const ogiveHeight = 2.4;
+  const ogivePts: THREE.Vector2[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16;
+    const r = shipRadius * Math.pow(1 - t, 0.72);
+    ogivePts.push(new THREE.Vector2(Math.max(0.01, r), t * ogiveHeight - 0.75));
+  }
 
   const fairingDoorLeft = new THREE.Group();
-  fairingDoorLeft.position.set(-0.55, 0.15, 0);
-  const fairingShellL = new THREE.Mesh(fairingGeo, steelMat);
-  fairingShellL.position.set(0.55, 0, 0);
-  fairingShellL.rotation.y = Math.PI / 2;
-  fairingDoorLeft.add(fairingShellL);
+  fairingDoorLeft.position.set(-0.54, -0.65, 0);
+  const shellGeoL = new THREE.LatheGeometry(ogivePts, 24, 0, Math.PI);
+  const shellMeshL = new THREE.Mesh(shellGeoL, stainlessMat);
+  shellMeshL.position.set(0.54, 0, 0);
+  shellMeshL.rotation.y = Math.PI / 2;
+
+  // Windward black TPS heat shield half-cover
+  const tpsCoverL = new THREE.Mesh(new THREE.LatheGeometry(ogivePts, 24, Math.PI, Math.PI), tpsDarkMat);
+  tpsCoverL.position.set(0.54, 0, 0);
+  tpsCoverL.rotation.y = Math.PI / 2;
+
+  // Articulated Aerodynamic Steering Flap on Rocket Tip
+  const flapL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.65, 0.28), stainlessMat);
+  flapL.position.set(0.54 - shipRadius - 0.08, 0.55, 0);
+  fairingDoorLeft.add(shellMeshL, tpsCoverL, flapL);
 
   const fairingDoorRight = new THREE.Group();
-  fairingDoorRight.position.set(0.55, 0.15, 0);
-  const fairingShellR = new THREE.Mesh(fairingGeo, steelMat);
-  fairingShellR.position.set(-0.55, 0, 0);
-  fairingShellR.rotation.y = -Math.PI / 2;
-  fairingDoorRight.add(fairingShellR);
+  fairingDoorRight.position.set(0.54, -0.65, 0);
+  const shellGeoR = new THREE.LatheGeometry(ogivePts, 24, 0, Math.PI);
+  const shellMeshR = new THREE.Mesh(shellGeoR, stainlessMat);
+  shellMeshR.position.set(-0.54, 0, 0);
+  shellMeshR.rotation.y = -Math.PI / 2;
+
+  const tpsCoverR = new THREE.Mesh(new THREE.LatheGeometry(ogivePts, 24, Math.PI, Math.PI), tpsDarkMat);
+  tpsCoverR.position.set(-0.54, 0, 0);
+  tpsCoverR.rotation.y = -Math.PI / 2;
+
+  const flapR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.65, 0.28), stainlessMat);
+  flapR.position.set(-0.54 + shipRadius + 0.08, 0.55, 0);
+  fairingDoorRight.add(shellMeshR, tpsCoverR, flapR);
 
   root.add(fairingDoorLeft, fairingDoorRight);
 
-  // 4. Multi-Segment Deployable Solar Array Wings (Left & Right)
-  const solarWingLeft = new THREE.Group();
-  solarWingLeft.position.set(-0.52, 0.1, 0);
+  // 4. 6-Panel Multi-Segment Accordion Photovoltaic Solar Array Wings
+  const buildAccordionWing = (xSign: number) => {
+    const wingRoot = new THREE.Group();
+    wingRoot.position.set(xSign * 0.44, 0.12, 0);
 
-  const wingBoomL = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.04, 0.04), carbonMat);
-  wingBoomL.position.set(-0.32, 0, 0);
-  const panelGridL = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.02, 0.65), solarCellMat);
-  panelGridL.position.set(-1.05, 0, 0);
-  solarWingLeft.add(wingBoomL, panelGridL);
+    const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.04, 0.05), carbonMat);
+    yoke.position.set(xSign * 0.18, 0, 0);
+    wingRoot.add(yoke);
 
-  const solarWingRight = new THREE.Group();
-  solarWingRight.position.set(0.52, 0.1, 0);
+    const panelGroup = new THREE.Group();
+    panelGroup.position.set(xSign * 0.35, 0, 0);
 
-  const wingBoomR = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.04, 0.04), carbonMat);
-  wingBoomR.position.set(0.32, 0, 0);
-  const panelGridR = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.02, 0.65), solarCellMat);
-  panelGridR.position.set(1.05, 0, 0);
-  solarWingRight.add(wingBoomR, panelGridR);
+    // 3 articulated panels per wing (Inner, Mid, Outer)
+    for (let p = 0; p < 3; p++) {
+      const panel = new THREE.Group();
+      panel.position.set(xSign * (p * 0.72 + 0.36), 0, 0);
 
-  // Initially stowed/folded
-  solarWingLeft.scale.set(0.01, 1, 0.01);
-  solarWingRight.scale.set(0.01, 1, 0.01);
-  root.add(solarWingLeft, solarWingRight);
+      const panelMesh = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.018, 0.78), solarPanelMat);
+      const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(0.71, 0.024, 0.81), carbonMat);
+      frameMesh.position.y = -0.005;
+      panel.add(frameMesh, panelMesh);
+
+      const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.8, 12), chromeMat);
+      hinge.position.set(xSign * -0.35, 0, 0);
+      hinge.rotation.x = Math.PI / 2;
+      panel.add(hinge);
+
+      panelGroup.add(panel);
+    }
+
+    wingRoot.add(panelGroup);
+    wingRoot.scale.set(0.01, 1, 0.01);
+    return { wingRoot, panelGroup };
+  };
+
+  const wingL = buildAccordionWing(-1);
+  const wingR = buildAccordionWing(1);
+  const solarWingLeft = wingL.wingRoot;
+  const solarWingRight = wingR.wingRoot;
+  busGroup.add(solarWingLeft, solarWingRight);
 
   // 5. Cold-Gas RCS Thruster Nozzles (Bottom & Lateral Sides Only!)
-  const bottom1 = createRcsVaporMesh(1.4, 0.15);
-  bottom1.position.set(-0.25, -0.92, 0.0);
+  const bottom1 = createRcsVaporMesh(1.5, 0.15);
+  bottom1.position.set(-0.25, -0.85, 0.0);
   bottom1.rotation.z = Math.PI;
 
-  const bottom2 = createRcsVaporMesh(1.4, 0.15);
-  bottom2.position.set(0.25, -0.92, 0.0);
+  const bottom2 = createRcsVaporMesh(1.5, 0.15);
+  bottom2.position.set(0.25, -0.85, 0.0);
   bottom2.rotation.z = Math.PI;
 
   const sideLeft = createRcsVaporMesh(1.2, 0.12);
-  sideLeft.position.set(-0.54, 0.45, 0.0);
+  sideLeft.position.set(-0.48, 0.35, 0.0);
   sideLeft.rotation.z = Math.PI / 2;
 
   const sideRight = createRcsVaporMesh(1.2, 0.12);
-  sideRight.position.set(0.54, 0.45, 0.0);
+  sideRight.position.set(0.48, 0.35, 0.0);
   sideRight.rotation.z = -Math.PI / 2;
 
-  root.add(bottom1, bottom2, sideLeft, sideRight);
+  busGroup.add(bottom1, bottom2, sideLeft, sideRight);
 
   const rcsLight = new THREE.PointLight(0xffffff, 0, 10);
-  rcsLight.position.set(0, -0.6, 0);
-  if (!isGhost) root.add(rcsLight);
+  rcsLight.position.set(0, -0.5, 0);
+  if (!isGhost) busGroup.add(rcsLight);
 
   const updateVapor = (mesh: THREE.Mesh, val: number, flicker: number) => {
     const mat = mesh.material as THREE.MeshBasicMaterial;
@@ -186,6 +335,8 @@ export function createOrbitalPodModel(isGhost = false): OrbitalPodRig {
     solarWingLeft,
     solarWingRight,
     antennaDish,
+    antennaGimbal,
+    magnetometerBoom,
     nozzles: {
       bottom1,
       bottom2,
@@ -206,17 +357,24 @@ export function createOrbitalPodModel(isGhost = false): OrbitalPodRig {
       rcsLight.intensity = isGhost ? 0 : (bVal * 2.5 + lVal * 1.5) * flicker;
     },
     updateDeployment(deployPct: number) {
-      const factor = Math.max(0, Math.min(1.0, deployPct / 100));
-      // Articulate fairing doors open 0 -> 82 degrees
-      fairingDoorLeft.rotation.z = -factor * 1.42;
-      fairingDoorRight.rotation.z = factor * 1.42;
+      const f = Math.max(0, Math.min(1.0, deployPct / 100));
 
-      // Extend and unfold solar array wings
-      solarWingLeft.scale.set(factor, 1, factor);
-      solarWingRight.scale.set(factor, 1, factor);
+      // 1. Clamshell Fairing Nosecone Shell swings open (0 -> 94 degrees)
+      fairingDoorLeft.rotation.z = -f * 1.64;
+      fairingDoorRight.rotation.z = f * 1.64;
 
-      // Tilt antenna dish toward orbital horizon
-      antennaDish.rotation.x = factor * 0.45;
+      // 2. Telescoping Magnetometer Boom extends forward
+      const boomScaleY = 0.05 + f * 0.95;
+      magnetometerBoom.scale.set(1, boomScaleY, 1);
+
+      // 3. High-Gain Parabolic Communications Dish articulates upward
+      const dishScale = 0.1 + f * 0.9;
+      antennaGimbal.scale.set(dishScale, dishScale, dishScale);
+      antennaGimbal.rotation.x = f * 0.45;
+
+      // 4. 6-Panel Multi-Segment Accordion Solar Array Wings unfurl outward
+      solarWingLeft.scale.set(f, 1, Math.min(1.0, 0.05 + f * 0.95));
+      solarWingRight.scale.set(f, 1, Math.min(1.0, 0.05 + f * 0.95));
     },
     getActiveNozzleEmitters(t: ThrusterActivation): NozzleEmitterDescriptor[] {
       const bVal = t.podRcsBottom ?? (t.rearBoost > 0.1 ? t.rearBoost : 0);
@@ -225,14 +383,14 @@ export function createOrbitalPodModel(isGhost = false): OrbitalPodRig {
 
       if (bVal > 0.05) {
         emitters.push(
-          { id: 'podBottom1', localOffset: new THREE.Vector3(-0.25, -0.92, 0), localDirection: new THREE.Vector3(0, -1, 0), intensity: bVal },
-          { id: 'podBottom2', localOffset: new THREE.Vector3(0.25, -0.92, 0), localDirection: new THREE.Vector3(0, -1, 0), intensity: bVal }
+          { id: 'podBottom1', localOffset: new THREE.Vector3(-0.25, -0.85, 0), localDirection: new THREE.Vector3(0, -1, 0), intensity: bVal },
+          { id: 'podBottom2', localOffset: new THREE.Vector3(0.25, -0.85, 0), localDirection: new THREE.Vector3(0, -1, 0), intensity: bVal }
         );
       }
       if (lVal > 0.05 || t.lateralLeft > 0.05 || t.lateralRight > 0.05) {
         emitters.push(
-          { id: 'podSideLeft', localOffset: new THREE.Vector3(-0.54, 0.45, 0), localDirection: new THREE.Vector3(-1, 0, 0), intensity: t.lateralLeft || lVal },
-          { id: 'podSideRight', localOffset: new THREE.Vector3(0.54, 0.45, 0), localDirection: new THREE.Vector3(1, 0, 0), intensity: t.lateralRight || lVal }
+          { id: 'podSideLeft', localOffset: new THREE.Vector3(-0.48, 0.35, 0), localDirection: new THREE.Vector3(-1, 0, 0), intensity: t.lateralLeft || lVal },
+          { id: 'podSideRight', localOffset: new THREE.Vector3(0.48, 0.35, 0), localDirection: new THREE.Vector3(1, 0, 0), intensity: t.lateralRight || lVal }
         );
       }
       return emitters;
