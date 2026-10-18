@@ -382,7 +382,9 @@ export function updateStarbasePadAndCraneAnimation(
   primaryThrusters: ThrusterActivation
 ): void {
   const isTwoStageMission =
-    missionId === 'starship-launch' || missionId === 'starship-booster-catch';
+    missionId === 'starship-launch' ||
+    missionId === 'starship-booster-catch' ||
+    missionId === 'starship-pod-orbit';
   const isSeparated = primaryThrusters.hotStageSeparated;
   const heightAbovePad = Math.max(0, primaryState.position.y - 1.35);
 

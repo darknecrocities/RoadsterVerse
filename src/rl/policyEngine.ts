@@ -343,14 +343,18 @@ export function evaluateRLPolicy(
       thrusters.gimbalYaw = clamp(-1.5 * competence * attGain * state.attitude.roll - 0.65 * competence * smoothGain * state.angularVelocity.x + n3 * 0.4, -1, 1);
     }
   } else if (missionId === 'starship-pod-orbit') {
+    const isAscent = state.position.y < 65.0;
+    const isInsertion = state.position.y >= 65.0 && state.position.y < 118.0;
+    thrusters.raptorThrottle = isAscent ? clamp(0.85 * competence + 0.15, 0.5, 1.0) : isInsertion ? clamp((120.0 - state.position.y) / 20.0, 0, 0.75) : 0;
+    thrusters.hotStageSeparated = state.position.y >= 28.0;
     const pitchErr = -state.attitude.pitch;
     const rollErr = -state.attitude.roll;
     const rcsPitchCmd = clamp(2.2 * competence * attGain * pitchErr - 1.1 * smoothGain * state.angularVelocity.y + n1 * 0.15, -1, 1);
     const rcsRollCmd = clamp(2.2 * competence * attGain * rollErr - 1.1 * smoothGain * state.angularVelocity.x + n2 * 0.15, -1, 1);
-    thrusters.podRcsBottom = clamp(0.25 * competence + (state.velocity.y < 0 ? 0.45 : 0), 0, 1);
-    thrusters.podRcsLateral = clamp(Math.max(Math.abs(rcsPitchCmd), Math.abs(rcsRollCmd)), 0, 1);
+    thrusters.podRcsBottom = isAscent ? 0 : clamp(0.25 * competence + (state.velocity.y < 0 ? 0.45 : 0), 0, 1);
+    thrusters.podRcsLateral = isAscent ? 0 : clamp(Math.max(Math.abs(rcsPitchCmd), Math.abs(rcsRollCmd)), 0, 1);
     const settled = Math.hypot(pitchErr, rollErr) < 0.08 && Math.hypot(state.angularVelocity.y, state.angularVelocity.x) < 0.05;
-    thrusters.podSolarDeployCmd = settled || (competence > 0.85 && state.elapsedTimeSec > 1.2) ? 1.0 : 0.0;
+    thrusters.podSolarDeployCmd = !isAscent && !isInsertion && (settled || (competence > 0.85 && state.elapsedTimeSec > 9.8)) ? 1.0 : 0.0;
   } else {
     const isFlipPhase = state.position.y < 9.8 + 2.6 * lookAheadFactor;
     const heightAboveCatch = Math.max(0, state.position.y - 1.5);

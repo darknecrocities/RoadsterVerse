@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRoadsterModel } from '../../src/three/roadsterModel.ts';
 import { createStarshipModel } from '../../src/three/starshipModel.ts';
 import { VolumetricPlumeSmokeSystem } from '../../src/three/plumeAndSmokeFX.ts';
+import { SpacePlumeAndStagingFX } from '../../src/three/spacePlumeEffects.ts';
 import {
   DEFAULT_HYPERPARAMETERS,
   MISSION_LIST,
@@ -291,5 +292,19 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
       expect(q.correctIndex).toBeLessThan(4);
       expect(q.explanation.length).toBeGreaterThan(15);
     }
+  });
+
+  it('animates supersonic staging vapor ring and engine afterburn decay in SpacePlumeAndStagingFX', () => {
+    const fx = new SpacePlumeAndStagingFX();
+    expect(fx.group.children.length).toBeGreaterThan(5);
+
+    // Staging ring trigger
+    fx.triggerStagingVaporRing({ x: 0, y: 28, z: 0 });
+    fx.update(0.05, 30, true, 0.9, { x: 0, y: 30, z: 0 }, 3.85);
+
+    // Engine cutoff & afterburn decay
+    fx.update(0.05, 120, true, 0.0, { x: 0, y: 120, z: 0 }, 9.5);
+    fx.spawnVacuumRcsPuff({ x: 0, y: 10, z: 0 }, 0.8);
+    expect(fx.group.children.length).toBeGreaterThan(10);
   });
 });

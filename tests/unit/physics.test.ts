@@ -436,20 +436,38 @@ describe('6-DoF Roadster & Starship Physics Engine (v7.0 Aerodynamics, Obstacle 
     }
   });
 
-  it('stabilizes Stunt 08 Orbital Pod in microgravity and deploys satellite solar array wings', () => {
+  it('executes continuous pad liftoff, supersonic hot-staging, orbital insertion, and satellite solar array deployment in Stunt 08', () => {
     let state = createInitialStarshipState('starship-pod-orbit');
-    expect(state.position.y).toBe(121.5);
-    expect(state.gForce).toBe(0.0);
+    expect(state.position.y).toBeCloseTo(1.35, 2);
+    expect(state.isGrounded).toBe(true);
     expect(state.solarArrayDeployPct).toBe(0);
 
     const trainedParams = { ...DEFAULT_HYPERPARAMETERS, epochs: 340, explorationNoise: 0.01 };
-    for (let i = 0; i < 90; i++) {
+
+    // 1. Pad liftoff phase (100 steps = 2.5s)
+    for (let i = 0; i < 100; i++) {
       const { thrusters } = evaluateRLPolicy(state, 'starship-pod-orbit', trainedParams, 0);
       state = stepStarshipPhysics(state, thrusters, 'starship-pod-orbit', trainedParams, 0.025);
     }
+    expect(state.position.y).toBeGreaterThan(10.0);
+    expect(state.isGrounded).toBe(false);
+
+    // 2. Hot-staging & upper stage ascent (140 steps = 3.5s, total 6.0s)
+    for (let i = 0; i < 140; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-pod-orbit', trainedParams, 0);
+      state = stepStarshipPhysics(state, thrusters, 'starship-pod-orbit', trainedParams, 0.025);
+    }
+    expect(state.position.y).toBeGreaterThan(35.0);
+
+    // 3. Orbital insertion & microgravity satellite morph (220 steps = 5.5s, total 11.5s)
+    for (let i = 0; i < 220; i++) {
+      const { thrusters } = evaluateRLPolicy(state, 'starship-pod-orbit', trainedParams, 0);
+      state = stepStarshipPhysics(state, thrusters, 'starship-pod-orbit', trainedParams, 0.025);
+    }
+    expect(state.position.y).toBeGreaterThan(110.0);
     expect(state.crashed).toBe(false);
     expect(state.solarArrayDeployPct).toBeGreaterThan(0);
-    expect(Math.abs(state.attitude.pitch)).toBeLessThan(0.25);
+    expect(Math.abs(state.attitude.pitch)).toBeLessThan(0.35);
   });
 
   it('computes tailored physical tumbling velocities and diagnostics for every stunt crash type', () => {

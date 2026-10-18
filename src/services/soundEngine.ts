@@ -247,22 +247,36 @@ export class ProceduralSoundEngine {
       if (this.raptorGain) this.raptorGain.gain.setTargetAtTime(0, now, 0.05);
       if (this.raptorNoiseGain) this.raptorNoiseGain.gain.setTargetAtTime(0, now, 0.05);
     } else if (vehicle === 'orbital-pod') {
-      // Space microgravity cold-gas nitrogen RCS bursts & solar array deployment servo hum
-      const podGas = ((thrusters.podRcsBottom ?? 0) + (thrusters.podRcsLateral ?? 0)) / 2;
-      const clampedGas = Math.min(1.0, Math.max(0, podGas));
-      if (this.coldGasFilter && this.coldGasGain) {
-        this.coldGasFilter.frequency.setTargetAtTime(1100 + clampedGas * 600, now, 0.03);
-        this.coldGasGain.gain.setTargetAtTime(clampedGas * 0.08, now, 0.02);
-      }
-      if (this.motorOsc && this.motorGain) {
-        const deployPct = state?.solarArrayDeployPct ?? 0;
-        const isDeploying = deployPct > 0 && deployPct < 100;
-        this.motorOsc.frequency.setTargetAtTime(120, now, 0.05);
-        this.motorGain.gain.setTargetAtTime(isDeploying ? 0.035 : 0, now, 0.05);
+      const isAscent = (state?.position?.y ?? 0) < 65.0;
+      if (isAscent) {
+        // Pad liftoff & atmospheric ascent on 33 Raptor engines
+        const raptor = Math.max(0, Math.min(1.0, thrusters.raptorThrottle || ((state?.position?.y ?? 0) < 28 ? 1.0 : 0.85)));
+        if (this.raptorGain && this.raptorNoiseGain && this.raptorFilter && this.raptorOsc) {
+          this.raptorOsc.frequency.setTargetAtTime(46 + raptor * 30, now, 0.05);
+          this.raptorFilter.frequency.setTargetAtTime(220 + raptor * 640, now, 0.05);
+          this.raptorGain.gain.setTargetAtTime(raptor * 0.24, now, 0.04);
+          this.raptorNoiseGain.gain.setTargetAtTime(raptor * 0.18, now, 0.04);
+        }
+        if (this.coldGasGain) this.coldGasGain.gain.setTargetAtTime(0, now, 0.05);
+        if (this.motorGain) this.motorGain.gain.setTargetAtTime(0, now, 0.05);
+      } else {
+        // Space microgravity cold-gas nitrogen RCS bursts & solar array deployment servo hum
+        const podGas = ((thrusters.podRcsBottom ?? 0) + (thrusters.podRcsLateral ?? 0)) / 2;
+        const clampedGas = Math.min(1.0, Math.max(0, podGas));
+        if (this.coldGasFilter && this.coldGasGain) {
+          this.coldGasFilter.frequency.setTargetAtTime(1100 + clampedGas * 600, now, 0.03);
+          this.coldGasGain.gain.setTargetAtTime(clampedGas * 0.08, now, 0.02);
+        }
+        if (this.motorOsc && this.motorGain) {
+          const deployPct = state?.solarArrayDeployPct ?? 0;
+          const isDeploying = deployPct > 0 && deployPct < 100;
+          this.motorOsc.frequency.setTargetAtTime(120, now, 0.05);
+          this.motorGain.gain.setTargetAtTime(isDeploying ? 0.035 : 0, now, 0.05);
+        }
+        if (this.raptorGain) this.raptorGain.gain.setTargetAtTime(0, now, 0.05);
+        if (this.raptorNoiseGain) this.raptorNoiseGain.gain.setTargetAtTime(0, now, 0.05);
       }
       if (this.roadGain) this.roadGain.gain.setTargetAtTime(0, now, 0.05);
-      if (this.raptorGain) this.raptorGain.gain.setTargetAtTime(0, now, 0.05);
-      if (this.raptorNoiseGain) this.raptorNoiseGain.gain.setTargetAtTime(0, now, 0.05);
     } else {
       // Starship 33 Raptor Engine Throttle & Acoustic Shockwave
       const raptor = Math.max(0, Math.min(1.0, thrusters.raptorThrottle));
