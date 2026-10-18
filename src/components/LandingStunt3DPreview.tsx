@@ -165,7 +165,7 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
           : mId === 'roadster-obstacle-race'
             ? 18.0
             : mId === 'starship-pod-orbit'
-              ? 13.0
+              ? 16.0
               : 10.0;
       const reachedObstacleFinish =
         mId === 'roadster-obstacle-race' && curState.position.x >= 1000.0;

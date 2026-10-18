@@ -351,7 +351,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                     : mission.id === 'starship-pod-orbit'
                       ? (hudState.solarArrayDeployPct ?? 0) >= 100
                         ? 'SATELLITE MORPH COMPLETE'
-                        : 'MICRO-G ATTITUDE HOLD'
+                        : hudState.position.y < 28.0
+                          ? 'PAD LIFTOFF (33-RAPTOR)'
+                          : hudState.position.y < 65.0
+                            ? 'SUPERSONIC HOT-STAGING'
+                            : hudState.position.y < 118.0
+                              ? 'ORBITAL INSERTION & MECO'
+                              : 'MICRO-G ATTITUDE HOLD'
                       : hudState.position.x >= 995.0 && mission.id === 'roadster-obstacle-race'
                         ? '10KM CLEARED!'
                         : mission.id === 'starship-booster-catch' && hudState.isGrounded
