@@ -179,8 +179,8 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     expect(starshipRig.boosterPlume.visible).toBe(true);
   });
 
-  it('runs all 7 missions across untrained, mid-training, and converged curriculum regimes without NaN states or runtime exceptions', () => {
-    expect(MISSION_LIST).toHaveLength(7);
+  it('runs all 8 missions across untrained, mid-training, and converged curriculum regimes without NaN states or runtime exceptions', () => {
+    expect(MISSION_LIST).toHaveLength(8);
     const epochRegimes = [5, 80, 240, 420];
     for (const mission of MISSION_LIST) {
       for (const epochs of epochRegimes) {

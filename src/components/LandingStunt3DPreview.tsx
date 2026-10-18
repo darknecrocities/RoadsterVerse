@@ -42,12 +42,14 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
     altitudeM: number;
     pitchDeg: number;
     crashed: boolean;
+    crashReason?: string;
     epochs: number;
   }>({
     speedMps: 0,
     altitudeM: 0,
     pitchDeg: 0,
     crashed: false,
+    crashReason: undefined,
     epochs: 360,
   });
 
@@ -152,7 +154,7 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
       // Synchronize vehicle audio & crash sounds
       soundEngine.update(m.vehicle, thrusters, curState);
       if (curState.crashed && !wasCrashedRef.current) {
-        soundEngine.triggerCrash(m.vehicle);
+        soundEngine.triggerCrash(m.vehicle, curState.crashType);
       }
       wasCrashedRef.current = curState.crashed;
 
@@ -162,22 +164,27 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
           ? 14.0
           : mId === 'roadster-obstacle-race'
             ? 18.0
-            : 10.0;
+            : mId === 'starship-pod-orbit'
+              ? 13.0
+              : 10.0;
       const reachedObstacleFinish =
         mId === 'roadster-obstacle-race' && curState.position.x >= 1000.0;
       const isBoosterCaught =
         mId === 'starship-booster-catch' && curState.isGrounded && !curState.crashed;
+      const isSatelliteMorphed =
+        mId === 'starship-pod-orbit' && (curState.solarArrayDeployPct ?? 0) >= 100;
 
       if (
         curState.crashed ||
         curState.elapsedTimeSec > maxDurationSec ||
         reachedObstacleFinish ||
-        isBoosterCaught
+        isBoosterCaught ||
+        isSatelliteMorphed
       ) {
         cooldownRef.current += dt;
         const waitTime = curState.crashed
           ? 1.4
-          : isBoosterCaught
+          : isBoosterCaught || isSatelliteMorphed
             ? 3.2
             : reachedObstacleFinish
               ? 2.5
@@ -196,6 +203,7 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
           altitudeM: Math.max(0, curState.position.y),
           pitchDeg: (curState.attitude.pitch * 180) / Math.PI,
           crashed: curState.crashed,
+          crashReason: curState.crashReason,
           epochs: previewParams.epochs,
         });
       }
@@ -223,7 +231,7 @@ export const LandingStunt3DPreview: React.FC<LandingStunt3DPreviewProps> = ({
         <div className="pill-status-dot" data-crashed={telemetry.crashed} />
         <span className="pill-mono-label">
           {telemetry.crashed
-            ? '6-DOF FLIGHT FAILURE // CRASH DETECTED'
+            ? telemetry.crashReason || '6-DOF FLIGHT FAILURE // CRASH DETECTED'
             : isUntrainedMode
               ? `UNTRAINED RL POLICY // EPOCH #${telemetry.epochs}`
               : `CALIBRATED 6-DOF RL // EPOCH #${telemetry.epochs} OPTIMAL`}

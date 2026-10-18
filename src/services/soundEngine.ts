@@ -1,4 +1,9 @@
-import type { RigidBodyState, ThrusterActivation, VehicleId } from '../types/simulation.ts';
+import type {
+  CrashType,
+  RigidBodyState,
+  ThrusterActivation,
+  VehicleId,
+} from '../types/simulation.ts';
 
 export class ProceduralSoundEngine {
   private ctx: AudioContext | null = null;
@@ -241,6 +246,23 @@ export class ProceduralSoundEngine {
       // Silence Starship Raptor nodes
       if (this.raptorGain) this.raptorGain.gain.setTargetAtTime(0, now, 0.05);
       if (this.raptorNoiseGain) this.raptorNoiseGain.gain.setTargetAtTime(0, now, 0.05);
+    } else if (vehicle === 'orbital-pod') {
+      // Space microgravity cold-gas nitrogen RCS bursts & solar array deployment servo hum
+      const podGas = ((thrusters.podRcsBottom ?? 0) + (thrusters.podRcsLateral ?? 0)) / 2;
+      const clampedGas = Math.min(1.0, Math.max(0, podGas));
+      if (this.coldGasFilter && this.coldGasGain) {
+        this.coldGasFilter.frequency.setTargetAtTime(1100 + clampedGas * 600, now, 0.03);
+        this.coldGasGain.gain.setTargetAtTime(clampedGas * 0.08, now, 0.02);
+      }
+      if (this.motorOsc && this.motorGain) {
+        const deployPct = state?.solarArrayDeployPct ?? 0;
+        const isDeploying = deployPct > 0 && deployPct < 100;
+        this.motorOsc.frequency.setTargetAtTime(120, now, 0.05);
+        this.motorGain.gain.setTargetAtTime(isDeploying ? 0.035 : 0, now, 0.05);
+      }
+      if (this.roadGain) this.roadGain.gain.setTargetAtTime(0, now, 0.05);
+      if (this.raptorGain) this.raptorGain.gain.setTargetAtTime(0, now, 0.05);
+      if (this.raptorNoiseGain) this.raptorNoiseGain.gain.setTargetAtTime(0, now, 0.05);
     } else {
       // Starship 33 Raptor Engine Throttle & Acoustic Shockwave
       const raptor = Math.max(0, Math.min(1.0, thrusters.raptorThrottle));
@@ -274,26 +296,36 @@ export class ProceduralSoundEngine {
   /**
    * Synthesizes physical impact crunch & explosion fireball roar on crash event
    */
-  public triggerCrash(vehicle: VehicleId): void {
+  public triggerCrash(vehicle: VehicleId, crashType?: CrashType): void {
     if (!this.enabled || !this.ctx || this.ctx.state === 'suspended') return;
     const now = this.ctx.currentTime;
-    if (now - this.lastCrashTime < 1.0) return;
+    if (now - this.lastCrashTime < 0.8) return;
     this.lastCrashTime = now;
+
+    const isHighSpeed =
+      crashType === 'obstacle-concrete-chicane-impact' ||
+      crashType === 'orbital-pad-mount-strike' ||
+      crashType === 'max-q-aerodynamic-breakup';
+    const isOrbital =
+      crashType === 'orbital-deployment-tumble' ||
+      crashType === 'orbital-debris-collision' ||
+      vehicle === 'orbital-pod';
 
     // 1. Heavy Sub-Bass Impact Boom (rapid descending pitch)
     const boomOsc = this.ctx.createOscillator();
     const boomGain = this.ctx.createGain();
     boomOsc.type = 'sine';
-    boomOsc.frequency.setValueAtTime(vehicle === 'starship' ? 180 : 140, now);
-    boomOsc.frequency.exponentialRampToValueAtTime(26, now + 0.65);
+    const startBoomFreq = isOrbital ? 95 : isHighSpeed ? 220 : vehicle === 'starship' ? 180 : 140;
+    boomOsc.frequency.setValueAtTime(startBoomFreq, now);
+    boomOsc.frequency.exponentialRampToValueAtTime(24, now + (isHighSpeed ? 0.85 : 0.65));
 
-    boomGain.gain.setValueAtTime(0.48, now);
-    boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    boomGain.gain.setValueAtTime(isOrbital ? 0.32 : isHighSpeed ? 0.58 : 0.48, now);
+    boomGain.gain.exponentialRampToValueAtTime(0.001, now + (isHighSpeed ? 0.85 : 0.7));
 
     boomOsc.connect(boomGain);
     boomGain.connect(this.masterGain!);
     boomOsc.start(now);
-    boomOsc.stop(now + 0.75);
+    boomOsc.stop(now + 0.9);
 
     // 2. High-Energy Explosion Fireball Noise Burst
     const bufferSize = Math.floor(this.ctx.sampleRate * 0.9);
@@ -307,11 +339,11 @@ export class ProceduralSoundEngine {
 
     const crashFilter = this.ctx.createBiquadFilter();
     crashFilter.type = 'lowpass';
-    crashFilter.frequency.setValueAtTime(1200, now);
-    crashFilter.frequency.exponentialRampToValueAtTime(180, now + 0.85);
+    crashFilter.frequency.setValueAtTime(isOrbital ? 600 : isHighSpeed ? 1600 : 1200, now);
+    crashFilter.frequency.exponentialRampToValueAtTime(160, now + 0.85);
 
     const crashNoiseGain = this.ctx.createGain();
-    crashNoiseGain.gain.setValueAtTime(0.38, now);
+    crashNoiseGain.gain.setValueAtTime(isOrbital ? 0.22 : 0.38, now);
     crashNoiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
 
     noiseSource.connect(crashFilter);
@@ -324,8 +356,8 @@ export class ProceduralSoundEngine {
     const crunchOsc = this.ctx.createOscillator();
     const crunchGain = this.ctx.createGain();
     crunchOsc.type = 'sawtooth';
-    crunchOsc.frequency.setValueAtTime(vehicle === 'starship' ? 320 : 540, now);
-    crunchOsc.frequency.exponentialRampToValueAtTime(60, now + 0.35);
+    crunchOsc.frequency.setValueAtTime(isOrbital ? 240 : vehicle === 'starship' ? 320 : 540, now);
+    crunchOsc.frequency.exponentialRampToValueAtTime(50, now + 0.35);
 
     crunchGain.gain.setValueAtTime(0.24, now);
     crunchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);

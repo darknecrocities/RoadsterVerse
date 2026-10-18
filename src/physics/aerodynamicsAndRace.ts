@@ -1,4 +1,5 @@
 import type {
+  CrashType,
   EulerAngles,
   RigidBodyState,
   RLHyperparameters,
@@ -6,6 +7,7 @@ import type {
   Vector3D,
 } from '../types/simulation.ts';
 import { CAR_RIDE_HEIGHT } from './rampGeometry.ts';
+import { resolveCrashDynamics } from './crashDynamics.ts';
 
 export const AIR_DENSITY_SEA_LEVEL = 1.225; // kg/m^3
 export const ROADSTER_FRONTAL_AREA_M2 = 2.08; // m^2
@@ -381,7 +383,11 @@ export function stepRoadsterObstacleRacePhysics(
       const impactVy = Math.abs(next.velocity.y);
       const tiltErr = Math.max(Math.abs(next.attitude.roll), Math.abs(next.attitude.pitch));
       if (impactVy > 9.5 || tiltErr > 0.58) {
+        const crash = resolveCrashDynamics('post-jump-cartwheel', next.velocity, next.attitude);
         next.crashed = true;
+        next.crashType = crash.type;
+        next.crashReason = crash.diagnosticMessage;
+        next.angularVelocity = crash.tumbleVelocity;
       } else {
         next.attitude.roll = 0;
         next.attitude.pitch = 0;
@@ -390,7 +396,7 @@ export function stepRoadsterObstacleRacePhysics(
       }
       next.position.y = groundY;
       next.velocity.y = 0;
-      next.isGrounded = true;
+      next.isGrounded = !next.crashed;
       next.wallContactNormalForceN = Math.round(
         ROADSTER_MASS_KG_RACE * gravity + aero.downforceN
       );
@@ -400,7 +406,17 @@ export function stepRoadsterObstacleRacePhysics(
   // Check 3D collision against all track obstacles and vehicles
   const collision = checkRoadsterObstacleCollision(next.position);
   if (collision.collided) {
+    let crashType: CrashType = 'obstacle-concrete-chicane-impact';
+    if (collision.obstacleId === 'drone-overtake-vehicle') {
+      crashType = 'obstacle-cyber-drone-collision';
+    } else if (collision.obstacleId === 'laser-hazard-wall') {
+      crashType = 'laser-wall-clip';
+    }
+    const crash = resolveCrashDynamics(crashType, next.velocity, next.attitude);
     next.crashed = true;
+    next.crashType = crash.type;
+    next.crashReason = crash.diagnosticMessage;
+    next.angularVelocity = crash.tumbleVelocity;
   }
 
   next.missionProgressPct = Math.min(
