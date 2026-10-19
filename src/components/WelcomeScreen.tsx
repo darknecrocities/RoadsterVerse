@@ -126,6 +126,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             onClick={() => onSelectMissionAndEnter(previewMissionId)}
             title="RoadsterVerse Home"
           >
+            <img src="/favicon.svg" alt="RoadsterVerse Logo" className="sx-wordmark-icon" />
             <span className="sx-wordmark-text">ROADSTERVERSE</span>
           </button>
 

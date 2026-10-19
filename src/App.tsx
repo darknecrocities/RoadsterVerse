@@ -281,6 +281,7 @@ export const App: React.FC = () => {
             onClick={() => setShowWelcome(true)}
             title="Return to SpaceX-Style RoadsterVerse Landing Page"
           >
+            <img src="/favicon.svg" alt="RoadsterVerse Logo" className="sx-wordmark-icon" />
             <span className="sx-wordmark-text">ROADSTERVERSE</span>
           </button>
 

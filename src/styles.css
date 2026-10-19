@@ -112,7 +112,23 @@ body,
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  gap: 10px;
   flex-shrink: 0;
+}
+
+.sx-wordmark-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.25));
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.sx-wordmark-btn:hover .sx-wordmark-icon {
+  transform: rotate(4deg) scale(1.08);
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.45));
 }
 
 .sx-wordmark-text {
