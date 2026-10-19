@@ -383,10 +383,11 @@ export function stepRoadsterObstacleRacePhysics(
       const impactVy = Math.abs(next.velocity.y);
       const tiltErr = Math.max(Math.abs(next.attitude.roll), Math.abs(next.attitude.pitch));
       if (impactVy > 9.5 || tiltErr > 0.58) {
-        const crash = resolveCrashDynamics('post-jump-cartwheel', next.velocity, next.attitude);
+        const crash = resolveCrashDynamics('post-jump-cartwheel', next.velocity, next.attitude, 'roadster-obstacle-race');
         next.crashed = true;
         next.crashType = crash.type;
         next.crashReason = crash.diagnosticMessage;
+        next.crashRecord = crash.record;
         next.angularVelocity = crash.tumbleVelocity;
       } else {
         next.attitude.roll = 0;
@@ -412,10 +413,11 @@ export function stepRoadsterObstacleRacePhysics(
     } else if (collision.obstacleId === 'laser-hazard-wall') {
       crashType = 'laser-wall-clip';
     }
-    const crash = resolveCrashDynamics(crashType, next.velocity, next.attitude);
+    const crash = resolveCrashDynamics(crashType, next.velocity, next.attitude, 'roadster-obstacle-race');
     next.crashed = true;
     next.crashType = crash.type;
     next.crashReason = crash.diagnosticMessage;
+    next.crashRecord = crash.record;
     next.angularVelocity = crash.tumbleVelocity;
   }
 

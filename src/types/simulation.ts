@@ -10,40 +10,29 @@ export type MissionId =
   | 'starship-booster-catch'
   | 'starship-pod-orbit';
 
-export type CrashType =
-  // Stunt 01 Hover
-  | 'hover-blowdown-ground-slam'
-  | 'hover-attitude-flip'
-  | 'hover-boundary-impact'
-  // Stunt 02 Loop
-  | 'loop-apex-gravity-stall'
-  | 'loop-curvature-smash'
-  | 'loop-inverted-exit-flat-spin'
-  // Stunt 03 Kickflip
-  | 'kickflip-under-rotation-nose-dive'
-  | 'kickflip-over-rotation-roof-crush'
-  | 'ramp-lip-strike'
-  // Stunt 04 Gauntlet Race
-  | 'obstacle-concrete-chicane-impact'
-  | 'obstacle-cyber-drone-collision'
-  | 'laser-wall-clip'
-  | 'post-jump-cartwheel'
-  // Stunt 05 Launch
-  | 'orbital-pad-mount-strike'
-  | 'max-q-aerodynamic-breakup'
-  | 'hot-stage-collision'
-  // Stunt 06 Belly-Flop
-  | 'skydive-flat-spin'
-  | 'flip-failure-belly-slam'
-  | 'flip-over-rotation-tail-strike'
-  // Stunt 07 Booster Catch
-  | 'tower-chopstick-miss'
-  | 'chopstick-arm-collision'
-  | 'catch-hard-landing-over-g'
-  // Stunt 08 Pod Orbit
-  | 'orbital-deployment-tumble'
-  | 'zero-g-thruster-depletion-drift'
-  | 'orbital-debris-collision';
+export type CrashCategory =
+  | 'Propulsion'
+  | 'Aerodynamic'
+  | 'Trajectory'
+  | 'Structural'
+  | 'Obstacle'
+  | 'Orbital';
+
+export interface CrashFailureRecord {
+  id: string;
+  stuntId: MissionId;
+  code: string;
+  title: string;
+  category: CrashCategory;
+  diagnosticMessage: string;
+  physicalTrigger: string;
+  mlConfigCause: string;
+  environmentalCause: string;
+  remedyRecommendation: string;
+  severity: number;
+}
+
+export type CrashType = string;
 
 export type WheelSpec = 'aero-disc' | 'six-spoke';
 
@@ -99,6 +88,7 @@ export interface RigidBodyState {
   crashed: boolean;
   crashType?: CrashType;
   crashReason?: string;
+  crashRecord?: CrashFailureRecord;
   solarArrayDeployPct?: number; // 0 - 100% for satellite transformation
   missionProgressPct: number;
   elapsedTimeSec: number;

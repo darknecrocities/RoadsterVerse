@@ -267,10 +267,11 @@ export function stepRoadsterPhysics(
             : pitchError > 0.65
               ? 'loop-apex-gravity-stall'
               : 'loop-inverted-exit-flat-spin';
-          const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+          const crash = resolveCrashDynamics(type, next.velocity, next.attitude, 'roadster-wall-climb');
           next.crashed = true;
           next.crashType = crash.type;
           next.crashReason = crash.diagnosticMessage;
+          next.crashRecord = crash.record;
           next.angularVelocity = crash.tumbleVelocity;
         } else {
           next.attitude.pitch = 0;
@@ -386,10 +387,11 @@ export function stepRoadsterPhysics(
             : next.attitude.roll > Math.PI * 2.2
               ? 'kickflip-over-rotation-roof-crush'
               : 'ramp-lip-strike';
-          const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+          const crash = resolveCrashDynamics(type, next.velocity, next.attitude, 'roadster-barrel-roll');
           next.crashed = true;
           next.crashType = crash.type;
           next.crashReason = crash.diagnosticMessage;
+          next.crashRecord = crash.record;
           next.angularVelocity = crash.tumbleVelocity;
         } else {
           next.attitude.roll = Math.PI * 2;
@@ -451,10 +453,11 @@ export function stepRoadsterPhysics(
           : tiltError > 0.75
             ? 'hover-attitude-flip'
             : 'hover-boundary-impact';
-        const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+        const crash = resolveCrashDynamics(type, next.velocity, next.attitude, 'roadster-hover');
         next.crashed = true;
         next.crashType = crash.type;
         next.crashReason = crash.diagnosticMessage;
+        next.crashRecord = crash.record;
         next.angularVelocity = crash.tumbleVelocity;
       }
       next.position.y = GROUND_Y;

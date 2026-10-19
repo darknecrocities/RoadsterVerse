@@ -149,34 +149,38 @@ export function stepStarshipPhysics(
 
       // Crash / Fall detection during ascent:
       if (state.position.y > 1.38 && next.position.y <= 1.36) {
-        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
+        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude, 'starship-launch');
         next.crashed = true;
         next.crashType = crash.type;
         next.crashReason = crash.diagnosticMessage;
+        next.crashRecord = crash.record;
         next.angularVelocity = crash.tumbleVelocity;
         next.position.y = 1.35;
       }
       if (next.position.y < 4.0 && (Math.abs(next.attitude.pitch) > 0.50 || Math.abs(next.attitude.roll) > 0.50)) {
-        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
+        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude, 'starship-launch');
         next.crashed = true;
         next.crashType = crash.type;
         next.crashReason = crash.diagnosticMessage;
+        next.crashRecord = crash.record;
         next.angularVelocity = crash.tumbleVelocity;
       }
       if (Math.abs(next.attitude.pitch) > 0.95) {
-        const crash = resolveCrashDynamics('max-q-aerodynamic-breakup', next.velocity, next.attitude);
+        const crash = resolveCrashDynamics('max-q-aerodynamic-breakup', next.velocity, next.attitude, 'starship-launch');
         next.crashed = true;
         next.crashType = crash.type;
         next.crashReason = crash.diagnosticMessage;
+        next.crashRecord = crash.record;
         next.angularVelocity = crash.tumbleVelocity;
       }
       if (next.position.y < 1.35) {
         next.position.y = 1.35;
         if (state.position.y > 1.36) {
-          const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
+          const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude, 'starship-launch');
           next.crashed = true;
           next.crashType = crash.type;
           next.crashReason = crash.diagnosticMessage;
+          next.crashRecord = crash.record;
           next.angularVelocity = crash.tumbleVelocity;
         }
       }
@@ -255,10 +259,11 @@ export function stepStarshipPhysics(
                 ? 'chopstick-arm-collision'
                 : 'catch-hard-landing-over-g'
             : 'orbital-pad-mount-strike';
-        const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+        const crash = resolveCrashDynamics(type, next.velocity, next.attitude, missionId);
         next.crashed = true;
         next.crashType = crash.type;
         next.crashReason = crash.diagnosticMessage;
+        next.crashRecord = crash.record;
         next.angularVelocity = crash.tumbleVelocity;
       }
       next.position.y = targetLandingY;
@@ -329,10 +334,11 @@ export function stepStarshipPhysics(
           : next.attitude.pitch < -0.35
             ? 'flip-over-rotation-tail-strike'
             : 'skydive-flat-spin';
-      const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+      const crash = resolveCrashDynamics(type, next.velocity, next.attitude, 'starship-belly-flop');
       next.crashed = true;
       next.crashType = crash.type;
       next.crashReason = crash.diagnosticMessage;
+      next.crashRecord = crash.record;
       next.angularVelocity = crash.tumbleVelocity;
     }
     next.position.y = 1.5;
