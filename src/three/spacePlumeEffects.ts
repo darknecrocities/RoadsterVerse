@@ -172,7 +172,7 @@ export interface BoosterSeparationTrajectory {
 export function computeBoosterSeparationPhysics(
   stagingAltitude: number,
   elapsedTimeSec: number,
-  stagingTimeSec = 3.8
+  stagingTimeSec = 9.5
 ): BoosterSeparationTrajectory {
   if (elapsedTimeSec < stagingTimeSec) {
     return {

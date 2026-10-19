@@ -12,6 +12,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import type {
+  CrashFailureRecord,
   MissionId,
   NeuralNetworkSnapshot,
   RigidBodyState,
@@ -39,6 +40,7 @@ import {
 import { KnowledgeAndTriviaModal } from './components/KnowledgeAndTriviaModal.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { MobileGateFallback } from './components/MobileGateFallback.tsx';
+import { CrashTelemetryCard } from './components/CrashTelemetryCard.tsx';
 
 const checkIsMobile = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -77,26 +79,13 @@ export const App: React.FC = () => {
   const [rightCollapsed, setRightCollapsed] = useState(false);
 
   const [checkpoints, setCheckpoints] = useState<SavedCheckpoint[]>([]);
+  const [activeCrashRecord, setActiveCrashRecord] = useState<CrashFailureRecord | null>(null);
 
   const [nnSnapshot, setNnSnapshot] = useState<NeuralNetworkSnapshot>({
-    inputs: [
-      { label: 'Height', value: 0.1 },
-      { label: 'Speed Y', value: 0.05 },
-      { label: 'Roll', value: 0.02 },
-      { label: 'Pitch', value: -0.04 },
-      { label: 'Spin', value: 0.01 },
-      { label: 'Air PSI', value: 0.9 },
-    ],
+    inputs: [{ label: 'Height', value: 0.1 }, { label: 'Speed Y', value: 0.05 }, { label: 'Roll', value: 0.02 }, { label: 'Pitch', value: -0.04 }, { label: 'Spin', value: 0.01 }, { label: 'Air PSI', value: 0.9 }],
     hiddenLayer1: [0.5, -0.3, 0.7, 0.2, -0.6, 0.4, 0.8, -0.2],
     hiddenLayer2: [0.6, 0.4, -0.5, 0.7, 0.3, -0.4],
-    outputs: [
-      { label: 'FL Jet', value: 0.55 },
-      { label: 'FR Jet', value: 0.55 },
-      { label: 'RL Jet', value: 0.56 },
-      { label: 'RR Jet', value: 0.56 },
-      { label: 'Loop Jet', value: 0.12 },
-      { label: 'Rear Jet', value: 0.1 },
-    ],
+    outputs: [{ label: 'FL Jet', value: 0.55 }, { label: 'FR Jet', value: 0.55 }, { label: 'RL Jet', value: 0.56 }, { label: 'RR Jet', value: 0.56 }, { label: 'Loop Jet', value: 0.12 }, { label: 'Rear Jet', value: 0.1 }],
     instantReward: 1.8,
     cumulativeReward: 145,
     policyEntropy: 0.12,
@@ -138,11 +127,11 @@ export const App: React.FC = () => {
           setIsAutoTraining(false);
           return prev;
         }
-        const nextEpochs = Math.min(500, prev.epochs + 6);
+        const nextEpochs = Math.min(500, prev.epochs + 5);
         const cooledNoise = Math.max(0.02, Number((0.45 * Math.exp(-nextEpochs / 110)).toFixed(2)));
         return { ...prev, epochs: nextEpochs, explorationNoise: cooledNoise };
       });
-    }, 200);
+    }, 550);
     return () => window.clearInterval(timer);
   }, [isAutoTraining, isPaused]);
 
@@ -159,6 +148,7 @@ export const App: React.FC = () => {
       explorationNoise: 0.04,
     }));
     setIsPaused(false);
+    setActiveCrashRecord(null);
     setResetSignal((n) => n + 1);
   };
 
@@ -175,12 +165,26 @@ export const App: React.FC = () => {
       }));
     }
     setIsPaused(false);
+    setActiveCrashRecord(null);
     setResetSignal((n) => n + 1);
   };
 
+  const handleAutoTuneAndStep = useCallback(() => {
+    setParams((prev) => ({
+      ...prev,
+      epochs: Math.min(500, prev.epochs + 5),
+      explorationNoise: Math.max(0.02, Number((prev.explorationNoise * 0.9).toFixed(2))),
+    }));
+    setActiveCrashRecord(null);
+    setResetSignal((n) => n + 1);
+  }, []);
+
   const handleTelemetryUpdate = useCallback(
-    (_state: RigidBodyState, nextNn: NeuralNetworkSnapshot) => {
+    (curState: RigidBodyState, nextNn: NeuralNetworkSnapshot) => {
       setNnSnapshot(nextNn);
+      if (curState.crashed && curState.crashRecord) {
+        setActiveCrashRecord(curState.crashRecord);
+      }
     },
     []
   );
@@ -356,6 +360,7 @@ export const App: React.FC = () => {
             className="sx-action-btn"
             onClick={() => {
               setIsPaused(false);
+              setActiveCrashRecord(null);
               setResetSignal((n) => n + 1);
             }}
             title="Restart Stunt"
@@ -471,6 +476,21 @@ export const App: React.FC = () => {
           setResetSignal((n) => n + 1);
         }}
       />
+
+      {/* Glassmorphic Crash Telemetry Popup Modal */}
+      {activeCrashRecord && (
+        <CrashTelemetryCard
+          record={activeCrashRecord}
+          missionId={missionId}
+          params={params}
+          onReset={() => {
+            setActiveCrashRecord(null);
+            setResetSignal((n) => n + 1);
+          }}
+          onAutoTuneAndStep={handleAutoTuneAndStep}
+          onClose={() => setActiveCrashRecord(null)}
+        />
+      )}
     </div>
   );
 };

@@ -295,7 +295,7 @@ export class ProvingGroundSceneController {
       !primaryState.isGrounded && !primaryState.isOnWall && !primaryState.crashed;
 
     if (isPodOrbit) {
-      const isSeparated = py >= 28.0 || primaryState.elapsedTimeSec >= 3.8;
+      const isSeparated = py >= 60.0 || primaryState.elapsedTimeSec >= 9.5;
       if (primaryState.elapsedTimeSec < 0.2) this.stagingRingTriggered = false;
 
       const podY = py + 4.75;
@@ -313,11 +313,11 @@ export class ProvingGroundSceneController {
 
       if (isSeparated) {
         if (!this.stagingRingTriggered) {
-          this.spacePlumeFX.triggerStagingVaporRing(new THREE.Vector3(primaryState.position.x, 28.0 + 4.75, primaryState.position.z));
+          this.spacePlumeFX.triggerStagingVaporRing(new THREE.Vector3(primaryState.position.x, 60.0 + 4.75, primaryState.position.z));
           this.stagingRingTriggered = true;
         }
 
-        const boosterTraj = computeBoosterSeparationPhysics(28.0, primaryState.elapsedTimeSec, 3.8);
+        const boosterTraj = computeBoosterSeparationPhysics(60.0, primaryState.elapsedTimeSec, 9.5);
         this.starshipRig.root.visible = boosterTraj.isVisible;
         this.starshipRig.root.position.set(primaryState.position.x, boosterTraj.boosterWorldY, primaryState.position.z);
         this.starshipRig.root.rotation.set(boosterTraj.boosterRoll, 0, boosterTraj.boosterPitch);
