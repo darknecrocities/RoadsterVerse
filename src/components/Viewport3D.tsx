@@ -29,6 +29,7 @@ import {
   stepStarshipPhysics,
 } from '../physics/starshipPhysics.ts';
 import { evaluateRLPolicy } from '../rl/policyEngine.ts';
+import { SensorLatencyBuffer } from '../rl/sensorBuffer.ts';
 import { ProvingGroundSceneController } from '../three/provingGroundScene.ts';
 import { soundEngine } from '../services/soundEngine.ts';
 import { AnimatedDecodeText, AnimatedNumber } from './AnimatedText.tsx';
@@ -79,6 +80,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const windImpulseRef = useRef<number>(0);
   const prevMissionRef = useRef<MissionId>(mission.id);
   const crashCooldownRef = useRef<number>(0);
+  const sensorBufferRef = useRef<SensorLatencyBuffer>(new SensorLatencyBuffer());
 
   const paramsRef = useRef(params);
   paramsRef.current = params;
@@ -112,6 +114,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         : createInitialStarshipState(m.id);
     crashCooldownRef.current = 0;
     wasCrashedRef.current = false;
+    sensorBufferRef.current.reset();
   }, [mission.id, resetSignal]);
 
   useEffect(() => {
@@ -141,8 +144,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       const activeParams = paramsRef.current;
       const simDt = pausedRef.current ? 0 : rawDt * activeParams.simulationSpeed;
 
+      sensorBufferRef.current.push(primaryStateRef.current.elapsedTimeSec, primaryStateRef.current);
+      const observedState = sensorBufferRef.current.getDelayedState(
+        primaryStateRef.current.elapsedTimeSec,
+        activeParams.sensorLatencyMs ?? 0
+      );
+
       const { thrusters, nnSnapshot } = evaluateRLPolicy(
-        primaryStateRef.current,
+        observedState,
         activeMission.id,
         activeParams,
         0
@@ -191,6 +200,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           const waitTime = reachedFinish ? 2.8 : 1.75;
           if (crashCooldownRef.current > waitTime) {
             crashCooldownRef.current = 0;
+            sensorBufferRef.current.reset();
             onAutoResetAfterCrash();
           }
         }

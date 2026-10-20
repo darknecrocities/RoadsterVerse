@@ -54,6 +54,7 @@ export class SimulationRepository {
         reward_attitude_weight REAL NOT NULL,
         reward_fuel_weight REAL NOT NULL,
         reward_smoothness_weight REAL NOT NULL,
+        sensor_latency_ms REAL NOT NULL DEFAULT 0,
         mean_reward REAL NOT NULL,
         stability_score REAL NOT NULL,
         created_at TEXT NOT NULL
@@ -83,6 +84,12 @@ export class SimulationRepository {
         created_at TEXT NOT NULL
       );
     `);
+
+    try {
+      this.db.exec(`ALTER TABLE policy_checkpoints ADD COLUMN sensor_latency_ms REAL NOT NULL DEFAULT 0;`);
+    } catch {
+      // Column already exists or table was just created with it
+    }
   }
 
   private seedDefaultsIfEmpty(): void {
@@ -105,6 +112,7 @@ export class SimulationRepository {
         rewardAttitudeWeight: 2.5,
         rewardFuelWeight: 0.8,
         rewardSmoothnessWeight: 1.4,
+        sensorLatencyMs: 0,
         meanReward: 942.5,
         stabilityScore: 98.4,
       },
@@ -120,6 +128,7 @@ export class SimulationRepository {
         rewardAttitudeWeight: 2.8,
         rewardFuelWeight: 0.6,
         rewardSmoothnessWeight: 1.6,
+        sensorLatencyMs: 0,
         meanReward: 1120.8,
         stabilityScore: 96.9,
       },
@@ -135,6 +144,7 @@ export class SimulationRepository {
         rewardAttitudeWeight: 0.5,
         rewardFuelWeight: 0.1,
         rewardSmoothnessWeight: 0.1,
+        sensorLatencyMs: 0,
         meanReward: -145.2,
         stabilityScore: 14.2,
       },
@@ -150,6 +160,7 @@ export class SimulationRepository {
         rewardAttitudeWeight: 2.6,
         rewardFuelWeight: 1.1,
         rewardSmoothnessWeight: 1.8,
+        sensorLatencyMs: 0,
         meanReward: 1280.0,
         stabilityScore: 99.1,
       },
@@ -165,6 +176,7 @@ export class SimulationRepository {
         rewardAttitudeWeight: 3.0,
         rewardFuelWeight: 1.2,
         rewardSmoothnessWeight: 2.0,
+        sensorLatencyMs: 0,
         meanReward: 1410.4,
         stabilityScore: 99.5,
       },
@@ -196,6 +208,7 @@ export class SimulationRepository {
       rewardAttitudeWeight: Number(r.reward_attitude_weight),
       rewardFuelWeight: Number(r.reward_fuel_weight),
       rewardSmoothnessWeight: Number(r.reward_smoothness_weight),
+      sensorLatencyMs: Number(r.sensor_latency_ms ?? 0),
       meanReward: Number(r.mean_reward),
       stabilityScore: Number(r.stability_score),
       createdAt: String(r.created_at),
@@ -209,8 +222,8 @@ export class SimulationRepository {
       INSERT INTO policy_checkpoints (
         id, name, mission_id, vehicle, epochs, learning_rate, exploration_noise,
         discount_factor, reward_altitude_weight, reward_attitude_weight,
-        reward_fuel_weight, reward_smoothness_weight, mean_reward, stability_score, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        reward_fuel_weight, reward_smoothness_weight, sensor_latency_ms, mean_reward, stability_score, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -226,6 +239,7 @@ export class SimulationRepository {
       input.rewardAttitudeWeight,
       input.rewardFuelWeight,
       input.rewardSmoothnessWeight,
+      input.sensorLatencyMs ?? 0,
       input.meanReward,
       input.stabilityScore,
       createdAt

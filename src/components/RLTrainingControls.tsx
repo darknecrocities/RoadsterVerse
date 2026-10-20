@@ -204,6 +204,35 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                 </div>
                 <input type="range" min={0.8} max={0.999} step={0.005} value={params.discountFactor} onChange={(e) => onChangeParams({ discountFactor: Number(e.target.value) })} className="bw-slider" />
               </div>
+
+              <div className="control-item-bw">
+                <div className="control-label-bw">
+                  <span>
+                    Sensor Latency (Signal Delay)
+                    <HelpTooltip
+                      title="Sensor Latency in Control Loop"
+                      explain="Simulates real-world sensor lag! In real rockets/cars, IMU filtering and vision processing delay feedback by 15-150ms, causing phase lag and stability challenges."
+                      tip="Try 0ms (ideal vacuum), 25ms (avionics IMU), or 75ms+ (optical flow)."
+                    />
+                  </span>
+                  <strong>{params.sensorLatencyMs ?? 0} ms</strong>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={250}
+                  step={5}
+                  value={params.sensorLatencyMs ?? 0}
+                  onChange={(e) => onChangeParams({ sensorLatencyMs: Number(e.target.value) })}
+                  className="bw-slider"
+                />
+                <div className="preset-row-bw" style={{ marginTop: '4px' }}>
+                  <button type="button" className="preset-btn-bw" onClick={() => onChangeParams({ sensorLatencyMs: 0 })}>0ms</button>
+                  <button type="button" className="preset-btn-bw" onClick={() => onChangeParams({ sensorLatencyMs: 25 })}>25ms</button>
+                  <button type="button" className="preset-btn-bw" onClick={() => onChangeParams({ sensorLatencyMs: 75 })}>75ms</button>
+                  <button type="button" className="preset-btn-bw" onClick={() => onChangeParams({ sensorLatencyMs: 150 })}>150ms</button>
+                </div>
+              </div>
             </div>
           )}
         </div>

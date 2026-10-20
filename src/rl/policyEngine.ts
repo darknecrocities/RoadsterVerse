@@ -7,60 +7,15 @@ import type {
   ThrusterActivation,
 } from '../types/simulation.ts';
 import { MISSIONS } from './missions.ts';
+import { clamp, computePolicyCompetence } from './competence.ts';
+import { SensorLatencyBuffer } from './sensorBuffer.ts';
 
-function clamp(val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val));
-}
+export { computePolicyCompetence };
+export { generateEpochLearningCurve } from './learningCurve.ts';
 
 function pseudoNoise(seed: number): number {
   const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return (x - Math.floor(x)) * 2 - 1;
-}
-
-/**
- * Computes the effective policy competence [0.03 .. 0.995] from the user's selected
- * Epochs and RL Hyperparameters (learning rate, discount factor, exploration noise, reward weights).
- * Calibrated across the exact UI slider ranges so every adjustment reflects in the live 3D simulation.
- */
-export function computePolicyCompetence(
-  missionId: MissionId,
-  params: RLHyperparameters,
-  epochOverride?: number
-): number {
-  const mission = MISSIONS[missionId];
-  const currentEpoch = epochOverride ?? params.epochs;
-
-  // Calibrated across UI slider [0.0001 .. 0.01]:
-  // - < 0.0003: sluggish under-stepping
-  // - 0.0003 .. 0.0020: optimal PPO convergence sweet spot
-  // - > 0.0020: policy gradient overshoot & instability
-  const lrEfficiency =
-    params.learningRate < 0.0003
-      ? 0.55 + (params.learningRate / 0.0003) * 0.45
-      : params.learningRate <= 0.002
-        ? 1.04
-        : Math.max(0.28, 1.04 - (params.learningRate - 0.002) * 85);
-
-  const gammaFactor = clamp((params.discountFactor - 0.78) / 0.21, 0.32, 1.05);
-
-  const fuelBalancePenalty =
-    params.rewardFuelWeight > 1.8 ? Math.max(0.72, 1 - (params.rewardFuelWeight - 1.8) * 0.25) : 1.0;
-
-  const rewardBalance =
-    clamp(
-      (params.rewardAltitudeWeight * 0.35 +
-        params.rewardAttitudeWeight * 0.4 +
-        params.rewardSmoothnessWeight * 0.25) /
-        2.1,
-      0.38,
-      1.14
-    ) * fuelBalancePenalty;
-
-  const normalizedEpochs = currentEpoch / (mission.recommendedEpochs * 0.55);
-  const rawGrowth = 1 - Math.exp(-normalizedEpochs * lrEfficiency * gammaFactor * rewardBalance);
-  const noiseDamping = 1 - params.explorationNoise * 0.68;
-
-  return clamp(rawGrowth * noiseDamping, 0.03, 0.995);
 }
 
 /**
@@ -432,6 +387,9 @@ export function evaluateRLPolicy(
     ? -25.0
     : Number((posReward + attReward - fuelPenalty + competence * 2.2).toFixed(2));
 
+  const latencyMs = params.sensorLatencyMs ?? 0;
+  const sensorDelayDeg = SensorLatencyBuffer.computePhaseLagDeg(state.angularVelocity, latencyMs);
+
   return {
     thrusters,
     nnSnapshot: {
@@ -443,45 +401,8 @@ export function evaluateRLPolicy(
       cumulativeReward: Number((instantReward * (state.elapsedTimeSec * 12 + 1)).toFixed(1)),
       policyEntropy: Number((clamp(1 - competence + params.explorationNoise * 0.5, 0.02, 0.99)).toFixed(2)),
       stabilityScore: Number((competence * 100).toFixed(1)),
+      sensorLatencyMs: latencyMs,
+      sensorDelayDeg,
     },
   };
-}
-
-export function generateEpochLearningCurve(
-  missionId: MissionId,
-  params: RLHyperparameters
-): EpochHistoryPoint[] {
-  const points: EpochHistoryPoint[] = [];
-  const totalEpochs = Math.max(5, params.epochs);
-  const step = Math.max(1, Math.floor(totalEpochs / 25));
-
-  for (let ep = 1; ep <= totalEpochs; ep += step) {
-    const comp = computePolicyCompetence(missionId, params, ep);
-    const deterministicJitter = pseudoNoise(ep * 3.7) * (1 - comp) * 45;
-    const meanReward = Number((-180 + comp * 1450 + deterministicJitter).toFixed(1));
-    const survivalRatePct = Math.round(clamp(comp * 102 - (1 - comp) * 15, 4, 100));
-    const maxAltitudeM = Number((1.2 + comp * 11.4).toFixed(1));
-    const attitudeErrorDeg = Number(((1 - comp) * 68 + 0.8).toFixed(1));
-
-    points.push({
-      epoch: ep,
-      meanReward,
-      survivalRatePct,
-      maxAltitudeM,
-      attitudeErrorDeg,
-    });
-  }
-
-  if (points[points.length - 1]?.epoch !== totalEpochs) {
-    const comp = computePolicyCompetence(missionId, params, totalEpochs);
-    points.push({
-      epoch: totalEpochs,
-      meanReward: Number((-180 + comp * 1450).toFixed(1)),
-      survivalRatePct: Math.round(clamp(comp * 100, 5, 100)),
-      maxAltitudeM: Number((1.2 + comp * 11.4).toFixed(1)),
-      attitudeErrorDeg: Number(((1 - comp) * 68 + 0.8).toFixed(1)),
-    });
-  }
-
-  return points;
 }

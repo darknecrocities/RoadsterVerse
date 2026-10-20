@@ -128,6 +128,11 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
               />
             </span>
             <span className="hud-header-right">
+              {nnSnapshot.sensorLatencyMs !== undefined && nnSnapshot.sensorLatencyMs > 0 && (
+                <small title="Sensor signal delay and estimated attitude phase lag" style={{ marginRight: '6px' }}>
+                  LAG: {nnSnapshot.sensorLatencyMs}ms ({nnSnapshot.sensorDelayDeg ?? 0}°)
+                </small>
+              )}
               <small>SKILL: {nnSnapshot.stabilityScore}%</small>
               {showJetsCard ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </span>

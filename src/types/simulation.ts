@@ -117,6 +117,7 @@ export interface RLHyperparameters {
   initialCopvPsi: number;      // 3000 - 10000 PSI
   ghostSwarmCount: number;     // 1 - 10 parallel agents
   simulationSpeed: number;     // 1x, 2x, 5x, 10x
+  sensorLatencyMs: number;     // 0 - 250 ms (signal delay in control loop)
 }
 
 export interface NeuralNetworkSnapshot {
@@ -128,6 +129,8 @@ export interface NeuralNetworkSnapshot {
   cumulativeReward: number;
   policyEntropy: number;
   stabilityScore: number; // 0 - 100%
+  sensorLatencyMs?: number;
+  sensorDelayDeg?: number;
 }
 
 export interface EpochHistoryPoint {
@@ -165,6 +168,7 @@ export interface SavedCheckpoint {
   rewardAttitudeWeight: number;
   rewardFuelWeight: number;
   rewardSmoothnessWeight: number;
+  sensorLatencyMs?: number;
   meanReward: number;
   stabilityScore: number;
   createdAt: string;

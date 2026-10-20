@@ -13,6 +13,7 @@ export const DEFAULT_HYPERPARAMETERS: RLHyperparameters = {
   initialCopvPsi: 10000,
   ghostSwarmCount: 0,
   simulationSpeed: 1,
+  sensorLatencyMs: 0,
 };
 
 export const MISSIONS: Record<MissionId, MissionDefinition> = {

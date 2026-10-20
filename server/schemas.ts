@@ -30,6 +30,7 @@ export const CheckpointCreateSchema = z.object({
   rewardAttitudeWeight: z.number().min(0).max(5),
   rewardFuelWeight: z.number().min(0).max(5),
   rewardSmoothnessWeight: z.number().min(0).max(5),
+  sensorLatencyMs: z.number().min(0).max(500).default(0),
   meanReward: z.number().min(-10000).max(100000),
   stabilityScore: z.number().min(0).max(100),
 });
