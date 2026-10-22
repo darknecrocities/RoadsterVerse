@@ -3,6 +3,7 @@ import {
   BookOpen,
   ChevronDown,
   Cpu,
+  Github,
   Maximize2,
   Minimize2,
   Pause,
@@ -331,6 +332,18 @@ export const App: React.FC = () => {
 
         {/* Right Rectangular SpaceX Action Controls */}
         <div className="sx-nav-right">
+          <a
+            href="https://github.com/darknecrocities/RoadsterVerse"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sx-action-btn sx-github-nav-btn"
+            title="View RoadsterVerse on GitHub"
+            aria-label="GitHub Repository"
+          >
+            <Github size={12} />
+            <span>GITHUB</span>
+          </a>
+
           <button
             type="button"
             className={`sx-action-btn ${audioEnabled ? 'active' : ''}`}

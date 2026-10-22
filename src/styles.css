@@ -390,6 +390,20 @@ body,
   transition: all 0.18s ease;
 }
 
+a.sx-upcoming-btn,
+a.sx-action-btn,
+.sx-github-nav-btn {
+  text-decoration: none;
+  color: #ffffff;
+}
+
+a.sx-upcoming-btn:hover,
+a.sx-action-btn:hover,
+.sx-github-nav-btn:hover {
+  text-decoration: none;
+  color: #ffffff;
+}
+
 .sx-action-btn:hover {
   background: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.55);

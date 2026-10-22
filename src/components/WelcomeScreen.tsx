@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ChevronDown, Cpu, Play, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, Cpu, Github, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { MissionId } from '../types/simulation.ts';
 import { MISSION_LIST, MISSIONS } from '../rl/missions.ts';
 import { AnimatedDecodeText } from './AnimatedText.tsx';
@@ -102,12 +102,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const activeMission = MISSIONS[previewMissionId];
   const meta = ROADSTERVERSE_STUNT_DETAILS[previewMissionId];
 
-  const cycleNextMission = () => {
-    const idx = MISSION_LIST.findIndex((m) => m.id === previewMissionId);
-    const next = MISSION_LIST[(idx + 1) % MISSION_LIST.length];
-    setPreviewMissionId(next.id);
-  };
-
   return (
     <div className="sx-landing-root">
       {/* Live Working 60fps 3D Physics Stunt Preview */}
@@ -165,8 +159,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </nav>
         </div>
 
-        {/* Right Action Controls: Sound Button & All Stunts Dropdown */}
+        {/* Right Action Controls: GitHub Repo Link, Sound Button & All Stunts Dropdown */}
         <div className="sx-nav-right">
+          <a
+            href="https://github.com/darknecrocities/RoadsterVerse"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sx-upcoming-btn sx-github-nav-btn"
+            title="View RoadsterVerse on GitHub"
+            aria-label="GitHub Repository"
+          >
+            <Github size={13} />
+            <span>GITHUB</span>
+          </a>
+
           <button
             type="button"
             className={`sx-upcoming-btn sx-sound-toggle-btn ${audioEnabled ? 'active' : ''}`}
@@ -316,44 +322,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </button>
         </div>
       </main>
-
-      {/* Bottom-Right Working Stunt Preview HUD Card */}
-      <aside className="sx-pip-preview-card" aria-label="Mission Preview Switcher">
-        <div
-          className="sx-pip-screen"
-          onClick={() => onSelectMissionAndEnter(previewMissionId)}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="sx-pip-top-row">
-            <span className="sx-pip-badge">{meta.badge}</span>
-            <span className="sx-pip-play">
-              <Play size={11} /> LIVE PREVIEW
-            </span>
-          </div>
-
-          <div className="sx-pip-center-art">
-            <strong>{activeMission.title}</strong>
-            <span>
-              STATUS: {isUntrainedMode ? 'CLUMSY / FAILING NOISE' : 'FLAWLESS 6-DOF GUIDANCE'}
-            </span>
-          </div>
-
-          <div className="sx-pip-bottom-row">
-            <span>{meta.tagline}</span>
-            <button
-              type="button"
-              className="sx-pip-next-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                cycleNextMission();
-              }}
-            >
-              NEXT STUNT →
-            </button>
-          </div>
-        </div>
-      </aside>
     </div>
   );
 };
