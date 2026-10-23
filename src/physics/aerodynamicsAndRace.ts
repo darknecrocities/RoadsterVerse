@@ -108,33 +108,38 @@ export const ROADSTER_RACE_OBSTACLES: readonly ObstacleBox[] = [
 export function computeRoadsterAerodynamics(
   velocity: Vector3D,
   attitude: EulerAngles,
-  activeWingAngle: number
+  activeWingAngle: number,
+  windVector: Vector3D = { x: 0, y: 0, z: 0 },
+  airDensityKgM3 = AIR_DENSITY_SEA_LEVEL
 ): RoadsterAeroForces {
-  const speedSq =
-    velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z;
+  const relVx = velocity.x - windVector.x;
+  const relVy = velocity.y - windVector.y;
+  const relVz = velocity.z - windVector.z;
+  const speedSq = relVx * relVx + relVy * relVy + relVz * relVz;
   const speed = Math.sqrt(speedSq);
-  const dynamicPressurePa = 0.5 * AIR_DENSITY_SEA_LEVEL * speedSq;
+  const dynamicPressurePa = 0.5 * airDensityKgM3 * speedSq;
 
-  const flightPathAngle = Math.atan2(velocity.y, Math.max(0.5, Math.abs(velocity.x)));
+  const flightPathAngle = Math.atan2(relVy, Math.max(0.5, Math.abs(relVx)));
   const angleOfAttackRad = attitude.pitch - flightPathAngle;
 
+  const sideslipRad = speed > 0.5 ? Math.asin(Math.max(-1, Math.min(1, relVz / speed))) : 0;
   const wingClamped = Math.max(0, Math.min(1, activeWingAngle));
   const cd =
     ROADSTER_BASE_CD +
     0.14 * wingClamped +
-    0.55 * Math.sin(angleOfAttackRad) * Math.sin(angleOfAttackRad);
+    0.55 * Math.sin(angleOfAttackRad) * Math.sin(angleOfAttackRad) +
+    0.35 * Math.sin(sideslipRad) * Math.sin(sideslipRad);
   const clDownforce = 0.28 + 0.92 * wingClamped;
 
   const dragMagN = dynamicPressurePa * cd * ROADSTER_FRONTAL_AREA_M2;
   const invSpeed = speed > 0.05 ? 1 / speed : 0;
 
   const dragForce: Vector3D = {
-    x: -dragMagN * velocity.x * invSpeed,
-    y: -dragMagN * velocity.y * invSpeed,
-    z: -dragMagN * velocity.z * invSpeed,
+    x: -dragMagN * relVx * invSpeed,
+    y: -dragMagN * relVy * invSpeed,
+    z: -dragMagN * relVz * invSpeed,
   };
 
-  //Amplified effective wind-tunnel scale so downforce visibly boosts high-speed cornering on the 25m track
   const downforceN =
     dynamicPressurePa * clDownforce * ROADSTER_FRONTAL_AREA_M2 * 18.0;
 
@@ -159,14 +164,17 @@ export function computeStarshipAerodynamics(
   positionY: number,
   velocity: Vector3D,
   attitude: EulerAngles,
-  thrusters: ThrusterActivation
+  thrusters: ThrusterActivation,
+  windVector: Vector3D = { x: 0, y: 0, z: 0 }
 ): StarshipAeroForces {
   const rho = AIR_DENSITY_SEA_LEVEL * Math.exp(-Math.max(0, positionY) / 8500);
-  const speedSq = velocity.x * velocity.x + velocity.y * velocity.y;
+  const relVx = velocity.x - windVector.x;
+  const relVy = velocity.y - windVector.y;
+  const speedSq = relVx * relVx + relVy * relVy;
   const speed = Math.sqrt(speedSq);
   const dynamicPressurePa = 0.5 * rho * speedSq;
 
-  const flightAngle = Math.atan2(velocity.x, Math.max(0.4, Math.abs(velocity.y)));
+  const flightAngle = Math.atan2(relVx, Math.max(0.4, Math.abs(relVy)));
   const angleOfAttackRad = attitude.pitch - flightAngle;
 
   const bellyExposure = Math.abs(Math.sin(attitude.pitch));
@@ -174,8 +182,8 @@ export function computeStarshipAerodynamics(
   const invSpeed = speed > 0.05 ? 1 / speed : 0;
   const dragAccelMag = 0.045 * cdEffective * speedSq;
 
-  const dragForceX = -dragAccelMag * velocity.x * invSpeed;
-  const dragForceY = -dragAccelMag * velocity.y * invSpeed;
+  const dragForceX = -dragAccelMag * relVx * invSpeed;
+  const dragForceY = -dragAccelMag * relVy * invSpeed;
 
   const qAuthority = Math.max(0.35, Math.min(1.65, 0.45 + dynamicPressurePa / 45));
   const aeroFlapDiffPitch =
@@ -285,10 +293,15 @@ export function stepRoadsterObstacleRacePhysics(
     );
     next.wallContactNormalForceN = Math.round(normalForceN);
 
-    // Tire grip scales with normal force (Active Wing Downforce boosts lateral cornering grip!)
+    // Tire grip scales with normal force, dynamic surface friction mu, and hydroplaning
+    const surfaceMu = state.weather?.surfaceFrictionMu ?? TIRE_MU_SLICK;
+    const wetPct = state.weather?.roadWetnessPct ?? 0;
+    const hydroplaneSpeedMs = 58.3; // NASA critical hydroplane speed: 9 * sqrt(42 PSI)
+    const hydroplaneRatio = (wetPct / 100) * Math.max(0, Math.min(1.0, (state.velocity.x - 28.0) / (hydroplaneSpeedMs - 28.0)));
+    const effectiveMu = Math.max(0.08, surfaceMu * (1.0 - hydroplaneRatio * 0.85));
     const maxTireGripFactor = Math.min(
       1.65,
-      (TIRE_MU_SLICK * normalForceN) / (ROADSTER_MASS_KG_RACE * 9.81)
+      (effectiveMu * normalForceN) / (ROADSTER_MASS_KG_RACE * 9.81)
     );
 
     const targetCruiseVx = finishedCourse ? 0 : 70.0 + 12.0 * learnedDrive;
@@ -304,25 +317,27 @@ export function stepRoadsterObstacleRacePhysics(
     next.velocity.x = Math.max(0, Math.min(88.0, state.velocity.x + ax * dt));
     next.position.x = Math.min(1005.0, state.position.x + next.velocity.x * dt);
 
-    // Lateral Z-lane steering (thrusters.lateralLeft steers toward -Z right lane; lateralRight steers toward +Z left lane)
+    // Lateral Z-lane steering & dynamic wet road tire slide motion
     const steerInput = thrusters.lateralRight - thrusters.lateralLeft;
+    const crosswindZ = (state.weather?.windVector.z ?? 0) * (state.weather?.airDensityKgM3 ?? 1.225) * 8.0;
     const lateralSteerAccelZ =
-      steerInput * 65.0 * maxTireGripFactor -
-      4.8 * state.velocity.z +
-      aero.dragForce.z / ROADSTER_MASS_KG_RACE;
+      steerInput * 55.0 * maxTireGripFactor -
+      (2.2 + 2.6 * (effectiveMu / 1.35)) * state.velocity.z +
+      (aero.dragForce.z + crosswindZ) / ROADSTER_MASS_KG_RACE;
 
     next.velocity.z = Math.max(
-      -18.0,
-      Math.min(18.0, state.velocity.z + lateralSteerAccelZ * dt)
+      -22.0,
+      Math.min(22.0, state.velocity.z + lateralSteerAccelZ * dt)
     );
     next.position.z = Math.max(
-      -11.2,
-      Math.min(11.2, state.position.z + next.velocity.z * dt)
+      -12.5,
+      Math.min(12.5, state.position.z + next.velocity.z * dt)
     );
 
-    // Subtle body roll & yaw into the turn, stabilized by attitude & smoothness weights
-    next.attitude.yaw = Math.max(-0.25, Math.min(0.25, next.velocity.z * 0.025));
-    next.attitude.roll = Math.max(-0.12, Math.min(0.12, -next.velocity.z * 0.012));
+    // Dynamic yaw slip angle when sliding laterally
+    const slipAngle = Math.atan2(next.velocity.z, Math.max(8.0, next.velocity.x));
+    next.attitude.yaw = Math.max(-0.45, Math.min(0.45, slipAngle * 1.6));
+    next.attitude.roll = Math.max(-0.15, Math.min(0.15, -next.velocity.z * 0.015));
     next.attitude.pitch = 0;
     next.angularVelocity.x = 0;
     next.angularVelocity.y = 0;
@@ -417,6 +432,19 @@ export function stepRoadsterObstacleRacePhysics(
     next.crashType = crash.type;
     next.crashReason = crash.diagnosticMessage;
     next.angularVelocity = crash.tumbleVelocity;
+  }
+
+  // Check outside road shoulder barrier impact (road width is 24m, +/-12m)
+  if (!next.crashed && Math.abs(next.position.z) >= 11.8) {
+    const crash = resolveCrashDynamics('obstacle-concrete-chicane-impact', next.velocity, next.attitude);
+    next.crashed = true;
+    next.crashType = crash.type;
+    next.crashReason = 'ROAD RUNOFF // LATERAL SLIDE IMPACT INTO PERIMETER BARRIER';
+    next.angularVelocity = {
+      x: 7.2 * Math.sign(next.velocity.z),
+      y: 4.8,
+      z: -3.5,
+    };
   }
 
   next.missionProgressPct = Math.min(

@@ -83,6 +83,9 @@ export interface ThrusterActivation {
   podRcsBottom?: number;   // [0..1] bottom orbital RCS nozzles
   podRcsLateral?: number;  // [0..1] lateral orbital RCS nozzles
   podSolarDeployCmd?: number; // [0..1] satellite transformation command
+  // Super Heavy booster lateral RCS cold-gas thrusters for trajectory fine-tuning
+  boosterRcsLeft?: number;  // [0..1] port cold-gas RCS puff
+  boosterRcsRight?: number; // [0..1] starboard cold-gas RCS puff
 }
 
 export interface RigidBodyState {
@@ -102,6 +105,11 @@ export interface RigidBodyState {
   solarArrayDeployPct?: number; // 0 - 100% for satellite transformation
   missionProgressPct: number;
   elapsedTimeSec: number;
+  weather?: WeatherState;
+  energy?: VehicleEnergyState;
+  subsystems?: SubsystemHealthState;
+  impactEnergyJoules?: number;
+  debrisField?: DebrisPiece[];
 }
 
 export interface RLHyperparameters {
@@ -185,3 +193,65 @@ export interface TriviaQuestion {
   linkedMissionId: MissionId;
   linkedEpochDemo: number;
 }
+
+export type WeatherPreset = 'clear' | 'rain' | 'storm' | 'fog' | 'mars-dust';
+
+export interface WeatherState {
+  preset: WeatherPreset;
+  airDensityKgM3: number;
+  windSpeedMs: number;
+  windDirectionDeg: number;
+  windVector: Vector3D;
+  rainIntensityPct: number;
+  roadWetnessPct: number;
+  surfaceFrictionMu: number;
+  visibilityM: number;
+  lightningFlashIntensity: number;
+}
+
+export interface SubsystemHealthState {
+  batteryHealthPct: number;
+  copvHealthPct: number;
+  aeroControlHealthPct: number;
+  tractionHealthPct: number;
+  leakVentingRateKgS: number;
+  parasiticTorqueNm: Vector3D;
+  structuralStressG: number;
+}
+
+export interface VehicleEnergyState {
+  batteryKwhRemaining: number;
+  batterySocPct: number;
+  batteryVoltageV: number;
+  batteryDrawKw: number;
+  batteryTempC: number;
+  copvPressureBar: number;
+  copvPropellantMassKg: number;
+  copvMassFlowKgS: number;
+  centerOfGravityOffsetXM: number;
+  totalVehicleMassKg: number;
+}
+
+export type DebrisMaterialType =
+  | 'carbon-fiber'
+  | 'wheel-rubber'
+  | 'polycarbonate-glass'
+  | 'stainless-steel'
+  | 'titanium-gridfin'
+  | 'raptor-bell';
+
+export interface DebrisPiece {
+  id: string;
+  material: DebrisMaterialType;
+  position: Vector3D;
+  velocity: Vector3D;
+  rotation: Vector3D;
+  angularVelocity: Vector3D;
+  massKg: number;
+  dragAreaM2: number;
+  restitution: number;
+  ageSec: number;
+  maxAgeSec: number;
+  isResting: boolean;
+}
+

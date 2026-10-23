@@ -1,23 +1,10 @@
-import type {
-  CrashType,
-  MissionId,
-  RigidBodyState,
-  RLHyperparameters,
-  ThrusterActivation,
-} from '../types/simulation.ts';
-import {
-  CAR_RIDE_HEIGHT,
-  HALF_LOOP_RUNWAY_START_X,
-  KICKFLIP_RAMP_END_X,
-  KICKFLIP_RAMP_START_X,
-  sampleCurvedKickflipRamp,
-  sampleHotWheelsHalfLoop,
-} from './rampGeometry.ts';
-import {
-  computeRoadsterAerodynamics,
-  stepRoadsterObstacleRacePhysics,
-} from './aerodynamicsAndRace.ts';
-import { resolveCrashDynamics } from './crashDynamics.ts';
+import type { CrashType, MissionId, RigidBodyState, RLHyperparameters, ThrusterActivation } from '../types/simulation.ts';
+import { CAR_RIDE_HEIGHT, HALF_LOOP_RUNWAY_START_X, KICKFLIP_RAMP_END_X, KICKFLIP_RAMP_START_X, sampleCurvedKickflipRamp, sampleHotWheelsHalfLoop } from './rampGeometry.ts';
+import { computeRoadsterAerodynamics, stepRoadsterObstacleRacePhysics } from './aerodynamicsAndRace.ts';
+import { resolveCrashDynamics, stepCrashedRigidBodyDynamics } from './crashDynamics.ts';
+import { createInitialWeatherState, stepWeatherEnvironment } from './weatherAndEnvironment.ts';
+import { createInitialEnergyState, createInitialSubsystemHealth, stepSubsystemEnergyDynamics } from './subsystemEnergyDynamics.ts';
+import { evaluateStructuralCrash } from './advancedCrashAndDebris.ts';
 
 export const ROADSTER_MASS_KG = 1850;
 export const GRAVITY_EARTH = 9.81;
@@ -28,10 +15,28 @@ export const TIRE_FRICTION_COEFF = 1.35; // Heated Michelin Pilot Sport Cup 2R s
 
 const GROUND_Y = 0.04 + CAR_RIDE_HEIGHT; // 0.43m exact tire contact plane
 
-export function createInitialRoadsterState(
-  missionId: MissionId,
-  params: RLHyperparameters
-): RigidBodyState {
+function triggerRoadsterCrash(next: RigidBodyState, type: CrashType): void {
+  const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+  const rep = evaluateStructuralCrash(
+    type,
+    next.energy?.totalVehicleMassKg ?? ROADSTER_MASS_KG,
+    next.velocity,
+    next.angularVelocity,
+    next.attitude,
+    next.subsystems ?? createInitialSubsystemHealth(),
+    'roadster',
+    next.position
+  );
+  next.crashed = true;
+  next.crashType = crash.type;
+  next.crashReason = crash.diagnosticMessage;
+  next.angularVelocity = crash.tumbleVelocity;
+  next.impactEnergyJoules = rep.impactKineticEnergyJoules;
+  next.subsystems = rep.updatedHealth;
+  next.debrisField = rep.spawnedDebris;
+}
+
+export function createInitialRoadsterState(missionId: MissionId, params: RLHyperparameters): RigidBodyState {
   let pos = { x: 0, y: GROUND_Y + 0.08, z: 0 };
   let isGrounded = false;
   let wallNormal = 0;
@@ -39,13 +44,11 @@ export function createInitialRoadsterState(
   if (missionId === 'roadster-wall-climb') {
     const s = sampleHotWheelsHalfLoop(0);
     pos = { x: s.carCenterX, y: s.carCenterY, z: 0 };
-    isGrounded = true;
-    wallNormal = ROADSTER_MASS_KG * GRAVITY_EARTH;
+    isGrounded = true; wallNormal = ROADSTER_MASS_KG * GRAVITY_EARTH;
   } else if (missionId === 'roadster-barrel-roll' || missionId === 'roadster-obstacle-race') {
     const isRace = missionId === 'roadster-obstacle-race';
     pos = { x: isRace ? 0.0 : -9.2, y: GROUND_Y, z: isRace ? 2.5 : 0 };
-    isGrounded = true;
-    wallNormal = ROADSTER_MASS_KG * GRAVITY_EARTH;
+    isGrounded = true; wallNormal = ROADSTER_MASS_KG * GRAVITY_EARTH;
   }
 
   return {
@@ -62,6 +65,9 @@ export function createInitialRoadsterState(
     crashed: false,
     missionProgressPct: 0,
     elapsedTimeSec: 0,
+    weather: createInitialWeatherState('clear'),
+    energy: createInitialEnergyState('roadster', params.initialCopvPsi),
+    subsystems: createInitialSubsystemHealth(),
   };
 }
 
@@ -78,7 +84,13 @@ export function stepRoadsterPhysics(
   windImpulseX = 0
 ): RigidBodyState {
   if (state.crashed) {
-    return state;
+    return stepCrashedRigidBodyDynamics(
+      state,
+      'roadster',
+      GRAVITY_EARTH * params.gravityMultiplier,
+      dt,
+      windImpulseX
+    );
   }
 
   const next: RigidBodyState = {
@@ -95,8 +107,22 @@ export function stepRoadsterPhysics(
     crashed: false,
     missionProgressPct: Math.min(100, Math.round((state.elapsedTimeSec + dt) * 20)),
     elapsedTimeSec: state.elapsedTimeSec + dt,
+    weather: state.weather,
+    energy: state.energy,
+    subsystems: state.subsystems,
+    impactEnergyJoules: state.impactEnergyJoules,
+    debrisField: state.debrisField,
   };
 
+  const weather = stepWeatherEnvironment(
+    state.weather ?? createInitialWeatherState('clear'),
+    dt,
+    state.elapsedTimeSec,
+    state.position.y
+  );
+  next.weather = weather;
+
+  const currentMassKg = state.energy?.totalVehicleMassKg ?? ROADSTER_MASS_KG;
   const gravity = GRAVITY_EARTH * params.gravityMultiplier;
   const blowdownScale = Math.max(0.2, Math.min(1.15, state.copvPressurePsi / 8500));
 
@@ -109,7 +135,13 @@ export function stepRoadsterPhysics(
   const lateralLeftN = thrusters.lateralLeft * MAX_LATERAL_THRUST_N * blowdownScale;
   const lateralRightN = thrusters.lateralRight * MAX_LATERAL_THRUST_N * blowdownScale;
   const rearBoostN = thrusters.rearBoost * MAX_REAR_BOOST_N * blowdownScale;
-  const aero = computeRoadsterAerodynamics(state.velocity, state.attitude, thrusters.activeWingAngle);
+  const aero = computeRoadsterAerodynamics(
+    state.velocity,
+    state.attitude,
+    thrusters.activeWingAngle,
+    weather.windVector,
+    weather.airDensityKgM3
+  );
 
   if (missionId === 'roadster-obstacle-race') {
     stepRoadsterObstacleRacePhysics(
@@ -129,7 +161,7 @@ export function stepRoadsterPhysics(
       rr
     );
   } else if (missionId === 'roadster-wall-climb') {
-    // Stunt 02: Hot-Wheels Giant Overhanging Half-Loop -> Mid-Air Kickflip -> Slow Landing at Original Position
+    // Stunt 02: Inverted Overhanging Parabolic Loop -> Axial Twist & 4-Point Touchdown
     const phaseFlag = state.velocity.z;
 
     if (phaseFlag === -3) {
@@ -176,36 +208,23 @@ export function stepRoadsterPhysics(
       next.wallContactNormalForceN = Math.max(0, netNormalForceN);
 
       if (nextSample.isPastLip) {
-        next.position.x = nextSample.carCenterX;
-        next.position.y = nextSample.carCenterY;
-        next.velocity.x = -5.85;
-        next.velocity.y = 1.65;
-        next.velocity.z = -1;
-        next.attitude.pitch = nextSample.tangentAngle;
-        next.attitude.roll = 0;
-        next.angularVelocity.x = 2.8;
-        next.angularVelocity.y = 1.6;
-        next.isOnWall = false;
-        next.isGrounded = false;
+        next.position.x = nextSample.carCenterX; next.position.y = nextSample.carCenterY;
+        next.velocity.x = -5.85; next.velocity.y = 1.65; next.velocity.z = -1;
+        next.attitude.pitch = nextSample.tangentAngle; next.attitude.roll = 0;
+        next.angularVelocity.x = 2.8; next.angularVelocity.y = 1.6;
+        next.isOnWall = false; next.isGrounded = false;
       } else if (nextSample.tangentAngle > 1.05 && netNormalForceN < 1200) {
         next.position.x = nextSample.carCenterX - nextSample.normalX * 0.12;
         next.position.y = nextSample.carCenterY - nextSample.normalY * 0.12;
         next.velocity.x = nextSample.tangentX * nextSpeed * 0.4 - 1.5;
         next.velocity.y = Math.min(0, nextSample.tangentY * nextSpeed * 0.3);
-        next.velocity.z = -2;
-        next.attitude.pitch = nextSample.tangentAngle;
-        next.isOnWall = false;
-        next.isGrounded = false;
+        next.velocity.z = -2; next.attitude.pitch = nextSample.tangentAngle;
+        next.isOnWall = false; next.isGrounded = false;
       } else {
-        next.position.x = nextSample.carCenterX;
-        next.position.y = nextSample.carCenterY;
-        next.velocity.x = nextSample.tangentX * nextSpeed;
-        next.velocity.y = nextSample.tangentY * nextSpeed;
-        next.velocity.z = nextArcS;
-        next.attitude.pitch = nextSample.tangentAngle;
-        next.attitude.roll = 0;
-        next.isOnWall = nextSample.tangentAngle > 0.55;
-        next.isGrounded = !next.isOnWall;
+        next.position.x = nextSample.carCenterX; next.position.y = nextSample.carCenterY;
+        next.velocity.x = nextSample.tangentX * nextSpeed; next.velocity.y = nextSample.tangentY * nextSpeed;
+        next.velocity.z = nextArcS; next.attitude.pitch = nextSample.tangentAngle; next.attitude.roll = 0;
+        next.isOnWall = nextSample.tangentAngle > 0.55; next.isGrounded = !next.isOnWall;
       }
     } else {
       const isCleanDismount = phaseFlag === -1;
@@ -267,11 +286,7 @@ export function stepRoadsterPhysics(
             : pitchError > 0.65
               ? 'loop-apex-gravity-stall'
               : 'loop-inverted-exit-flat-spin';
-          const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
-          next.crashed = true;
-          next.crashType = crash.type;
-          next.crashReason = crash.diagnosticMessage;
-          next.angularVelocity = crash.tumbleVelocity;
+          triggerRoadsterCrash(next, type);
         } else {
           next.attitude.pitch = 0;
           next.attitude.roll = Math.PI * 2;
@@ -293,17 +308,10 @@ export function stepRoadsterPhysics(
     if (next.position.x < KICKFLIP_RAMP_START_X && next.position.y <= GROUND_Y + 0.08) {
       const ax = (23800 - 115 * next.velocity.x + aero.dragForce.x) / ROADSTER_MASS_KG;
       next.velocity.x = Math.min(10.8, next.velocity.x + ax * dt);
-      next.position.x += next.velocity.x * dt;
-      next.position.y = GROUND_Y;
-      next.attitude.pitch = 0;
-      next.attitude.roll = 0;
-      next.isGrounded = true;
+      next.position.x += next.velocity.x * dt; next.position.y = GROUND_Y;
+      next.attitude.pitch = 0; next.attitude.roll = 0; next.isGrounded = true;
       next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity + aero.downforceN;
-    } else if (
-      rampSample.isOnRamp &&
-      next.position.y <= rampSample.carCenterY + 0.35 &&
-      next.attitude.roll < 0.35
-    ) {
+    } else if (rampSample.isOnRamp && next.position.y <= rampSample.carCenterY + 0.35 && next.attitude.roll < 0.35) {
       const speedX = Math.max(6.2, next.velocity.x);
       next.position.x += speedX * dt;
       const clampedRampX = Math.min(KICKFLIP_RAMP_END_X, next.position.x);
@@ -315,20 +323,12 @@ export function stepRoadsterPhysics(
       next.velocity.y = Math.sin(updatedRamp.tangentAngle) * speedX + 4.35;
       next.isGrounded = !exitedLip;
       next.wallContactNormalForceN = exitedLip ? 0 : ROADSTER_MASS_KG * gravity * 1.45 + aero.downforceN;
-    } else if (
-      next.position.x > KICKFLIP_RAMP_END_X + 2.0 &&
-      next.position.y <= GROUND_Y + 0.05 &&
-      next.attitude.roll >= Math.PI * 1.65
-    ) {
-      next.position.y = GROUND_Y;
-      next.velocity.y = 0;
+    } else if (next.position.x > KICKFLIP_RAMP_END_X + 2.0 && next.position.y <= GROUND_Y + 0.05 && next.attitude.roll >= Math.PI * 1.65) {
+      next.position.y = GROUND_Y; next.velocity.y = 0;
       next.velocity.x = Math.max(0, next.velocity.x * (1 - 2.1 * dt));
       next.position.x = Math.min(9.0, next.position.x + next.velocity.x * dt);
-      next.attitude.roll = Math.PI * 2;
-      next.attitude.pitch *= 0.8;
-      next.angularVelocity.x = 0;
-      next.angularVelocity.y = 0;
-      next.isGrounded = true;
+      next.attitude.roll = Math.PI * 2; next.attitude.pitch *= 0.8;
+      next.angularVelocity.x = 0; next.angularVelocity.y = 0; next.isGrounded = true;
       next.wallContactNormalForceN = ROADSTER_MASS_KG * gravity + aero.downforceN;
     } else {
       let verticalRetroLiftN = 0;
@@ -386,11 +386,7 @@ export function stepRoadsterPhysics(
             : next.attitude.roll > Math.PI * 2.2
               ? 'kickflip-over-rotation-roof-crush'
               : 'ramp-lip-strike';
-          const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
-          next.crashed = true;
-          next.crashType = crash.type;
-          next.crashReason = crash.diagnosticMessage;
-          next.angularVelocity = crash.tumbleVelocity;
+          triggerRoadsterCrash(next, type);
         } else {
           next.attitude.roll = Math.PI * 2;
           next.attitude.pitch = 0;
@@ -451,11 +447,7 @@ export function stepRoadsterPhysics(
           : tiltError > 0.75
             ? 'hover-attitude-flip'
             : 'hover-boundary-impact';
-        const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
-        next.crashed = true;
-        next.crashType = crash.type;
-        next.crashReason = crash.diagnosticMessage;
-        next.angularVelocity = crash.tumbleVelocity;
+        triggerRoadsterCrash(next, type);
       }
       next.position.y = GROUND_Y;
       next.velocity.y = Math.max(0, next.velocity.y);
@@ -465,21 +457,31 @@ export function stepRoadsterPhysics(
     }
   }
 
-  const totalValveDuty =
-    (thrusters.frontLeftLift + thrusters.frontRightLift + thrusters.rearLeftLift +
-      thrusters.rearRightLift + thrusters.lateralLeft + thrusters.lateralRight + thrusters.rearBoost) / 7;
-  const fuelConservationScale = Math.max(0.45, Math.min(1.75, 1.35 - params.rewardFuelWeight * 0.35));
-  const psiDrainRate = totalValveDuty * 420 * fuelConservationScale;
-  next.copvPressurePsi = Math.max(
-    1800,
-    Math.min(params.initialCopvPsi, next.copvPressurePsi - (psiDrainRate - 85) * dt)
+  const { nextEnergy, nextHealth } = stepSubsystemEnergyDynamics(
+    state.energy ?? createInitialEnergyState('roadster', params.initialCopvPsi),
+    next.subsystems ?? createInitialSubsystemHealth(),
+    thrusters,
+    thrusters.rearBoost,
+    'roadster',
+    dt,
+    next.isGrounded
   );
+  next.energy = nextEnergy;
+  next.subsystems = nextHealth;
+
+  if (nextHealth.parasiticTorqueNm.x !== 0 || nextHealth.parasiticTorqueNm.y !== 0) {
+    next.angularVelocity.x += (nextHealth.parasiticTorqueNm.x / 920) * dt;
+    next.angularVelocity.y += (nextHealth.parasiticTorqueNm.y / 2200) * dt;
+  }
+
+  next.copvPressurePsi = Math.round(nextEnergy.copvPressureBar * 14.5038);
   next.propellantRemainingPct = Math.round(
-    ((next.copvPressurePsi - 1800) / Math.max(1000, params.initialCopvPsi - 1800)) * 100
+    (nextEnergy.copvPropellantMassKg / 63.5) * 100
   );
+
   const totalThrustMag =
     totalUnderbodyLiftN + Math.abs(lateralLeftN - lateralRightN) + rearBoostN + aero.downforceN * 0.35;
-  next.gForce = Number((Math.max(1.0, totalThrustMag / (ROADSTER_MASS_KG * GRAVITY_EARTH))).toFixed(2));
+  next.gForce = Number((Math.max(1.0, totalThrustMag / (currentMassKg * GRAVITY_EARTH))).toFixed(2));
 
   return next;
 }

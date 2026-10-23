@@ -1,14 +1,43 @@
 import type {
+  CrashType,
   MissionId,
   RigidBodyState,
   RLHyperparameters,
   ThrusterActivation,
 } from '../types/simulation.ts';
 import { computeStarshipAerodynamics } from './aerodynamicsAndRace.ts';
-import { resolveCrashDynamics } from './crashDynamics.ts';
+import { resolveCrashDynamics, stepCrashedRigidBodyDynamics } from './crashDynamics.ts';
 import { createInitialOrbitalPodState, stepOrbitalPodPhysics } from './orbitalPhysics.ts';
+import { createInitialWeatherState, stepWeatherEnvironment } from './weatherAndEnvironment.ts';
+import {
+  createInitialEnergyState,
+  createInitialSubsystemHealth,
+  stepSubsystemEnergyDynamics,
+} from './subsystemEnergyDynamics.ts';
+import { evaluateStructuralCrash } from './advancedCrashAndDebris.ts';
 
 const EARTH_GRAVITY = 9.81;
+
+function triggerStarshipCrash(next: RigidBodyState, type: CrashType): void {
+  const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
+  const rep = evaluateStructuralCrash(
+    type,
+    next.energy?.totalVehicleMassKg ?? 130000,
+    next.velocity,
+    next.angularVelocity,
+    next.attitude,
+    next.subsystems ?? createInitialSubsystemHealth(),
+    'starship',
+    next.position
+  );
+  next.crashed = true;
+  next.crashType = crash.type;
+  next.crashReason = crash.diagnosticMessage;
+  next.angularVelocity = crash.tumbleVelocity;
+  next.impactEnergyJoules = rep.impactKineticEnergyJoules;
+  next.subsystems = rep.updatedHealth;
+  next.debrisField = rep.spawnedDebris;
+}
 
 export function createInitialStarshipState(missionId: MissionId): RigidBodyState {
   if (missionId === 'starship-pod-orbit') {
@@ -31,6 +60,9 @@ export function createInitialStarshipState(missionId: MissionId): RigidBodyState
       crashed: false,
       missionProgressPct: 0,
       elapsedTimeSec: 0,
+      weather: createInitialWeatherState('clear'),
+      energy: createInitialEnergyState('starship', 9500),
+      subsystems: createInitialSubsystemHealth(),
     };
   }
 
@@ -50,6 +82,9 @@ export function createInitialStarshipState(missionId: MissionId): RigidBodyState
     crashed: false,
     missionProgressPct: 0,
     elapsedTimeSec: 0,
+    weather: createInitialWeatherState('clear'),
+    energy: createInitialEnergyState('starship', 10000),
+    subsystems: createInitialSubsystemHealth(),
   };
 }
 
@@ -75,22 +110,44 @@ export function stepStarshipPhysics(
     gForce: state.gForce,
     wallContactNormalForceN: 0,
     isOnWall: false,
-    isGrounded: false,
+    isGrounded: state.isGrounded,
     crashed: state.crashed,
+    crashType: state.crashType,
+    crashReason: state.crashReason,
     missionProgressPct: state.missionProgressPct,
     elapsedTimeSec: state.elapsedTimeSec + dt,
+    weather: state.weather,
+    energy: state.energy,
+    subsystems: state.subsystems,
+    impactEnergyJoules: state.impactEnergyJoules,
+    debrisField: state.debrisField,
   };
 
   if (next.crashed) {
-    return next;
+    return stepCrashedRigidBodyDynamics(
+      next,
+      'starship',
+      EARTH_GRAVITY * params.gravityMultiplier,
+      dt,
+      windImpulseX
+    );
   }
+
+  const weather = stepWeatherEnvironment(
+    state.weather ?? createInitialWeatherState('clear'),
+    dt,
+    state.elapsedTimeSec,
+    state.position.y
+  );
+  next.weather = weather;
 
   const gravity = EARTH_GRAVITY * params.gravityMultiplier;
   const aero = computeStarshipAerodynamics(
     state.position.y,
     state.velocity,
     state.attitude,
-    thrusters
+    thrusters,
+    weather.windVector
   );
   const fuelBurnScale = Math.max(0.45, Math.min(1.65, 1.32 - params.rewardFuelWeight * 0.32));
 
@@ -149,40 +206,27 @@ export function stepStarshipPhysics(
 
       // Crash / Fall detection during ascent:
       if (state.position.y > 1.38 && next.position.y <= 1.36) {
-        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
-        next.crashed = true;
-        next.crashType = crash.type;
-        next.crashReason = crash.diagnosticMessage;
-        next.angularVelocity = crash.tumbleVelocity;
+        triggerStarshipCrash(next, 'orbital-pad-mount-strike');
         next.position.y = 1.35;
-      }
-      if (next.position.y < 4.0 && (Math.abs(next.attitude.pitch) > 0.50 || Math.abs(next.attitude.roll) > 0.50)) {
-        const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
-        next.crashed = true;
-        next.crashType = crash.type;
-        next.crashReason = crash.diagnosticMessage;
-        next.angularVelocity = crash.tumbleVelocity;
-      }
-      if (Math.abs(next.attitude.pitch) > 0.95) {
-        const crash = resolveCrashDynamics('max-q-aerodynamic-breakup', next.velocity, next.attitude);
-        next.crashed = true;
-        next.crashType = crash.type;
-        next.crashReason = crash.diagnosticMessage;
-        next.angularVelocity = crash.tumbleVelocity;
-      }
-      if (next.position.y < 1.35) {
+      } else if (next.position.y < 4.0 && (Math.abs(next.attitude.pitch) > 0.50 || Math.abs(next.attitude.roll) > 0.50)) {
+        triggerStarshipCrash(next, 'orbital-pad-mount-strike');
+      } else if (Math.abs(next.attitude.pitch) > 0.95) {
+        triggerStarshipCrash(next, 'max-q-aerodynamic-breakup');
+      } else if (next.position.y < 1.35) {
         next.position.y = 1.35;
         if (state.position.y > 1.36) {
-          const crash = resolveCrashDynamics('orbital-pad-mount-strike', next.velocity, next.attitude);
-          next.crashed = true;
-          next.crashType = crash.type;
-          next.crashReason = crash.diagnosticMessage;
-          next.angularVelocity = crash.tumbleVelocity;
+          triggerStarshipCrash(next, 'orbital-pad-mount-strike');
         }
       }
 
       if (next.crashed) {
-        return next;
+        return stepCrashedRigidBodyDynamics(
+          next,
+          'starship',
+          gravity,
+          dt,
+          windImpulseX
+        );
       }
 
       // Trigger Hot-Stage Release once stack reaches separation altitude (y >= 13.5m)
@@ -228,8 +272,11 @@ export function stepStarshipPhysics(
         ? 0.055 * Math.abs(next.velocity.y) * -next.velocity.y + aero.dragForceY * 0.35
         : aero.dragForceY * 0.2;
 
+    const windSideAccel = weather.windVector.x * (weather.airDensityKgM3 / 1.225) * 0.28;
+    const rcsSideAccel =
+      ((thrusters.boosterRcsLeft ?? 0) - (thrusters.boosterRcsRight ?? 0)) * 2.8;
     const ax =
-      thrustAccel * sinPitch - 0.35 * next.velocity.x + aero.dragForceX * 0.3 + windImpulseX * 0.18;
+      thrustAccel * sinPitch - 0.35 * next.velocity.x + aero.dragForceX * 0.3 + windImpulseX * 0.18 + windSideAccel + rcsSideAccel;
     const ay = thrustAccel * cosPitch - gravity + gridFinDragY;
 
     next.velocity.x += ax * dt;
@@ -255,22 +302,19 @@ export function stepStarshipPhysics(
                 ? 'chopstick-arm-collision'
                 : 'catch-hard-landing-over-g'
             : 'orbital-pad-mount-strike';
-        const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
-        next.crashed = true;
-        next.crashType = crash.type;
-        next.crashReason = crash.diagnosticMessage;
-        next.angularVelocity = crash.tumbleVelocity;
+        triggerStarshipCrash(next, type);
+        return stepCrashedRigidBodyDynamics(next, 'starship', gravity, dt, windImpulseX);
       }
       next.position.y = targetLandingY;
-      if (!next.crashed) {
-        next.velocity.y = 0;
-        next.velocity.x = 0;
-        next.angularVelocity.x = 0;
-        next.angularVelocity.y = 0;
-        next.attitude.pitch = 0;
-        next.attitude.roll = 0;
-        next.isGrounded = true;
-      }
+      next.velocity.y = 0;
+      next.velocity.x = 0;
+      next.angularVelocity.x = 0;
+      next.angularVelocity.y = 0;
+      next.attitude.pitch = 0;
+      next.attitude.roll = 0;
+      next.isGrounded = true;
+    } else {
+      next.isGrounded = false;
     }
 
     next.gForce = Number((Math.max(0.8, thrustAccel / EARTH_GRAVITY)).toFixed(2));
@@ -307,11 +351,13 @@ export function stepStarshipPhysics(
 
   const maxLandingDecel = 24.5;
   const thrustMag = thrusters.raptorThrottle * maxLandingDecel;
+  const windSideAccel = weather.windVector.x * (weather.airDensityKgM3 / 1.225) * 0.25;
   const ax =
     -thrustMag * Math.sin(next.attitude.pitch) -
     0.42 * next.velocity.x +
     aero.dragForceX * 0.35 +
-    windImpulseX * 0.2;
+    windImpulseX * 0.2 +
+    windSideAccel;
   const ay = thrustMag * Math.cos(next.attitude.pitch) - gravity - aeroDragY;
 
   next.velocity.x += ax * dt;
@@ -329,21 +375,16 @@ export function stepStarshipPhysics(
           : next.attitude.pitch < -0.35
             ? 'flip-over-rotation-tail-strike'
             : 'skydive-flat-spin';
-      const crash = resolveCrashDynamics(type, next.velocity, next.attitude);
-      next.crashed = true;
-      next.crashType = crash.type;
-      next.crashReason = crash.diagnosticMessage;
-      next.angularVelocity = crash.tumbleVelocity;
+      triggerStarshipCrash(next, type);
+      return stepCrashedRigidBodyDynamics(next, 'starship', gravity, dt, windImpulseX);
     }
     next.position.y = 1.5;
-    if (!next.crashed) {
-      next.velocity.y = 0;
-      next.velocity.x = 0;
-      next.angularVelocity.x = 0;
-      next.angularVelocity.y = 0;
-      next.attitude.pitch = 0;
-      next.isGrounded = true;
-    }
+    next.velocity.y = 0;
+    next.velocity.x = 0;
+    next.angularVelocity.x = 0;
+    next.angularVelocity.y = 0;
+    next.attitude.pitch = 0;
+    next.isGrounded = true;
   }
 
   next.gForce = Number(
