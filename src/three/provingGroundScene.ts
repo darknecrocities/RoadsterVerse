@@ -20,6 +20,8 @@ import {
   type StarbasePadAndCraneRig,
   updateStarbasePadAndCraneAnimation,
 } from './starbaseAndObstacleProps.ts';
+import { WeatherEnvironmentFX } from './weatherEnvironmentFX.ts';
+import { DebrisAndDestructionFX } from './debrisAndDestructionFX.ts';
 
 export class ProvingGroundSceneController {
   private readonly scene = new THREE.Scene();
@@ -30,6 +32,9 @@ export class ProvingGroundSceneController {
   private readonly orbitalPodRig: OrbitalPodRig;
   private readonly spaceGroup: THREE.Group;
   private readonly smokeSystem = new VolumetricPlumeSmokeSystem(220);
+  private readonly weatherFX = new WeatherEnvironmentFX();
+  private readonly debrisFX = new DebrisAndDestructionFX();
+  private wasCrashed = false;
   private readonly roadsterArenaGroup = new THREE.Group();
   private readonly stuntKickerGroup = new THREE.Group();
   private readonly wallRampGroup = new THREE.Group();
@@ -37,6 +42,7 @@ export class ProvingGroundSceneController {
   private readonly starbaseRig: StarbasePadAndCraneRig;
   private readonly targetMarker: THREE.Mesh;
   private stuntStrip?: THREE.Mesh;
+  private readonly wetMaterials: THREE.Material[] = [];
   private cameraMode: CameraMode = 'orbit';
   private orbitAngle = 0.28;
   private smoothedCamPos = new THREE.Vector3(0, 4.8, 15.0);
@@ -86,24 +92,23 @@ export class ProvingGroundSceneController {
       this.orbitalPodRig.root,
       this.spaceGroup,
       this.smokeSystem.group,
-      this.spacePlumeFX.group
+      this.spacePlumeFX.group,
+      this.weatherFX.group,
+      this.debrisFX.group
     );
   }
 
   private setupLighting(): void {
     this.scene.background = new THREE.Color(0x030303);
     this.scene.fog = new THREE.FogExp2(0x030303, 0.011);
-
     const ambient = new THREE.AmbientLight(0xd4d4d4, 0.9);
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
     keyLight.position.set(10, 26, 16);
-
-    const rimLightLeft = new THREE.PointLight(0xffffff, 3.8, 36);
-    rimLightLeft.position.set(-10, 5.0, -5);
-    const rimLightRight = new THREE.PointLight(0xe5e5e5, 3.6, 36);
-    rimLightRight.position.set(10, 8.0, 6);
-
-    this.scene.add(ambient, keyLight, rimLightLeft, rimLightRight);
+    const rimLeft = new THREE.PointLight(0xffffff, 3.8, 36);
+    rimLeft.position.set(-10, 5.0, -5);
+    const rimRight = new THREE.PointLight(0xe5e5e5, 3.6, 36);
+    rimRight.position.set(10, 8.0, 6);
+    this.scene.add(ambient, keyLight, rimLeft, rimRight);
   }
 
   /** Builds the Stunt Road Track, Curved Steel Quarter-Pipe Ramp, and Giant C-Shaped Half-Loop */
@@ -120,18 +125,14 @@ export class ProvingGroundSceneController {
     grid.position.y = 0.01;
     this.roadsterArenaGroup.add(grid);
 
-    const stuntStripMat = new THREE.MeshStandardMaterial({
-      map: roadTex,
-      bumpMap: roadTex,
-      bumpScale: 0.015,
-      roughness: 0.5,
-    });
+    const stuntStripMat = new THREE.MeshStandardMaterial({ map: roadTex, bumpMap: roadTex, bumpScale: 0.015, roughness: 0.5 });
     const stuntStrip = new THREE.Mesh(new THREE.BoxGeometry(28, 0.04, 5.2), stuntStripMat);
     stuntStrip.position.set(-0.5, 0.02, 0);
     this.stuntStrip = stuntStrip;
     this.roadsterArenaGroup.add(stuntStrip);
 
     const rampMat = new THREE.MeshStandardMaterial({ color: 0x262626, map: carbonTex, roughness: 0.38, metalness: 0.42 });
+    this.wetMaterials.push(floorMat, stuntStripMat, rampMat);
     const trussMat = new THREE.MeshStandardMaterial({ color: 0x737373, metalness: 0.72, roughness: 0.3 });
     const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
@@ -145,14 +146,12 @@ export class ProvingGroundSceneController {
       const slabLen = segLen / Math.cos(sample.tangentAngle) + 0.04;
 
       const slab = new THREE.Mesh(new THREE.BoxGeometry(slabLen, 0.14, 4.4), rampMat);
-      slab.position.set(xm, sample.surfaceY - 0.07, 0);
-      slab.rotation.z = sample.tangentAngle;
+      slab.position.set(xm, sample.surfaceY - 0.07, 0); slab.rotation.z = sample.tangentAngle;
       this.stuntKickerGroup.add(slab);
 
       for (const zSide of [-2.22, 2.22]) {
         const edgeLed = new THREE.Mesh(new THREE.BoxGeometry(slabLen, 0.16, 0.06), ledMat);
-        edgeLed.position.set(xm, sample.surfaceY - 0.05, zSide);
-        edgeLed.rotation.z = sample.tangentAngle;
+        edgeLed.position.set(xm, sample.surfaceY - 0.05, zSide); edgeLed.rotation.z = sample.tangentAngle;
         this.stuntKickerGroup.add(edgeLed);
       }
 
@@ -166,7 +165,7 @@ export class ProvingGroundSceneController {
     }
     this.roadsterArenaGroup.add(this.stuntKickerGroup);
 
-    // B. Hot-Wheels Giant Overhanging C-Shaped Half-Loop Ramp + Steel Truss Backing (Image 1 & Image 3)
+    // B. Inverted Overhanging Parabolic Half-Loop Ramp + Steel Truss Backing
     const concreteMat = new THREE.MeshStandardMaterial({ color: 0xd4d4d4, roughness: 0.45, metalness: 0.18 });
 
     const loopSegments = 38;
@@ -182,14 +181,12 @@ export class ProvingGroundSceneController {
       const slabY = sample.surfaceY - sample.normalY * 0.14;
 
       const slab = new THREE.Mesh(new THREE.BoxGeometry(ds * 1.12, 0.28, 4.6), concreteMat);
-      slab.position.set(slabX, slabY, 0);
-      slab.rotation.z = sample.tangentAngle;
+      slab.position.set(slabX, slabY, 0); slab.rotation.z = sample.tangentAngle;
       this.wallRampGroup.add(slab);
 
       for (const zSide of [-2.32, 2.32]) {
         const led = new THREE.Mesh(new THREE.BoxGeometry(ds * 1.14, 0.32, 0.07), ledMat);
-        led.position.set(slabX, slabY, zSide);
-        led.rotation.z = sample.tangentAngle;
+        led.position.set(slabX, slabY, zSide); led.rotation.z = sample.tangentAngle;
         this.wallRampGroup.add(led);
       }
 
@@ -210,19 +207,15 @@ export class ProvingGroundSceneController {
     for (const tx of [trussTowerX - 0.7, trussTowerX + 0.7]) {
       for (const tz of [-2.1, 2.1]) {
         const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, towerHeight, 0.16), trussMat);
-        col.position.set(tx, towerHeight / 2, tz);
-        this.wallRampGroup.add(col);
+        col.position.set(tx, towerHeight / 2, tz); this.wallRampGroup.add(col);
       }
     }
     for (let y = 2.0; y <= towerHeight; y += 2.4) {
       const crossBeam = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 4.3), trussMat);
-      crossBeam.position.set(trussTowerX, y, 0);
-      this.wallRampGroup.add(crossBeam);
+      crossBeam.position.set(trussTowerX, y, 0); this.wallRampGroup.add(crossBeam);
     }
-    // Top overhanging truss canopy supporting the 142-deg inverted ramp lip
     const topCanopyTruss = new THREE.Mesh(new THREE.BoxGeometry(7.8, 0.75, 4.4), trussMat);
-    topCanopyTruss.position.set(4.8, 14.7, 0);
-    topCanopyTruss.rotation.z = -0.35;
+    topCanopyTruss.position.set(4.8, 14.7, 0); topCanopyTruss.rotation.z = -0.35;
     this.wallRampGroup.add(topCanopyTruss);
 
     this.roadsterArenaGroup.add(this.wallRampGroup);
@@ -388,16 +381,8 @@ export class ProvingGroundSceneController {
       const isTwoStageMission =
         missionId === 'starship-launch' || missionId === 'starship-booster-catch';
       const stageSepTime = Math.max(0, -primaryState.velocity.z);
-      this.starshipRig.root.position.set(
-        primaryState.position.x,
-        primaryState.position.y,
-        primaryState.position.z
-      );
-      this.starshipRig.root.rotation.set(
-        primaryState.attitude.roll,
-        primaryState.attitude.yaw,
-        primaryState.attitude.pitch
-      );
+      this.starshipRig.root.position.set(primaryState.position.x, primaryState.position.y, primaryState.position.z);
+      this.starshipRig.root.rotation.set(primaryState.attitude.roll, primaryState.attitude.yaw, primaryState.attitude.pitch);
       this.starshipRig.updateStarship(
         primaryThrusters,
         isTwoStageMission,
@@ -407,18 +392,29 @@ export class ProvingGroundSceneController {
         stageSepTime
       );
 
-      updateStarbasePadAndCraneAnimation(
-        this.starbaseRig,
-        missionId,
-        primaryState,
-        primaryThrusters
-      );
+      updateStarbasePadAndCraneAnimation(this.starbaseRig, missionId, primaryState, primaryThrusters);
     }
 
-    const nozzleEmitters = isRoadster
-      ? this.roadsterRig.getActiveNozzleEmitters(primaryThrusters, isRoadsterMidAir)
-      : [];
+    const nozzleEmitters = isRoadster ? this.roadsterRig.getActiveNozzleEmitters(primaryThrusters, isRoadsterMidAir) : [];
     this.smokeSystem.update(dt, vehicle, primaryState, primaryThrusters, nozzleEmitters);
+    if (primaryState.weather) {
+      this.weatherFX.update(
+        dt,
+        primaryState.weather,
+        this.camera.position,
+        this.scene.fog,
+        isRoadster ? this.roadsterRig.root.position : undefined,
+        Math.hypot(primaryState.velocity.x, primaryState.velocity.z),
+        primaryState.isGrounded
+      );
+      this.weatherFX.updateMaterialWetness(this.wetMaterials, primaryState.weather.roadWetnessPct);
+    }
+    if (primaryState.crashed !== this.wasCrashed) {
+      this.wasCrashed = primaryState.crashed;
+      if (this.wasCrashed) this.debrisFX.triggerCrash(vehicle, primaryState.position, primaryState.debrisField ?? [], primaryState.impactEnergyJoules ?? 50000);
+      else this.debrisFX.reset();
+    }
+    this.debrisFX.update(dt, primaryState.debrisField ?? []);
 
     const px = primaryState.position.x;
     const pz = isRoadster ? primaryState.position.z * 0.45 : 0;
@@ -487,6 +483,8 @@ export class ProvingGroundSceneController {
   }
 
   public dispose(): void {
+    this.weatherFX.dispose();
+    this.debrisFX.reset();
     this.renderer.dispose();
   }
 }

@@ -14,6 +14,7 @@ interface PlumeParticle {
   baseScale: number;
   expansionRate: number;
   kind: 'white-smoke' | 'fire-plume' | 'explosion';
+  maxOpacity?: number;
 }
 
 interface DebrisShard {
@@ -111,17 +112,7 @@ export class VolumetricPlumeSmokeSystem {
       mesh.visible = false;
       this.group.add(mesh);
 
-      this.debrisShards.push({
-        mesh,
-        vx: 0,
-        vy: 0,
-        vz: 0,
-        rx: 0,
-        ry: 0,
-        rz: 0,
-        age: 999,
-        maxAge: 1.8,
-      });
+      this.debrisShards.push({ mesh, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, age: 999, maxAge: 1.8 });
     }
   }
 
@@ -137,7 +128,8 @@ export class VolumetricPlumeSmokeSystem {
     baseScale: number,
     maxAge: number,
     kind: 'white-smoke' | 'fire-plume' | 'explosion',
-    expansionRate = 3.5
+    expansionRate = 3.5,
+    maxOpacity = 0.86
   ): void {
     const slot =
       this.particles.find((p) => p.age >= p.maxAge) ??
@@ -155,6 +147,7 @@ export class VolumetricPlumeSmokeSystem {
     slot.baseScale = baseScale;
     slot.expansionRate = expansionRate;
     slot.kind = kind;
+    slot.maxOpacity = maxOpacity;
     slot.sprite.visible = true;
     slot.sprite.scale.set(baseScale, baseScale, baseScale);
 
@@ -162,7 +155,7 @@ export class VolumetricPlumeSmokeSystem {
     mat.rotation = Math.random() * Math.PI * 2;
     if (kind === 'white-smoke') {
       mat.color.setHex(0xfafafa);
-      mat.opacity = 0.86;
+      mat.opacity = maxOpacity;
     } else if (kind === 'explosion') {
       mat.color.setHex(0xffffff);
       mat.opacity = 0.98;
@@ -337,7 +330,7 @@ export class VolumetricPlumeSmokeSystem {
             3.5
           );
         }
-      } else if (this.engineVaporTimer > 0) {
+      } else if (this.engineVaporTimer > 0 && !state.isGrounded && !state.crashed) {
         // Lingering cooling vapor and heat smoke wafting after Raptor cutoff
         this.engineVaporTimer -= dt;
         const euler = new THREE.Euler(state.attitude.roll, state.attitude.yaw, state.attitude.pitch, 'XYZ');
@@ -360,6 +353,33 @@ export class VolumetricPlumeSmokeSystem {
             'white-smoke',
             3.0
           );
+        }
+      }
+
+      if (state.isGrounded || state.crashed) {
+        this.engineVaporTimer = 0;
+      }
+
+      // Super Heavy Booster Cold-Gas RCS Side Vents (Air pressure smoke for lateral trajectory fine-tuning)
+      const rcsLeft = thrusters.boosterRcsLeft ?? 0;
+      const rcsRight = thrusters.boosterRcsRight ?? 0;
+      if (!state.isGrounded && !state.crashed && (rcsLeft > 0.04 || rcsRight > 0.04)) {
+        const sideEuler = new THREE.Euler(state.attitude.roll, state.attitude.yaw, state.attitude.pitch, 'XYZ');
+        if (rcsLeft > 0.04) {
+          const nOffset = new THREE.Vector3(-0.58, 3.95, 0).applyEuler(sideEuler);
+          const nPos = new THREE.Vector3(state.position.x + nOffset.x, state.position.y + nOffset.y, state.position.z + nOffset.z);
+          const sideDir = new THREE.Vector3(-1, 0.05, 0).applyEuler(sideEuler);
+          const pSpeed = 3.5 + rcsLeft * 9.5;
+          const scale = 0.06 + rcsLeft * 0.18;
+          this.spawnParticle(nPos.x, nPos.y, nPos.z, sideDir.x * pSpeed, sideDir.y * 0.4, sideDir.z * pSpeed, scale, 0.28 + rcsLeft * 0.2, 'white-smoke', 1.35, Math.min(0.85, rcsLeft * 0.95));
+        }
+        if (rcsRight > 0.04) {
+          const nOffset = new THREE.Vector3(0.58, 3.95, 0).applyEuler(sideEuler);
+          const nPos = new THREE.Vector3(state.position.x + nOffset.x, state.position.y + nOffset.y, state.position.z + nOffset.z);
+          const sideDir = new THREE.Vector3(1, 0.05, 0).applyEuler(sideEuler);
+          const pSpeed = 3.5 + rcsRight * 9.5;
+          const scale = 0.06 + rcsRight * 0.18;
+          this.spawnParticle(nPos.x, nPos.y, nPos.z, sideDir.x * pSpeed, sideDir.y * 0.4, sideDir.z * pSpeed, scale, 0.28 + rcsRight * 0.2, 'white-smoke', 1.35, Math.min(0.85, rcsRight * 0.95));
         }
       }
     }
@@ -436,32 +456,18 @@ export class VolumetricPlumeSmokeSystem {
       mat.rotation += p.spinRate * dt * (1 - progress * 0.5);
 
       if (p.kind === 'white-smoke') {
-        const smoothFade = (1 - progress) * (1 - progress * 0.65);
+        const peak = p.maxOpacity ?? 0.78;
+        const fade = state.isGrounded ? Math.max(0, 1 - progress * 2.8) : (1 - progress) * (1 - progress * 0.65);
         mat.color.setHex(progress < 0.35 ? 0xffffff : 0xe5e5e5);
-        mat.opacity = Math.max(0, smoothFade * 0.78);
+        mat.opacity = Math.max(0, fade * peak);
+        if (state.isGrounded && progress > 0.35) p.age = p.maxAge;
       } else if (p.kind === 'explosion') {
-        if (progress < 0.16) {
-          mat.color.setHex(0xffffff);
-        } else if (progress < 0.34) {
-          mat.color.setHex(0xfef08a);
-        } else if (progress < 0.56) {
-          mat.color.setHex(0xf97316);
-        } else if (progress < 0.76) {
-          mat.color.setHex(0x525252);
-        } else {
-          mat.color.setHex(0x262626);
-        }
+        const hex = progress < 0.16 ? 0xffffff : progress < 0.34 ? 0xfef08a : progress < 0.56 ? 0xf97316 : progress < 0.76 ? 0x525252 : 0x262626;
+        mat.color.setHex(hex);
         mat.opacity = Math.max(0, (1 - progress * progress) * 0.92);
       } else {
-        if (progress < 0.22) {
-          mat.color.setHex(0xfef08a);
-        } else if (progress < 0.52) {
-          mat.color.setHex(0xf97316);
-        } else if (progress < 0.78) {
-          mat.color.setHex(0xdc2626);
-        } else {
-          mat.color.setHex(0xd4d4d4);
-        }
+        const hex = progress < 0.22 ? 0xfef08a : progress < 0.52 ? 0xf97316 : progress < 0.78 ? 0xdc2626 : 0xd4d4d4;
+        mat.color.setHex(hex);
         mat.opacity = Math.max(0, (1 - progress) * 0.88);
       }
     }
