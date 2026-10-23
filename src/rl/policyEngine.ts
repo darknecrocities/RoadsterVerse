@@ -296,6 +296,24 @@ export function evaluateRLPolicy(
       thrusters.raptorThrottle = state.isGrounded ? 0 : rawLandingThrottle;
       thrusters.gimbalPitch = clamp(2.1 * competence * attGain * pitchErr - 0.85 * competence * smoothGain * state.angularVelocity.y + n2 * 0.45 + lrOscillation, -1, 1);
       thrusters.gimbalYaw = clamp(-1.5 * competence * attGain * state.attitude.roll - 0.65 * competence * smoothGain * state.angularVelocity.x + n3 * 0.4, -1, 1);
+
+      // Super Heavy Booster Cold-Gas RCS Trajectory Fine-Tuning:
+      // Commands high-pressure lateral nitrogen puffs to counteract wind drift and align catch pins
+      if (isCatchStunt) {
+        if (state.isGrounded || state.crashed) {
+          thrusters.boosterRcsRight = 0;
+          thrusters.boosterRcsLeft = 0;
+        } else {
+          const windDriftX = (state.weather?.windVector.x ?? 0) * 0.12;
+          const lateralDrift = state.position.x + state.velocity.x * 0.4 + windDriftX;
+          const noiseR = competence < 0.95 ? Math.abs(n2) * 0.08 : 0;
+          const noiseL = competence < 0.95 ? Math.abs(n3) * 0.08 : 0;
+          thrusters.boosterRcsRight =
+            lateralDrift > 0.04 ? clamp((lateralDrift * 2.2 + noiseR) * competence, 0, 1) : 0;
+          thrusters.boosterRcsLeft =
+            lateralDrift < -0.04 ? clamp((-lateralDrift * 2.2 + noiseL) * competence, 0, 1) : 0;
+        }
+      }
     }
   } else if (missionId === 'starship-pod-orbit') {
     const isAscent = state.position.y < 65.0;
@@ -338,9 +356,16 @@ export function evaluateRLPolicy(
     { label: 'Vel Y (vy)', value: Number(clamp(state.velocity.y / 10, -1, 1).toFixed(2)) },
     { label: 'Roll (φ)', value: Number(clamp(state.attitude.roll / Math.PI, -1, 1).toFixed(2)) },
     { label: 'Pitch (θ)', value: Number(clamp(state.attitude.pitch / Math.PI, -1, 1).toFixed(2)) },
-    { label: 'Lane/ω', value: Number(clamp((missionId === 'roadster-obstacle-race' ? state.position.z : state.angularVelocity.x) / 3, -1, 1).toFixed(2)) },
     { label: 'COPV PSI', value: Number(clamp(state.copvPressurePsi / 10000, 0, 1).toFixed(2)) },
+    { label: 'Batt/Health', value: Number((((state.subsystems?.copvHealthPct ?? 100) + (state.subsystems?.batteryHealthPct ?? 100)) / 200).toFixed(2)) },
   ];
+
+  // Learning side-effect: active compensation for subsystem puncture leak torque
+  if (state.subsystems && state.subsystems.copvHealthPct < 95 && mission.vehicle === 'roadster') {
+    const counterPitch = clamp((-state.subsystems.parasiticTorqueNm.y / 2800) * competence, -0.28, 0.28);
+    thrusters.frontLeftLift = clamp(thrusters.frontLeftLift + counterPitch, 0, 1);
+    thrusters.frontRightLift = clamp(thrusters.frontRightLift + counterPitch, 0, 1);
+  }
 
   const hiddenLayer1 = Array.from({ length: 8 }, (_, idx) =>
     Number(Math.tanh(inputs[idx % inputs.length].value * (0.9 + idx * 0.12) * competence + Math.sin(t * 3 + idx) * 0.25).toFixed(2))
@@ -368,14 +393,23 @@ export function evaluateRLPolicy(
             { label: 'RCS Press', value: Number((state.copvPressurePsi / 10000).toFixed(2)) },
             { label: 'Micro-G', value: Number(state.gForce.toFixed(2)) },
           ]
-        : [
-            { label: 'Raptor Fire', value: Number(thrusters.raptorThrottle.toFixed(2)) },
-            { label: 'TVC Pitch', value: Number(((thrusters.gimbalPitch + 1) / 2).toFixed(2)) },
-            { label: 'Fwd Flaps', value: Number(thrusters.flapFrontLeft.toFixed(2)) },
-            { label: 'Aft Flaps', value: Number(thrusters.flapAftLeft.toFixed(2)) },
-            { label: 'Hot-Stage', value: thrusters.hotStageSeparated ? 1 : 0 },
-            { label: 'Grid Fins', value: Number(clamp(0.5 + thrusters.gimbalYaw * 0.4, 0, 1).toFixed(2)) },
-          ];
+        : missionId === 'starship-booster-catch'
+          ? [
+              { label: 'Raptor Center', value: Number(thrusters.raptorThrottle.toFixed(2)) },
+              { label: 'TVC Gimbal', value: Number(((thrusters.gimbalPitch + 1) / 2).toFixed(2)) },
+              { label: 'Booster RCS L', value: Number((thrusters.boosterRcsLeft ?? 0).toFixed(2)) },
+              { label: 'Booster RCS R', value: Number((thrusters.boosterRcsRight ?? 0).toFixed(2)) },
+              { label: 'Grid Fins', value: Number(clamp(0.5 + thrusters.gimbalYaw * 0.4, 0, 1).toFixed(2)) },
+              { label: 'Hot-Stage', value: thrusters.hotStageSeparated ? 1 : 0 },
+            ]
+          : [
+              { label: 'Raptor Fire', value: Number(thrusters.raptorThrottle.toFixed(2)) },
+              { label: 'TVC Pitch', value: Number(((thrusters.gimbalPitch + 1) / 2).toFixed(2)) },
+              { label: 'Fwd Flaps', value: Number(thrusters.flapFrontLeft.toFixed(2)) },
+              { label: 'Aft Flaps', value: Number(thrusters.flapAftLeft.toFixed(2)) },
+              { label: 'Hot-Stage', value: thrusters.hotStageSeparated ? 1 : 0 },
+              { label: 'Grid Fins', value: Number(clamp(0.5 + thrusters.gimbalYaw * 0.4, 0, 1).toFixed(2)) },
+            ];
 
   const posReward = params.rewardAltitudeWeight * Math.exp(-Math.abs(altError) * 0.35);
   const attReward =
@@ -383,9 +417,14 @@ export function evaluateRLPolicy(
     Math.cos(state.attitude.roll * 0.5) *
     Math.cos((mission.targetAttitude.pitch - state.attitude.pitch) * 0.7);
   const fuelPenalty = params.rewardFuelWeight * 0.18 * outputs.reduce((acc, o) => acc + o.value, 0);
+  const damagePenalty = state.subsystems
+    ? ((100 - state.subsystems.copvHealthPct) * 0.05 +
+        (100 - state.subsystems.batteryHealthPct) * 0.04 +
+        state.subsystems.leakVentingRateKgS * 1.5)
+    : 0;
   const instantReward = state.crashed
     ? -25.0
-    : Number((posReward + attReward - fuelPenalty + competence * 2.2).toFixed(2));
+    : Number((posReward + attReward - fuelPenalty - damagePenalty + competence * 2.2).toFixed(2));
 
   const latencyMs = params.sensorLatencyMs ?? 0;
   const sensorDelayDeg = SensorLatencyBuffer.computePhaseLagDeg(state.angularVelocity, latencyMs);

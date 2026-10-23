@@ -23,67 +23,67 @@ export interface RoadsterVerseStuntMeta {
 
 export const ROADSTERVERSE_STUNT_DETAILS: Record<MissionId, RoadsterVerseStuntMeta> = {
   'starship-pod-orbit': {
-    category: 'PROJECT ROADSTERVERSE // ORBITAL MICROGRAVITY & MORPH',
-    heroTitle: 'ORBITAL POD & SATELLITE TRANSFORMATION',
-    tagline: 'Deep Space Attitude Stabilization & Solar Array Articulation',
+    category: 'PROJECT ROADSTERVERSE // ORBITAL MICROGRAVITY',
+    heroTitle: 'ORBITAL INSERTION & SATELLITE DEPLOYMENT',
+    tagline: 'Microgravity RCS Attitude Hold & Solar Array Articulation',
     description:
-      'Zero-G orbital pod flight mechanics with cold-gas lateral and bottom micro-thruster RCS pulses arresting atmospheric separation tumble, followed by dual solar array wing deployment and satellite reconfiguration.',
-    badge: 'STUNT 08',
+      'Low Earth orbit deployment mechanics where 8-nozzle cold-gas nitrogen RCS thrusters arrest stage separation tumble, stabilizing spacecraft attitude before deploying articulated photovoltaic arrays.',
+    badge: 'MISSION 08',
   },
   'starship-booster-catch': {
     category: 'PROJECT ROADSTERVERSE // TOWER RECOVERY DYNAMICS',
-    heroTitle: 'SUPER HEAVY MECHAZILLA CATCH',
-    tagline: 'Precision TVC Raptor Gimbaling & Tower Chopstick Capture',
+    heroTitle: 'SUPER HEAVY BOOSTER TOWER CATCH',
+    tagline: 'Grid Fin Aerodynamic Steering & Tower Catch Arm Capture',
     description:
-      'Deep reinforcement learning guidance for full-scale Super Heavy booster return. Calibrated TVC Raptor gimbaling and grid-fin aerodynamics decelerate the booster from supersonic descent to 0 m/s inside Mechazilla catch arms.',
-    badge: 'STUNT 07',
+      'Atmospheric booster entry steered by 4 cast-titanium grid fins. Center Raptors throttle and gimbal to decelerate the 71m booster to 0 m/s between the Orbital Launch and Catch Tower Arms to engage structural catch pins.',
+    badge: 'MISSION 07',
   },
   'starship-launch': {
     category: 'PROJECT ROADSTERVERSE // FULL-STACK FLIGHT PROFILE',
-    heroTitle: 'HOT-STAGE SEPARATION & DESCENT',
-    tagline: '33-Raptor Ascent, Ring Jettison & Vertical Recovery',
+    heroTitle: 'ORBITAL LIFTOFF & HOT-STAGE JETTISON',
+    tagline: '33-Raptor Ascent, Vented Ring Separation & Boostback',
     description:
-      'Full-stack orbital ascent powered by 33 Raptor engines up to stage separation altitude. A neural attitude policy executes hot-staging ring release followed by booster boostback and vertical landing burn.',
-    badge: 'STUNT 05',
+      'Full-stack orbital ascent powered by 33 Raptor engines producing 74 MN thrust. A closed-loop neural guidance policy executes vented hot-staging ring separation followed by booster boostback return.',
+    badge: 'MISSION 05',
   },
   'starship-belly-flop': {
     category: 'PROJECT ROADSTERVERSE // TERMINAL AERODYNAMICS',
-    heroTitle: 'AERO FLAP BELLY-FLOP & FLIP-BURN',
-    tagline: 'Skydiver Deceleration to 3-Raptor Vertical Relight',
+    heroTitle: 'TERMINAL ENTRY & RAPTOR FLIP BURN',
+    tagline: 'Body Flap Skydive Deceleration to 3-Raptor TVC Relight',
     description:
-      'Active aerodynamic skydive attitude control using 4 independent articulating flaps during terminal atmospheric entry, transitioning into an explosive 3-Raptor flip maneuver for vertical recovery.',
-    badge: 'STUNT 06',
+      'Subsonic atmospheric entry holding an 85° angle of attack using 4 independent electromechanical body flaps for aerodynamic trim, followed by an explosive 3-Raptor TVC flip burn for vertical landing.',
+    badge: 'MISSION 06',
   },
   'roadster-wall-climb': {
-    category: 'PROJECT ROADSTERVERSE // DOWNFORCE & TRACTION',
-    heroTitle: 'INVERTED 180° VERTICAL HALF-LOOP',
-    tagline: 'Supersonic Cold-Gas Downforce Over Inverted Parabolic Arc',
+    category: 'PROJECT ROADSTERVERSE // TRACTION & AERODYNAMICS',
+    heroTitle: 'INVERTED PARABOLIC LOOP & DOWNFORCE',
+    tagline: 'Gas-Dynamic Active Ground Effect (N > 0)',
     description:
-      'Continuous aerodynamic downforce and vectored cold-gas thrust generation pinning the 2026 Roadster chassis against vertical parabolic ramps without wheel stall or mid-air levitation.',
+      'Continuous aerodynamic downforce and vectored cold-gas thrust generation pinning the 2026 Roadster chassis against vertical parabolic ramps without wheel slip or inverted gravity stall.',
     badge: 'STUNT 02',
   },
   'roadster-barrel-roll': {
     category: 'PROJECT ROADSTERVERSE // 6-DOF ROTATIONAL AEROBATICS',
-    heroTitle: 'RAMP-LAUNCHED 360° KICKFLIP',
-    tagline: 'Quarter-Pipe Trajectory & Thruster-Assisted Roll',
+    heroTitle: 'BALLISTIC LAUNCH & 360° RCS ROLL',
+    tagline: 'Quarter-Pipe Trajectory & Thruster-Assisted Roll Rate',
     description:
-      'High-velocity ramp launch into mid-air roll thruster burst. Active neural attitude correction completes a full 360-degree rotation and executes a cushioned 4-point landing.',
+      'High-velocity quarter-pipe ramp takeoff into ballistic flight. Asymmetric cold-gas RCS impulse bursts impart roll torque to complete a full 360° rotation before retro-thrust vertical cushion touchdown.',
     badge: 'STUNT 03',
   },
   'roadster-obstacle-race': {
-    category: 'PROJECT ROADSTERVERSE // 10KM HIGHWAY OBSTACLE GAUNTLET',
-    heroTitle: '24M HIGHWAY GAUNTLET & CYBER-DRONE SLALOM',
-    tagline: 'Wide Multi-Lane Navigation, Autonomous Overtakes & Supersonic Jump',
+    category: 'PROJECT ROADSTERVERSE // PROVING GROUND TEST TRACK',
+    heroTitle: 'PROVING GROUND SLALOM & BARRIER LEAP',
+    tagline: 'Predictive Trajectory Planning, Downforce & Cold-Gas Vault',
     description:
-      'Tri-motor AWD Plaid acceleration across a wide 24-meter, 10km proving ground super-highway. Neural look-ahead radar overtakes widely spaced chicanes and autonomous cyber-drone vehicles with generous clearance before an underbody cold-gas leap over an 8.8km laser roadblock.',
+      'Tri-motor AWD Plaid acceleration across a wide 24-meter, 10km proving ground test track. Neural look-ahead radar navigates concrete chicanes before a synchronized 4-nozzle cold-gas impulse vault over an 8.8km test barrier.',
     badge: 'STUNT 04',
   },
   'roadster-hover': {
     category: 'PROJECT ROADSTERVERSE // COLD-GAS PROPULSION',
     heroTitle: 'QUAD-NOZZLE COLD-GAS HOVER',
-    tagline: '10,000 PSI COPV Altitude Stabilization',
+    tagline: 'Dual 700-bar COPV Closed-Loop Altitude Stabilization',
     description:
-      'Sub-millimeter altitude stabilization using 4 cold-gas nitrogen thrusters fed by a 10,000 PSI carbon-overwrapped pressure vessel (COPV) replacing the rear seats under closed-loop PPO control.',
+      'Sub-millimeter altitude stabilization using 4 supersonic cold-gas nitrogen thrusters fed by dual 700-bar carbon-overwrapped pressure vessels (COPV) under closed-loop PPO attitude control.',
     badge: 'STUNT 01',
   },
 };
@@ -133,15 +133,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   : m.id === 'roadster-wall-climb'
                     ? '02 LOOP'
                     : m.id === 'roadster-barrel-roll'
-                      ? '03 KICKFLIP'
+                      ? '03 ROLL'
                       : m.id === 'roadster-obstacle-race'
-                        ? '04 GAUNTLET'
+                        ? '04 SLALOM'
                         : m.id === 'starship-launch'
-                          ? '05 STAGE'
+                          ? '05 LIFTOFF'
                           : m.id === 'starship-belly-flop'
-                            ? '06 CRANE'
+                            ? '06 FLIP'
                             : m.id === 'starship-booster-catch'
-                              ? '07 BOOSTER'
+                              ? '07 CATCH'
                               : '08 ORBIT';
               return (
                 <button
@@ -247,16 +247,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             m.id === 'roadster-hover'
               ? '01 HOVER'
               : m.id === 'roadster-wall-climb'
-                ? '02 HALF-LOOP'
+                ? '02 LOOP'
                 : m.id === 'roadster-barrel-roll'
-                  ? '03 KICKFLIP'
+                  ? '03 ROLL'
                   : m.id === 'roadster-obstacle-race'
-                    ? '04 RACE'
+                    ? '04 SLALOM'
                     : m.id === 'starship-launch'
-                      ? '05 ASCENT'
+                      ? '05 LIFTOFF'
                       : m.id === 'starship-belly-flop'
-                        ? '06 SKYDIVE'
-                        : '07 TOWER CATCH';
+                        ? '06 FLIP'
+                        : m.id === 'starship-booster-catch'
+                          ? '07 CATCH'
+                          : '08 ORBIT';
           return (
             <button
               key={m.id}

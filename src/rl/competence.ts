@@ -50,10 +50,13 @@ export function computePolicyCompetence(
       ? Math.max(0.6, 1 - (params.sensorLatencyMs / 250) * 0.35)
       : 1.0;
 
-  const normalizedEpochs = currentEpoch / (mission.recommendedEpochs * 0.55);
+  const targetMasteryEpoch = mission.recommendedEpochs ?? 480;
+  const epochRatio = Math.max(0, currentEpoch / targetMasteryEpoch);
+  // Non-linear curriculum progression: slow early growth, intermediate skill at ~260, perfection at 450 - 500
+  const normalizedProgression = Math.pow(epochRatio, 1.7);
   const rawGrowth =
-    (1 - Math.exp(-normalizedEpochs * lrEfficiency * gammaFactor * rewardBalance)) * latencyPenalty;
-  const noiseDamping = 1 - params.explorationNoise * 0.68;
+    (1 - Math.exp(-normalizedProgression * 3.35 * lrEfficiency * gammaFactor * rewardBalance)) * latencyPenalty;
+  const noiseDamping = 1 - params.explorationNoise * 0.65;
 
   return clamp(rawGrowth * noiseDamping, 0.03, 0.995);
 }

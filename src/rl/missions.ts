@@ -1,9 +1,9 @@
 import type { MissionDefinition, MissionId, RLHyperparameters } from '../types/simulation.ts';
 
 export const DEFAULT_HYPERPARAMETERS: RLHyperparameters = {
-  epochs: 280,
+  epochs: 480,
   learningRate: 0.0005,
-  explorationNoise: 0.05,
+  explorationNoise: 0.03,
   discountFactor: 0.99,
   rewardAltitudeWeight: 2.0,
   rewardAttitudeWeight: 2.4,
@@ -20,130 +20,130 @@ export const MISSIONS: Record<MissionId, MissionDefinition> = {
   'roadster-hover': {
     id: 'roadster-hover',
     vehicle: 'roadster',
-    title: 'Stunt 01 // Flying Car Hover',
-    subtitle: 'Float in mid-air on 4 super-strong air jets without tipping over!',
-    badge: 'TESLA ROADSTER // AIR JETS',
+    title: 'Stunt 01 // SpaceX Cold-Gas Thruster Hover',
+    subtitle: 'Dual 700-bar COPV nitrogen blowdown & 4-nozzle vertical thrust balancing (T/W >= 1.0)',
+    badge: 'TESLA ROADSTER // SPACEX PACKAGE RCS',
     targetDescription:
-      'Blast cold compressed air out of the bottom of the car so it floats 4 meters up in the air like a flying saucer—even when big wind gusts try to push it!',
+      'Command four underbody supersonic de Laval nozzles fed by dual 140L 700-bar (10,000 PSI) carbon-overwrapped pressure vessels to balance gravitational load (19.62 kN) at 3.8m altitude, maintaining sub-millimeter position stability and attitude equilibrium under turbulent ambient crosswinds.',
     targetPosition: { x: 0, y: 3.8, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 260,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'Think of riding a bike with no hands: at first you wobble and fall, but after hundreds of practice tries, your brain knows exactly how much to lean. The AI does the same thing with 4 air jets under the wheels!',
+      'Closed-loop Proximal Policy Optimization (PPO) neural flight controller continuously regulates high-frequency pulse-width modulation (PWM) mass flow rates across 4 underbody vertical thrusters, nulling roll and pitch moment perturbations to achieve steady-state hover.',
     physicsFormulaLatex:
-      'RULE: Upward Air Push must equal Gravity pulling the car down!',
+      'T_total = sum(m_dot_i * v_e) >= m_veh * g  [tau_roll = 0, tau_pitch = 0]',
   },
   'roadster-wall-climb': {
     id: 'roadster-wall-climb',
     vehicle: 'roadster',
-    title: 'Stunt 02 // Hot-Wheels Giant Half-Loop',
-    subtitle: 'Stick upside-down on a giant C-shaped loop ramp and flip off the top!',
-    badge: 'HOT-WHEELS LOOP STUNT',
+    title: 'Stunt 02 // Inverted Parabolic Loop & Cold-Gas Downforce Vectoring',
+    subtitle: 'Tri-Motor Plaid AWD acceleration & active thruster normal force (N > 0)',
+    badge: 'COLD-GAS VECTORING // INVERTED LOOP',
     targetDescription:
-      'Zoom up the giant C-shaped loop ramp, fire the air jets to glue the tires upside-down so gravity cannot pull the car down, then launch off the top lip and flip onto all 4 wheels!',
+      'Execute high-velocity entry into an overhanging steel parabolic arc using Tri-Motor Plaid AWD. Fire dorsal cold-gas RCS thrusters to generate >15 kN artificial downforce, sustaining positive tire normal force (N > 0) through inverted apex flight before executing a controlled lip departure and 4-point touchdown.',
     targetPosition: { x: 3.5, y: 12.2, z: 0 },
     targetAttitude: { roll: 0, pitch: 2.48, yaw: 0 },
-    recommendedEpochs: 340,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'When a toy car goes slowly up a loop, gravity pulls it down and it falls! The AI learns to drive super fast AND blast air jets upward to press the tires into the loop track until it flies off the top.',
+      'The PPO policy coordinates electric drivetrain torque delivery with dynamic cold-gas thruster firing to balance centripetal acceleration (a_c = v^2/R) and counteract inverted gravitational stall (g), preventing wheel slip or premature ballistic decoupling.',
     physicsFormulaLatex:
-      'RULE: Speed + Air Jet Push must beat Gravity when upside-down!',
+      'N = m_veh * (v^2/R - g * cos(theta)) + F_thruster_normal > 0',
   },
   'roadster-barrel-roll': {
     id: 'roadster-barrel-roll',
     vehicle: 'roadster',
-    title: 'Stunt 03 // Ramp Jump & 360° Kickflip',
-    subtitle: 'Launch off the curved steel ramp, spin a full 360° flip in mid-air, and land softly!',
-    badge: '360° KICKFLIP JUMP',
+    title: 'Stunt 03 // Ballistic Ramp Launch & 360° Cold-Gas Axial Roll',
+    subtitle: 'Parabolic arc trajectory, 6-DoF roll rate control & retro-thruster touchdown',
+    badge: '6-DOF AEROBATICS // AXIAL ROLL',
     targetDescription:
-      'Race up the curved steel launch ramp, pop high into the sky, fire the left air jets harder than the right jets to spin a full 360° skateboard kickflip, and fire all 4 jets at the bottom for a pillow-soft landing!',
+      'Launch off a curved steel quarter-pipe takeoff ramp into a ballistic parabolic arc. Fire differential lateral cold-gas RCS thrusters to impart a calibrated roll torque, complete a full 360° (2pi rad) axial rotation, damp residual angular rates, and execute vertical retro-thrust blowdown for a cushioned landing.',
     targetPosition: { x: 4.5, y: 0.48, z: 0 },
     targetAttitude: { roll: Math.PI * 2, pitch: 0, yaw: 0 },
-    recommendedEpochs: 360,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'Just like doing a skateboard kickflip: Step 1 is jumping high off the ramp, Step 2 is spinning fast in the air, and Step 3 is stopping the spin right before your wheels touch the ground!',
+      'The policy decomposes the maneuver into three ballistic phases: (1) takeoff trajectory pitch-rate matching, (2) asymmetric thruster impulse firing to achieve targeted roll rate (dphi/dt ~ 4.2 rad/s), and (3) terminal retro-thruster firing to arrest descent velocity before suspension contact.',
     physicsFormulaLatex:
-      'RULE: Push one side to spin 360°, then push the other side to stop level!',
+      'tau_x = I_xx * d2phi/dt2 = F_RCS * d_moment,  Delta_vy = integral(F_retro / m * dt)',
   },
   'roadster-obstacle-race': {
     id: 'roadster-obstacle-race',
     vehicle: 'roadster',
-    title: 'Stunt 04 // 10km Highway Obstacle Gauntlet',
-    subtitle: 'Navigate a wide 24m, 10km proving ground highway, overtaking widely spaced hazards and cyber-drones before a supersonic laser-wall leap!',
-    badge: '10KM OBSTACLE GAUNTLET',
+    title: 'Stunt 04 // Tesla Proving Ground Dynamic Slalom & Cold-Gas Vault',
+    subtitle: 'Tesla Vision obstacle avoidance, active aero downforce & cold-gas vertical vault',
+    badge: 'TESLA PROVING GROUNDS // DYNAMIC SLALOM',
     targetDescription:
-      'Sprint down the 10km proving-ground super-highway using active wing aerodynamic downforce to weave past widely spaced heavy chicanes and autonomous cyber-drone vehicles, then launch a high-speed cold-gas bunny-hop jump over the 8.8km full-width laser roadblock to cross the 10km finish line!',
+      'Traverse a 24m wide proving ground test corridor at speeds up to 280 km/h. Employ Tesla Vision predictive trajectory planning to navigate concrete chicanes and autonomous fleet test units, followed by a synchronized 4-nozzle cold-gas vertical impulse vault over an 8.8km test barrier to complete the 10km proving run.',
     targetPosition: { x: 1000.0, y: 0.43, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 360,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'High-speed highway obstacle avoidance: the AI scans 80 meters ahead to choose clear lanes around chicanes and autonomous vehicles with generous safety clearance, then fires 4 underbody nitrogen jets to jump the 6-lane laser wall!',
+      'Convolutional/recurrent neural network evaluates predictive distance fields and lateral slip margins, modulating Plaid differential torque vectoring and active aero downforce around ground hazards before triggering an open-loop vertical impulse thruster burst at the containment barrier.',
     physicsFormulaLatex:
-      'RULE: Look-ahead radar chooses open lane -> Downforce grips tires -> Cold-gas jets jump laser wall!',
+      'F_down = 0.5 * rho * v^2 * C_L * A,  h_vault = ((F_pulse/m - g) * Delta_t^2) / 2 > h_barrier',
   },
   'starship-launch': {
     id: 'starship-launch',
     vehicle: 'starship',
-    title: 'Mission 05 // Full-Stack Launch & Stage Landing',
-    subtitle: 'Blast off with both rocket halves, release the Ship to space, and land the Booster slowly!',
-    badge: '2-STAGE RELEASE & LANDING',
+    title: 'Mission 05 // Starship Full-Stack Liftoff & Hot-Stage Separation',
+    subtitle: '33-Raptor methalox ascent, vented interstage ignition & boostback return',
+    badge: 'SPACEX STARBASE // HOT-STAGE SEPARATION',
     targetDescription:
-      'Light all 33 fire engines to launch the giant 2-part rocket past the Crane Tower, release the top Starship so it blasts into space, then fire the bottom Booster engines to land vertically slowly and softly!',
+      'Initiate full-stack liftoff from the Orbital Launch Mount (OLM) powered by 33 Raptor engines (74 MN thrust). Ascend through Max-Q to stage separation altitude, ignite Starship second-stage Raptors through the vented hot-staging ring, and command Super Heavy center-engine boostback ignition for return trajectory alignment.',
     targetPosition: { x: 0, y: 0.6, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 300,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'The rocket has two halves! First the bottom Booster pushes the top Ship high into the sky and lets it go. Then the AI catches the falling Booster with its fire engines and lowers it back down like a gentle elevator!',
+      'Reinforcement learning guidance manages full-stack thrust-vector control (TVC) through dynamic pressure transients (Max-Q), coordinates staging separation attitudes to avoid plume impingement, and throttles center Raptor engines for booster deceleration.',
     physicsFormulaLatex:
-      'RULE: Launch full stack -> Release top Ship -> Brake Booster slowly to 0 m/s!',
+      'T_liftoff = 33 * F_Raptor ~ 74 MN,  a(t) = (T(t) - D(t))/m(t) - g',
   },
   'starship-belly-flop': {
     id: 'starship-belly-flop',
     vehicle: 'starship',
-    title: 'Mission 06 // Skydiver Flip & Slow Landing',
-    subtitle: 'Fall flat like a skydiver, swing upright with fire engines, and land vertically slowly!',
-    badge: 'BELLY-FLOP & FLIP BURN',
+    title: 'Mission 06 // Subsonic Atmospheric Entry & Landing Flip Burn',
+    subtitle: 'Aerodynamic body flap attitude trim & 3-Raptor TVC vertical transition',
+    badge: 'STARSHIP ENTRY // RAPTOR LANDING BURN',
     targetDescription:
-      'Fall through the sky belly-first using 4 wing flaps like a skydiver, light the fire engines to swing upright, and throttle the engines so the Starship descends slowly into the Launch Tower arms!',
+      'Control subsonic atmospheric descent holding an 85° angle of attack using four electromechanical body flaps to maximize cross-sectional drag (v_t ~ 65 m/s). At 500m altitude, ignite center Raptor engines from cryogenic header tanks, execute high-deflection TVC gimbaling to transition from horizontal to vertical, and throttle to zero descent velocity.',
     targetPosition: { x: 0, y: 1.5, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 420,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'First the top Starship falls flat on its belly so the air slows it down for free. Near the ground, the AI lights the fire engines, swings the tail down, and hovers down super slowly!',
+      'The neural flight controller synthesizes non-linear flap deflections for aerodynamic trim during terminal descent, then executes a time-optimal pitch flip and retro-propulsion throttle profile using G-FOLD guidance principles to achieve pinpoint vertical landing.',
     physicsFormulaLatex:
-      'RULE: Belly-flop to slow down, then flip upright and brake gently to zero speed!',
+      'F_drag = 0.5 * rho * v^2 * C_D * A_belly,  tau_TVC = F_Raptor * L_gimbal * sin(delta_gimbal)',
   },
   'starship-booster-catch': {
     id: 'starship-booster-catch',
     vehicle: 'starship',
-    title: 'Mission 07 // Booster Boostback & Tower Catch',
-    subtitle: 'Launch at an angle, release the top Ship, flip the Booster back, and catch it on the Tower!',
-    badge: 'MECHAZILLA BOOSTER CATCH',
+    title: 'Mission 07 // Super Heavy Booster Tower Catch',
+    subtitle: 'Grid fin aerodynamic descent, center-Raptor landing burn & Tower Catch Arm lock',
+    badge: 'SPACEX STARBASE // TOWER CATCH ARMS',
     targetDescription:
-      'Launch the full 2-stage rocket downrange, release the top Starship into orbit, flip the giant Super Heavy Booster in mid-air to fly back to the tower, and hover-land slowly inside the giant Chopstick arms!',
+      'Guide the 71-meter Super Heavy booster through atmospheric entry steered by 4 actuated titanium grid fins. Execute a precision 3-Raptor landing burn to arrest descent rate to < 1.0 m/s, cancel lateral velocity between the Orbital Launch and Catch Tower Arms, and engage structural hardpoint catch pins onto the receiving rails.',
     targetPosition: { x: 0, y: 2.6, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 380,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'After dropping off the top spaceship high in the sky, the bottom Booster is far away from the pad! The AI flips the Booster around in mid-air, fires its engines to fly back home, and lands slowly inside the giant robot arms!',
+      'Convex optimization / PPO guidance coordinates grid-fin drag trim with center Raptor thrust vector control (TVC). Closed-loop sensor fusion minimizes horizontal position error (sigma < 0.2m) and descent velocity to safely nestle the booster between the damped Tower Catch Arms.',
     physicsFormulaLatex:
-      'RULE: Release top Ship -> Flip Booster back toward Tower -> Hover-land slowly!',
+      'a_net = (T_Raptor + F_gridfins)/m(t) - g,  lim_{t -> t_catch} v(t) = 0',
   },
   'starship-pod-orbit': {
     id: 'starship-pod-orbit',
     vehicle: 'orbital-pod',
-    title: 'Stunt 08 // Orbital Pod & Satellite Morph',
-    subtitle: 'Deploy into deep space microgravity, stabilize attitude with cold-gas RCS, and unfold solar array wings!',
-    badge: 'DEEP SPACE SATELLITE MORPH',
+    title: 'Mission 08 // Orbital Insertion & Solar Array Deployment',
+    subtitle: 'Microgravity cold-gas RCS stabilization & articulated solar wing deployment',
+    badge: 'ORBITAL INSERTION // MICROGRAVITY RCS',
     targetDescription:
-      'Separate into deep space microgravity above the atmospheric horizon, fire cold-gas RCS nitrogen micro-thrusters on the pod bottom and lateral sides to arrest orbital tumble, and articulate solar array wings for full satellite transformation!',
+      'Achieve orbital insertion in low Earth orbit microgravity. Utilize pulsed nitrogen cold-gas reaction control system (RCS) thrusters to null 3-axis separation tumble rates (omega -> 0), maintain solar vector attitude alignment, and command motorized deployment of articulated dual-wing photovoltaic arrays.',
     targetPosition: { x: 0, y: 120.0, z: 0 },
     targetAttitude: { roll: 0, pitch: 0, yaw: 0 },
-    recommendedEpochs: 320,
+    recommendedEpochs: 480,
     mlTechniqueSummary:
-      'In zero-G microgravity with no atmospheric drag, any thruster firing causes continuous rotation. The RL policy computes exact sub-second pulsed cold-gas firings across 8 lateral and bottom RCS thrusters to damp tumble rates to zero before commanding servo actuators to deploy the dual solar wings!',
+      'The zero-G attitude controller computes minimum-fuel pulsed firings across 8 cold-gas RCS nozzles to damp angular momentum in microgravity, executing three-axis attitude lock before enabling solar panel deployment kinematics.',
     physicsFormulaLatex:
-      'RULE: Zero-G attitude hold: sum(Torque_RCS) * dt -> 0 rad/s before solar array deploy!',
+      'H = I * omega,  dH/dt = sum(tau_RCS) => omega -> 0',
   },
 };
 
