@@ -1,16 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Camera,
-  Disc,
-  Maximize2,
-  Minimize2,
-  Pause,
-  Play,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Wind,
-} from 'lucide-react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import type {
   CameraMode,
   MissionDefinition,
@@ -18,6 +7,8 @@ import type {
   NeuralNetworkSnapshot,
   RigidBodyState,
   RLHyperparameters,
+  WeatherPreset,
+  WeatherState,
   WheelSpec,
 } from '../types/simulation.ts';
 import {
@@ -32,8 +23,12 @@ import { evaluateRLPolicy } from '../rl/policyEngine.ts';
 import { SensorLatencyBuffer } from '../rl/sensorBuffer.ts';
 import { ProvingGroundSceneController } from '../three/provingGroundScene.ts';
 import { soundEngine } from '../services/soundEngine.ts';
+import { createInitialWeatherState } from '../physics/weatherAndEnvironment.ts';
+import { createInitialSubsystemHealth } from '../physics/subsystemEnergyDynamics.ts';
+import { EnvironmentAndDamageControls } from './EnvironmentAndDamageControls.tsx';
 import { AnimatedDecodeText, AnimatedNumber } from './AnimatedText.tsx';
 import { HelpTooltip } from './HelpTooltip.tsx';
+import { BottomDockNavbar } from './BottomDockNavbar.tsx';
 
 interface Viewport3DProps {
   mission: MissionDefinition;
@@ -70,6 +65,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const [audioEnabled, setAudioEnabled] = useState(() => soundEngine.isEnabled());
   const [shutterTransition, setShutterTransition] = useState(false);
   const [statusMinimized, setStatusMinimized] = useState(false);
+  const [envControlsCollapsed, setEnvControlsCollapsed] = useState(true);
   const [hudState, setHudState] = useState<RigidBodyState>(() =>
     createInitialRoadsterState('roadster-hover', params)
   );
@@ -88,6 +84,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   missionRef.current = mission;
   const pausedRef = useRef(isPaused);
   pausedRef.current = isPaused;
+  const onAutoResetRef = useRef(onAutoResetAfterCrash);
+  onAutoResetRef.current = onAutoResetAfterCrash;
 
   useEffect(() => {
     const m = missionRef.current;
@@ -190,18 +188,43 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         const reachedFinish =
           activeMission.id === 'roadster-obstacle-race' &&
           primaryStateRef.current.position.x >= 1000.0;
+        const isBoosterCaught =
+          activeMission.id === 'starship-booster-catch' &&
+          primaryStateRef.current.isGrounded &&
+          !primaryStateRef.current.crashed;
+        const isSatelliteMorphed =
+          activeMission.id === 'starship-pod-orbit' &&
+          (primaryStateRef.current.solarArrayDeployPct ?? 0) >= 100;
+        const isSuccessfulLanding =
+          (activeMission.id === 'starship-belly-flop' ||
+            activeMission.id === 'roadster-barrel-roll' ||
+            activeMission.id === 'starship-launch') &&
+          primaryStateRef.current.isGrounded &&
+          !primaryStateRef.current.crashed &&
+          primaryStateRef.current.elapsedTimeSec > 3.0;
+        const isHoverComplete =
+          (activeMission.id === 'roadster-hover' || activeMission.id === 'roadster-wall-climb') &&
+          !primaryStateRef.current.crashed &&
+          primaryStateRef.current.missionProgressPct >= 100;
 
         if (
           primaryStateRef.current.crashed ||
           primaryStateRef.current.elapsedTimeSec > maxMissionTime ||
-          reachedFinish
+          reachedFinish ||
+          isBoosterCaught ||
+          isSatelliteMorphed ||
+          isSuccessfulLanding ||
+          isHoverComplete
         ) {
           crashCooldownRef.current += rawDt;
-          const waitTime = reachedFinish ? 2.8 : 1.75;
+          const waitTime =
+            reachedFinish || isBoosterCaught || isSatelliteMorphed || isSuccessfulLanding || isHoverComplete
+              ? 2.2
+              : 1.5;
           if (crashCooldownRef.current > waitTime) {
             crashCooldownRef.current = 0;
             sensorBufferRef.current.reset();
-            onAutoResetAfterCrash();
+            onAutoResetRef.current();
           }
         }
       }
@@ -232,24 +255,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     };
   }, []);
 
-  const handleCameraChange = (mode: CameraMode) => {
-    setCameraMode(mode);
-    controllerRef.current?.setCameraMode(mode);
-  };
-
-  const handleToggleWheel = () => {
-    const next: WheelSpec = wheelSpec === 'six-spoke' ? 'aero-disc' : 'six-spoke';
-    setWheelSpec(next);
-    controllerRef.current?.setWheelSpec(next);
-  };
-
-  const handleWindGust = () => {
-    windImpulseRef.current = (Math.random() > 0.5 ? 1 : -1) * 16500;
-  };
-
-  const handleToggleAudio = () => {
-    soundEngine.toggle();
-  };
+  const handleCameraChange = (mode: CameraMode) => { setCameraMode(mode); controllerRef.current?.setCameraMode(mode); };
+  const handleToggleWheel = () => { const next: WheelSpec = wheelSpec === 'six-spoke' ? 'aero-disc' : 'six-spoke'; setWheelSpec(next); controllerRef.current?.setWheelSpec(next); };
+  const handleWindGust = () => { windImpulseRef.current = (Math.random() > 0.5 ? 1 : -1) * 16500; };
+  const handleToggleAudio = () => { soundEngine.toggle(); };
 
   return (
     <main className="viewport-fullscreen">
@@ -369,94 +378,62 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                               ? 'ORBITAL INSERTION & MECO'
                               : 'MICRO-G ATTITUDE HOLD'
                       : hudState.position.x >= 995.0 && mission.id === 'roadster-obstacle-race'
-                        ? '10KM CLEARED!'
+                        ? '10KM PROVING RUN COMPLETE'
                         : mission.id === 'starship-booster-catch' && hudState.isGrounded
-                          ? 'BOOSTER CAUGHT IN MID-AIR!'
+                          ? 'TOWER CATCH ENGAGED'
                           : hudState.isOnWall || hudState.isGrounded
                             ? 'ON RAMP / ROAD'
-                            : 'MID-AIR JETS'}
+                            : 'ACTIVE RCS FLIGHT'}
               </strong>
             </div>
           </div>
         )}
       </div>
 
-      {/* Minimalist Bottom Control Dock */}
-      <div className="bottom-dock-bw">
-        <div className="dock-group">
-          {(['orbit', 'chase', 'thruster-cam', 'tower-cam'] as CameraMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={`dock-btn-bw ${cameraMode === mode ? 'active' : ''}`}
-              onClick={() => handleCameraChange(mode)}
-            >
-              <Camera size={13} />
-              <span>
-                {mode === 'orbit'
-                  ? 'Orbit'
-                  : mode === 'chase'
-                    ? 'Follow'
-                    : mode === 'thruster-cam'
-                      ? 'Jet Cam'
-                      : 'Wide'}
-              </span>
-            </button>
-          ))}
-        </div>
+      {/* Redesigned De-Clustered Bottom Dock Navbar */}
+      <BottomDockNavbar
+        cameraMode={cameraMode}
+        onSelectCameraMode={handleCameraChange}
+        vehicle={mission.vehicle}
+        wheelSpec={wheelSpec}
+        onToggleWheel={handleToggleWheel}
+        onWindGust={handleWindGust}
+        audioEnabled={audioEnabled}
+        onToggleAudio={handleToggleAudio}
+        isPaused={isPaused}
+        onTogglePause={onTogglePause}
+        onRestart={onAutoResetAfterCrash}
+        envControlsOpen={!envControlsCollapsed}
+        onToggleEnvControls={() => setEnvControlsCollapsed((v) => !v)}
+        isFullScreenZen={isFullScreenZen}
+        onToggleFullScreenZen={onToggleFullScreenZen}
+      />
 
-        <div className="dock-group">
-          {mission.vehicle === 'roadster' && (
-            <button type="button" className="dock-btn-bw" onClick={handleToggleWheel}>
-              <Disc size={13} />
-              <span>{wheelSpec === 'six-spoke' ? '6-Spoke Rims' : 'Carbon Discs'}</span>
-            </button>
-          )}
-
-          <button type="button" className="dock-btn-bw" onClick={handleWindGust}>
-            <Wind size={13} />
-            <span>Push With Wind</span>
-            <HelpTooltip
-              title="Push With Wind Gust"
-              explain="Blasts the vehicle sideways with a strong gust of wind so you can see if the AI is smart enough to catch itself!"
-            />
-          </button>
-
-          <button type="button" className="dock-btn-bw" onClick={handleToggleAudio}>
-            {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            <span>{audioEnabled ? 'Sound On' : 'Muted'}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`dock-btn-bw ${isPaused ? 'active' : ''}`}
-            onClick={onTogglePause}
-          >
-            {isPaused ? <Play size={13} /> : <Pause size={13} />}
-            <span>{isPaused ? 'Resume' : 'Pause'}</span>
-          </button>
-
-          <button
-            type="button"
-            className="dock-btn-bw"
-            onClick={onAutoResetAfterCrash}
-            title="Restart Stunt"
-          >
-            <RotateCcw size={13} />
-            <span>Restart</span>
-          </button>
-
-          <button
-            type="button"
-            className={`dock-btn-bw ${isFullScreenZen ? 'active' : ''}`}
-            onClick={onToggleFullScreenZen}
-            title="Toggle Full-Screen Zen Mode (Hide Side Panels)"
-          >
-            {isFullScreenZen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-            <span>{isFullScreenZen ? 'Show Panels' : 'Full Screen'}</span>
-          </button>
-        </div>
-      </div>
+      <EnvironmentAndDamageControls
+        weather={hudState.weather ?? createInitialWeatherState('clear')}
+        energy={hudState.energy}
+        subsystems={hudState.subsystems}
+        onSelectWeatherPreset={(p) => {
+          const w = createInitialWeatherState(p);
+          primaryStateRef.current.weather = w; setHudState((prev) => ({ ...prev, weather: w }));
+        }}
+        onUpdateWeatherParams={(patch) => {
+          if (primaryStateRef.current.weather) {
+            Object.assign(primaryStateRef.current.weather, patch);
+            setHudState((prev) => ({ ...prev, weather: { ...primaryStateRef.current.weather! } }));
+          }
+        }}
+        onTriggerCopvPuncture={() => { if (primaryStateRef.current.subsystems) primaryStateRef.current.subsystems.copvHealthPct = 35; }}
+        onTriggerBatteryOverload={() => { if (primaryStateRef.current.subsystems) primaryStateRef.current.subsystems.batteryHealthPct = 40; }}
+        onTriggerImpactDetonation={() => {
+          primaryStateRef.current.crashed = true;
+          primaryStateRef.current.crashType = 'hover-boundary-impact';
+          primaryStateRef.current.angularVelocity = { x: 8, y: 12, z: 6 };
+        }}
+        onResetSubsystems={() => { primaryStateRef.current.subsystems = createInitialSubsystemHealth(); }}
+        collapsed={envControlsCollapsed}
+        onToggleCollapse={() => setEnvControlsCollapsed((v) => !v)}
+      />
     </main>
   );
 };

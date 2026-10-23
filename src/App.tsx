@@ -41,14 +41,10 @@ import { KnowledgeAndTriviaModal } from './components/KnowledgeAndTriviaModal.ts
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { MobileGateFallback } from './components/MobileGateFallback.tsx';
 
-const checkIsMobile = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  const isTouchMobileUserAgent = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
-  const isNarrowScreen = window.innerWidth < 768;
-  return isTouchMobileUserAgent || isNarrowScreen;
-};
+const checkIsMobile = (): boolean =>
+  typeof window !== 'undefined' &&
+  (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768);
 
 export const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(() => checkIsMobile());
@@ -59,6 +55,7 @@ export const App: React.FC = () => {
   const [resetSignal, setResetSignal] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isAutoTraining, setIsAutoTraining] = useState(false);
+  const [autoPracticeStep, setAutoPracticeStep] = useState<number>(10);
   const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
   const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
   const [selectedBrainNode, setSelectedBrainNode] = useState<SelectedBrainNode | undefined>(
@@ -131,21 +128,25 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showWelcome, isKnowledgeModalOpen, isBrainModalOpen]);
 
-  useEffect(() => {
-    if (!isAutoTraining || isPaused) return;
-    const timer = window.setInterval(() => {
+  const isAutoTrainingRef = React.useRef(isAutoTraining);
+  isAutoTrainingRef.current = isAutoTraining;
+  const isPausedRef = React.useRef(isPaused);
+  isPausedRef.current = isPaused;
+  const autoPracticeStepRef = React.useRef(autoPracticeStep);
+  autoPracticeStepRef.current = autoPracticeStep;
+
+  const handleStuntAttemptComplete = useCallback(() => {
+    if (isAutoTrainingRef.current && !isPausedRef.current) {
       setParams((prev) => {
-        if (prev.epochs >= 500) {
-          setIsAutoTraining(false);
-          return prev;
-        }
-        const nextEpochs = Math.min(500, prev.epochs + 6);
-        const cooledNoise = Math.max(0.02, Number((0.45 * Math.exp(-nextEpochs / 110)).toFixed(2)));
-        return { ...prev, epochs: nextEpochs, explorationNoise: cooledNoise };
+        const step = autoPracticeStepRef.current;
+        const nextEpoch = Math.min(500, prev.epochs + step);
+        if (nextEpoch >= 500) setIsAutoTraining(false);
+        const cooledNoise = Math.max(0.02, Number((0.45 * Math.exp(-nextEpoch / 180)).toFixed(2)));
+        return { ...prev, epochs: nextEpoch, explorationNoise: cooledNoise };
       });
-    }, 200);
-    return () => window.clearInterval(timer);
-  }, [isAutoTraining, isPaused]);
+    }
+    setResetSignal((n) => n + 1);
+  }, []);
 
   const handleChangeParams = useCallback((patch: Partial<RLHyperparameters>) => {
     setParams((prev) => ({ ...prev, ...patch }));
@@ -165,14 +166,14 @@ export const App: React.FC = () => {
 
   const handleApplyPreset = (preset: 'untrained' | 'mid' | 'converged') => {
     if (preset === 'untrained') {
-      setParams((prev) => ({ ...prev, epochs: 8, explorationNoise: 0.65 }));
+      setParams((prev) => ({ ...prev, epochs: 15, explorationNoise: 0.65 }));
     } else if (preset === 'mid') {
-      setParams((prev) => ({ ...prev, epochs: 75, explorationNoise: 0.22 }));
+      setParams((prev) => ({ ...prev, epochs: 220, explorationNoise: 0.12 }));
     } else {
       setParams((prev) => ({
         ...prev,
-        epochs: activeMission.recommendedEpochs,
-        explorationNoise: 0.03,
+        epochs: 480,
+        explorationNoise: 0.02,
       }));
     }
     setIsPaused(false);
@@ -418,7 +419,7 @@ export const App: React.FC = () => {
         isFullScreenZen={isFullScreenZen}
         onToggleFullScreenZen={handleToggleFullScreenZen}
         onTelemetryUpdate={handleTelemetryUpdate}
-        onAutoResetAfterCrash={() => setResetSignal((n) => n + 1)}
+        onAutoResetAfterCrash={handleStuntAttemptComplete}
       />
 
       {/* Collapsible Floating Left Drawer (AI Controls) */}
@@ -435,6 +436,8 @@ export const App: React.FC = () => {
         checkpoints={checkpoints}
         onSaveCheckpoint={handleSaveCheckpoint}
         onLoadCheckpoint={handleLoadCheckpoint}
+        autoPracticeStep={autoPracticeStep}
+        onAutoPracticeStepChange={setAutoPracticeStep}
       />
 
       {/* Collapsible Floating Right Drawer (Inside the AI Brain) */}

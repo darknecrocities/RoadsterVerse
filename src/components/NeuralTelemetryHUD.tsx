@@ -74,8 +74,8 @@ export const NeuralTelemetryHUD: React.FC<NeuralTelemetryHUDProps> = ({
           <Cpu size={15} />
           <span>INSIDE THE AI BRAIN</span>
           <HelpTooltip
-            title="Live AI Brain View"
-            explain="Watch how the computer brain sees the car's height and tilt on the left, thinks in the middle, and fires the air jets on the right! Click LIVE BRAIN WIRES to inspect every neuron!"
+            title="Real-Time Neural Inference"
+            explain="Real-time feedforward neural inference: vehicle state telemetry (pose, velocities) is evaluated across hidden layers to synthesize commanded cold-gas thruster and actuator outputs. Click LIVE BRAIN WIRES to inspect weight tensors."
           />
         </div>
         <button

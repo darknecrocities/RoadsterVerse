@@ -29,6 +29,8 @@ interface RLTrainingControlsProps {
   checkpoints: SavedCheckpoint[];
   onSaveCheckpoint: (name: string) => void;
   onLoadCheckpoint: (ckpt: SavedCheckpoint) => void;
+  autoPracticeStep?: number;
+  onAutoPracticeStepChange?: (step: number) => void;
 }
 
 type AccordionSection = 'practice' | 'brain' | 'goals' | 'world' | 'save';
@@ -46,6 +48,8 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
   checkpoints,
   onSaveCheckpoint,
   onLoadCheckpoint,
+  autoPracticeStep = 10,
+  onAutoPracticeStepChange,
 }) => {
   const [checkpointName, setCheckpointName] = useState('');
   const [openSection, setOpenSection] = useState<AccordionSection | null>('practice');
@@ -77,11 +81,13 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
   };
 
   const skillBadge =
-    stabilityScore >= 82
-      ? 'STUNT PRO'
-      : stabilityScore >= 45
-        ? 'LEARNING'
-        : 'CLUMSY BABY';
+    params.epochs >= 440
+      ? 'PERFECTED'
+      : params.epochs >= 320
+        ? 'CONVERGING'
+        : params.epochs >= 150
+          ? 'DEVELOPING'
+          : 'UNTRAINED';
 
   return (
     <aside className="floating-drawer left-drawer">
@@ -121,8 +127,8 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                     Practice Try #{params.epochs}
                     <HelpTooltip
                       title="Practice Runs (Epochs)"
-                      explain="How many times the AI has practiced this stunt! At Try #10, it acts like a clumsy baby and crashes. At Try #350+, it's a master stunt driver!"
-                      tip="Drag left to watch it fail, or right to watch it master the stunt."
+                      explain="Simulation training iteration count. At lower epochs (< 25), policy actions are dominated by exploration noise. At higher epochs (> 350), the policy converges on optimal state-action trajectories."
+                      tip="Drag left to observe untrained exploration, or right for converged policy dynamics."
                     />
                   </div>
                   <div className="epoch-big-num">
@@ -136,12 +142,38 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                 </button>
               </div>
 
+              <div className="practice-step-box">
+                <div className="practice-step-header">
+                  <span className="practice-step-title">
+                    INCREMENT STEP
+                    <HelpTooltip
+                      title="Auto-Practice Increment"
+                      explain="Number of training iterations (epochs) added after each completed stunt run during Auto-Practice."
+                      tip="Select +1 for fine inspection, +10 for balanced progress, or +50 for rapid convergence."
+                    />
+                  </span>
+                  <span className="practice-step-val">+{autoPracticeStep} / run</span>
+                </div>
+                <div className="practice-step-pills">
+                  {[1, 5, 10, 25, 50].map((step) => (
+                    <button
+                      key={step}
+                      type="button"
+                      className={`step-pill-btn ${autoPracticeStep === step ? 'active' : ''}`}
+                      onClick={() => onAutoPracticeStepChange?.(step)}
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <input type="range" min={0} max={500} step={1} value={params.epochs} onChange={(e) => onChangeParams({ epochs: Number(e.target.value) })} className="bw-slider" />
 
               <div className="preset-row-bw">
-                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('untrained')}>Baby (Try 8)</button>
-                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('mid')}>Learner (Try 75)</button>
-                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('converged')}><Sparkles size={12} /> Stunt Pro (Try 360)</button>
+                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('untrained')}>Untrained (Epoch 15)</button>
+                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('mid')}>Developing (Epoch 220)</button>
+                <button type="button" className="preset-btn-bw" onClick={() => onApplyPreset('converged')}><Sparkles size={12} /> Perfection (Epoch 480)</button>
               </div>
             </div>
           )}
@@ -217,15 +249,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </span>
                   <strong>{params.sensorLatencyMs ?? 0} ms</strong>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={250}
-                  step={5}
-                  value={params.sensorLatencyMs ?? 0}
-                  onChange={(e) => onChangeParams({ sensorLatencyMs: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0} max={250} step={5} value={params.sensorLatencyMs ?? 0} onChange={(e) => onChangeParams({ sensorLatencyMs: Number(e.target.value) })} className="bw-slider" />
                 <div className="preset-row-bw" style={{ marginTop: '4px' }}>
                   <button type="button" className="preset-btn-bw" onClick={() => onChangeParams({ sensorLatencyMs: 0 })}>0ms</button>
                   <button type="button" className="preset-btn-bw" onClick={() => onChangeParams({ sensorLatencyMs: 25 })}>25ms</button>
@@ -255,21 +279,13 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   <span>
                     Reach Target Height / Jump Power
                     <HelpTooltip
-                      title="Reach Target Goal Points"
-                      explain="How many treat points the AI gets for floating at the right height, jumping over the roadblock wall, or sticking tightly to the Hot-Wheels loop!"
+                      title="Trajectory Tracking Objective"
+                      explain="Formulation weight for trajectory altitude, obstacle clearance, and loop adherence tracking."
                     />
                   </span>
                   <strong>{params.rewardAltitudeWeight.toFixed(1)}x</strong>
                 </div>
-                <input
-                  type="range"
-                  min={0.2}
-                  max={4.0}
-                  step={0.1}
-                  value={params.rewardAltitudeWeight}
-                  onChange={(e) => onChangeParams({ rewardAltitudeWeight: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0.2} max={4.0} step={0.1} value={params.rewardAltitudeWeight} onChange={(e) => onChangeParams({ rewardAltitudeWeight: Number(e.target.value) })} className="bw-slider" />
               </div>
 
               <div className="control-item-bw">
@@ -277,8 +293,8 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   <span>
                     Stay Flat &amp; Steer Straight
                     <HelpTooltip
-                      title="Stay Flat & Level Bonus"
-                      explain="Rewards the AI for keeping the car level and steering sharply around race barriers!"
+                      title="Attitude Stabilization Objective"
+                      explain="Rewards the policy for roll/pitch attitude stability and dynamic yaw alignment."
                     />
                   </span>
                   <strong>{params.rewardAttitudeWeight.toFixed(1)}x</strong>
@@ -299,8 +315,8 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   <span>
                     Smoothness (No Jitter)
                     <HelpTooltip
-                      title="Smoothness Bonus"
-                      explain="Stops the AI from slamming the air jets on and off like a jackhammer!"
+                      title="Actuator Smoothness Objective"
+                      explain="Penalizes high-frequency thruster valve oscillations to ensure smooth actuator command profiles and prevent mechanical chatter."
                     />
                   </span>
                   <strong>{params.rewardSmoothnessWeight.toFixed(1)}x</strong>
@@ -368,15 +384,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                     {params.gravityMultiplier < 0.25 ? '(Moon)' : params.gravityMultiplier < 0.5 ? '(Mars)' : '(Earth)'}
                   </strong>
                 </div>
-                <input
-                  type="range"
-                  min={0.16}
-                  max={1.8}
-                  step={0.02}
-                  value={params.gravityMultiplier}
-                  onChange={(e) => onChangeParams({ gravityMultiplier: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={0.16} max={1.8} step={0.02} value={params.gravityMultiplier} onChange={(e) => onChangeParams({ gravityMultiplier: Number(e.target.value) })} className="bw-slider" />
               </div>
 
               <div className="control-item-bw">
@@ -390,15 +398,7 @@ export const RLTrainingControls: React.FC<RLTrainingControlsProps> = ({
                   </span>
                   <strong>{params.initialCopvPsi} PSI</strong>
                 </div>
-                <input
-                  type="range"
-                  min={3000}
-                  max={10000}
-                  step={250}
-                  value={params.initialCopvPsi}
-                  onChange={(e) => onChangeParams({ initialCopvPsi: Number(e.target.value) })}
-                  className="bw-slider"
-                />
+                <input type="range" min={3000} max={10000} step={250} value={params.initialCopvPsi} onChange={(e) => onChangeParams({ initialCopvPsi: Number(e.target.value) })} className="bw-slider" />
               </div>
 
               <div className="control-item-bw">

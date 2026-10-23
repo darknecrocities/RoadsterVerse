@@ -45,7 +45,7 @@ const H1_LABELS = [
 
 const H2_LABELS = [
   'Lift Cushion Synth',
-  'Kickflip Torque Driver',
+  'Roll Torque Driver',
   'Pitch Trim Coordinator',
   'Lateral Pinning Synth',
   'Retro-Burn Timing Gate',
