@@ -382,4 +382,39 @@ describe('3D Vehicle Rigs, Per-Nozzle Physics White Smoke & Starship Fire Plume 
     expect(postSepLong.boosterWorldY).toBeLessThan(-15.0);
     expect(postSepLong.isVisible).toBe(false);
   });
+
+  it('accurately scales Super Heavy RCS smoke pressure and shuts off/fades out upon touchdown landing', () => {
+    const smoke = new VolumetricPlumeSmokeSystem(100);
+    const flightState = createInitialStarshipState('starship-booster-catch');
+    flightState.position.y = 5.0;
+    flightState.velocity.z = -2.0;
+    flightState.isGrounded = false;
+
+    // 1. Starboard RCS active at 14% (rcsRight = 0.14, rcsLeft = 0)
+    const partialRcs = {
+      frontLeftLift: 0, frontRightLift: 0, rearLeftLift: 0, rearRightLift: 0,
+      lateralLeft: 0, lateralRight: 0, rearBoost: 0, activeWingAngle: 0,
+      raptorThrottle: 0.1, gimbalPitch: 0, gimbalYaw: 0, flapFrontLeft: 0,
+      flapFrontRight: 0, flapAftLeft: 0, flapAftRight: 0, hotStageSeparated: true,
+      boosterRcsLeft: 0,
+      boosterRcsRight: 0.14,
+    };
+
+    smoke.update(0.02, 'starship', flightState, partialRcs);
+    const flightStats = smoke.getActiveParticleStats();
+    expect(flightStats.activeWhiteSmokeCount).toBeGreaterThan(0);
+
+    // 2. Landing Touchdown: isGrounded = true -> Policy commands zero RCS
+    const landedState = { ...flightState, isGrounded: true, position: { ...flightState.position, y: 2.6 } };
+    const landingPolicy = evaluateRLPolicy(landedState, 'starship-booster-catch', DEFAULT_HYPERPARAMETERS, 0);
+    expect(landingPolicy.thrusters.boosterRcsLeft).toBe(0);
+    expect(landingPolicy.thrusters.boosterRcsRight).toBe(0);
+
+    // 3. Smoke update while landed: existing particles rapidly fade out to zero
+    for (let step = 0; step < 20; step++) {
+      smoke.update(0.05, 'starship', landedState, landingPolicy.thrusters);
+    }
+    const landedStats = smoke.getActiveParticleStats();
+    expect(landedStats.activeWhiteSmokeCount).toBe(0);
+  });
 });

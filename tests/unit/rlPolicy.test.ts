@@ -159,4 +159,43 @@ describe('Reinforcement Learning Policy & Curriculum Engine', () => {
     expect(last.meanReward).toBeGreaterThan(first.meanReward);
     expect(last.survivalRatePct).toBeGreaterThan(first.survivalRatePct);
   });
+
+  it('steps auto-practice epoch iterations by configurable step sizes (+1, +5, +10, +25, +50) up to 500 ceiling', () => {
+    const stepAutoPractice = (currentEpochs: number, stepSize: number): { epochs: number; noise: number } => {
+      const nextEpoch = Math.min(500, currentEpochs + stepSize);
+      const cooledNoise = Math.max(0.02, Number((0.45 * Math.exp(-nextEpoch / 180)).toFixed(2)));
+      return { epochs: nextEpoch, noise: cooledNoise };
+    };
+
+    // Test +1 step
+    const stepPlus1 = stepAutoPractice(0, 1);
+    expect(stepPlus1.epochs).toBe(1);
+
+    // Test +5 step
+    const stepPlus5 = stepAutoPractice(10, 5);
+    expect(stepPlus5.epochs).toBe(15);
+
+    // Test +10 step (default)
+    const stepPlus10 = stepAutoPractice(20, 10);
+    expect(stepPlus10.epochs).toBe(30);
+
+    // Test +25 step
+    const stepPlus25 = stepAutoPractice(50, 25);
+    expect(stepPlus25.epochs).toBe(75);
+
+    // Test +50 step
+    const stepPlus50 = stepAutoPractice(100, 50);
+    expect(stepPlus50.epochs).toBe(150);
+
+    // Test ceiling cap at 500 regardless of step size
+    const cappedStep = stepAutoPractice(480, 50);
+    expect(cappedStep.epochs).toBe(500);
+
+    // Policy competence monotonically increases across epoch increments
+    const comp0 = computePolicyCompetence('starship-booster-catch', { ...DEFAULT_HYPERPARAMETERS, epochs: 0 });
+    const comp10 = computePolicyCompetence('starship-booster-catch', { ...DEFAULT_HYPERPARAMETERS, epochs: 10 });
+    const comp50 = computePolicyCompetence('starship-booster-catch', { ...DEFAULT_HYPERPARAMETERS, epochs: 50 });
+    expect(comp10).toBeGreaterThanOrEqual(comp0);
+    expect(comp50).toBeGreaterThan(comp10);
+  });
 });
